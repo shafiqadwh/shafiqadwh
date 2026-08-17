@@ -1,12 +1,14 @@
+/* จานสีอิงจากการ์ดเชิญจริง: ลายดอกโบตั๋นเส้นสีทองบนพื้นขาว
+   ตัวอักษรย่อ S & N เป็น serif สีดำ */
 :root {
-  --paper: #fbf7f2;
+  --paper: #fffdf9;
   --card: #ffffff;
-  --ink: #2c2521;
-  --ink-soft: #6d6259;
-  --line: #e8ded2;
-  --accent: #a8794f;
-  --accent-dark: #8a5f3b;
-  --blush: #f3e3dd;
+  --ink: #241f1a;
+  --ink-soft: #7a6a55;
+  --line: #f0e2c8;
+  --accent: #d99a2b;
+  --accent-dark: #b87a14;
+  --blush: #fdf3df;
   --danger: #a3453b;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(44, 37, 33, 0.06), 0 8px 24px rgba(44, 37, 33, 0.06);
@@ -941,58 +943,110 @@ a:focus-visible {
   width: 148mm;
   height: 210mm;
   margin: 0 auto 12mm;
-  padding: 14mm 12mm;
+  padding: 10mm 11mm 9mm;
+  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6mm;
+  outline: 0.6mm solid var(--accent);
+  outline-offset: -4mm;
+  border-radius: 3mm;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   justify-items: center;
   text-align: center;
-  gap: 6mm;
+  gap: 4mm;
   page-break-after: always;
   break-after: page;
+  background: #fff;
+}
+
+.qr-card__header {
+  display: grid;
+  justify-items: center;
+  gap: 1.5mm;
+}
+
+/* ตัวอักษรย่อแบบเดียวกับหน้าการ์ดเชิญ — serif สีดำ ตัวใหญ่ */
+.qr-card__monogram {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30pt;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--ink);
 }
 
 .qr-card__names {
   font-family: var(--font-display);
-  font-size: 22pt;
+  font-style: italic;
+  font-size: 15pt;
   margin: 0;
+  color: var(--accent-dark);
 }
 
 .qr-card__date {
-  margin: 2mm 0 0;
-  font-size: 11pt;
+  margin: 0;
+  font-size: 10pt;
   color: var(--ink-soft);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.22em;
+}
+
+/* กรอบทรงโค้งด้านบน ล้อกับซุ้มดอกไม้บนการ์ดเชิญ */
+.qr-card__arch {
+  border: 0.5mm solid var(--accent);
+  border-radius: 32mm 32mm 4mm 4mm;
+  padding: 7mm 6mm 6mm;
+  background: #fff;
 }
 
 .qr-card__code {
-  width: 62mm;
-  height: 62mm;
+  width: 52mm;
+  height: 52mm;
+}
+
+.qr-card__blocks {
+  display: grid;
+  gap: 3mm;
+  align-content: center;
 }
 
 .qr-card__block {
-  max-width: 105mm;
+  max-width: 108mm;
 }
 
 .qr-card__block h2 {
   font-family: var(--font-display);
-  font-size: 13pt;
-  margin: 0 0 1mm;
+  font-size: 12pt;
+  margin: 0 0 0.8mm;
   font-weight: 600;
 }
 
 .qr-card__block p {
   margin: 0;
-  font-size: 9.5pt;
+  font-size: 9pt;
   color: var(--ink-soft);
   line-height: 1.5;
 }
 
 .qr-card__footer {
+  display: grid;
+  gap: 1.5mm;
+  border-top: 0.3mm solid var(--line);
+  padding-top: 2.5mm;
+  width: 100%;
+}
+
+.qr-card__venue {
+  margin: 0;
+  font-size: 8.5pt;
+  color: var(--ink-soft);
+}
+
+.qr-card__url {
+  margin: 0;
   font-size: 10pt;
   color: var(--accent-dark);
   word-break: break-all;
+  letter-spacing: 0.02em;
 }
 
 @media print {

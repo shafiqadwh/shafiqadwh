@@ -6,7 +6,7 @@ QR code สร้างจากค่า `BASE_URL` ใน `.env` ถ้าค�
 ใช้ไม่ได้ทั้งหมด
 
 ```env
-BASE_URL=https://wedding.ali-nurul.synology.me
+BASE_URL=https://wedding.shafiq-lap.com
 ```
 
 ห้ามใส่ `/` ปิดท้าย ห้ามใส่ `http://` (ต้องเป็น https)
@@ -16,8 +16,11 @@ BASE_URL=https://wedding.ali-nurul.synology.me
 
 | ค่าใน `.env` | ความหมาย | ค่าที่แนะนำ |
 |---|---|---|
-| `COUPLE_NAMES` | ชื่อบ่าวสาว โผล่บนหัวเว็บและการ์ด | `อาลี & นูรุล` |
-| `EVENT_DATE` | วันที่ โผล่ใต้ชื่อ | `14.11.2026` |
+| `COUPLE_NAMES` | ชื่อบ่าวสาว โผล่บนหัวเว็บและการ์ด | `Sofwan & 'Aishah Nadhirah` |
+| `EVENT_MONOGRAM` | อักษรย่อตัวใหญ่บนการ์ด (เว้นว่าง = ย่อให้เอง) | `S & N` |
+| `EVENT_DATE` | วันที่ โผล่ใต้ชื่อ | `29.08.2026` |
+| `EVENT_VENUE` | สถานที่ พิมพ์ไว้ท้ายการ์ด | `Hasanah Restaurant (ร้านอาหารฮาซานะห์) Sateng, Yala` |
+| `EVENT_TIME` | เวลา พิมพ์ต่อจากสถานที่ | `11.00 - 16.00` |
 | `MAX_IMAGE_MB` | ขนาดรูปสูงสุด | 25 (พอสำหรับมือถือทุกรุ่น) |
 | `MAX_VIDEO_MB` | ขนาดวิดีโอสูงสุด | 300 |
 | `MAX_VIDEO_SECONDS` | ความยาวคลิปสูงสุด | 180 |
@@ -37,7 +40,7 @@ BASE_URL=https://wedding.ali-nurul.synology.me
 ปกติเปิดตลอด ถ้าอยากให้เปิดเฉพาะวันงาน
 
 ```env
-UPLOAD_WINDOW=2026-11-14 08:00 / 2026-11-15 02:00
+UPLOAD_WINDOW=2026-08-29 08:00 / 2026-08-30 23:59
 ```
 
 นอกช่วงนี้ ปุ่มอัพโหลดจะหายไปและขึ้นข้อความ "ยังไม่เปิดให้อัพโหลด"

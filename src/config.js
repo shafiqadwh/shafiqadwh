@@ -41,6 +41,15 @@ function parseWindows(raw) {
   });
 }
 
+/** "Sofwan & 'Aishah Nadhirah" → "S & A", for the monogram on the printed card. */
+function initialsFrom(names) {
+  const letters = names
+    .split(/\s*&\s*|\s+and\s+/i)
+    .map((part) => part.trim().replace(/^['’"]+/, '').charAt(0).toUpperCase())
+    .filter(Boolean);
+  return letters.length >= 2 ? `${letters[0]} & ${letters[1]}` : '';
+}
+
 const dataDir = path.resolve(rootDir, str('DATA_DIR', 'data'));
 
 export const config = {
@@ -54,6 +63,9 @@ export const config = {
     title: str('EVENT_TITLE', 'Our Wedding'),
     coupleNames: str('COUPLE_NAMES', ''),
     date: str('EVENT_DATE', ''),
+    venue: str('EVENT_VENUE', ''),
+    time: str('EVENT_TIME', ''),
+    monogram: str('EVENT_MONOGRAM', '') || initialsFrom(str('COUPLE_NAMES', '')),
   },
 
   paths: {

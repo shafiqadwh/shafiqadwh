@@ -16,21 +16,30 @@
   <% for (let copy = 0; copy < 2; copy++) { %>
     <article class="qr-card">
       <header class="qr-card__header">
+        <% if (event.monogram) { %>
+          <p class="qr-card__monogram"><%= event.monogram %></p>
+        <% } %>
         <p class="qr-card__names"><%= event.coupleNames || event.title %></p>
         <% if (event.date) { %><p class="qr-card__date"><%= event.date %></p><% } %>
       </header>
 
-      <img class="qr-card__code" src="<%= qrImage %>" alt="QR code">
+      <!-- กรอบทรงโค้งให้เข้ากับการ์ดเชิญ -->
+      <div class="qr-card__arch">
+        <img class="qr-card__code" src="<%= qrImage %>" alt="QR code">
+      </div>
 
-      <% cards.forEach(function (card) { %>
-        <section class="qr-card__block" lang="<%= card.code %>">
-          <h2><%= card.title %></h2>
-          <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
-        </section>
-      <% }); %>
+      <div class="qr-card__blocks">
+        <% cards.forEach(function (card) { %>
+          <section class="qr-card__block" lang="<%= card.code %>">
+            <h2><%= card.title %></h2>
+            <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
+          </section>
+        <% }); %>
+      </div>
 
       <footer class="qr-card__footer">
-        <span><%= shareUrl.replace(/^https?:\/\//, '') %></span>
+        <% if (event.venue) { %><p class="qr-card__venue"><%= event.venue %><% if (event.time) { %> · <%= event.time %><% } %></p><% } %>
+        <p class="qr-card__url"><%= shareUrl.replace(/^https?:\/\//, '') %></p>
       </footer>
     </article>
   <% } %>

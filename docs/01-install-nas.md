@@ -54,8 +54,8 @@ cp .env.example .env
 แก้อย่างน้อย 4 บรรทัดนี้
 
 ```env
-COUPLE_NAMES=ชื่อบ่าวสาว
-EVENT_DATE=14.11.2026
+COUPLE_NAMES=Sofwan & 'Aishah Nadhirah
+EVENT_DATE=29.08.2026
 ADMIN_PASSWORD=ตั้งรหัสยาว ๆ อย่างน้อย 8 ตัว
 BASE_URL=https://wedding.xxxx.synology.me     # ที่อยู่จริงจากบทที่ 2 (ตอนนี้ใส่ไว้ก่อนได้)
 ```
@@ -124,7 +124,7 @@ sudo docker compose logs -f            # ดู log, ออกด้วย Ctrl+
 รอจนเห็นบรรทัด
 
 ```
-Ali & Nurul — listening on http://0.0.0.0:3000
+Sofwan & 'Aishah Nadhirah — listening on http://0.0.0.0:3000
 ```
 
 **วิธีที่ 2 — ผ่านหน้าจอ Container Manager**
