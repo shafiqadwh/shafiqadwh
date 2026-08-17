@@ -39,7 +39,7 @@ NAS ตัวนี้ไม่มี `git` และ sshd ไม่มี SFTP 
 **ssh เข้า NAS ก่อน** แล้วรันทั้งชุดนี้บน NAS
 
 ```bash
-ssh shafiq@192.168.2.2
+ssh shafiqadwh@192.168.2.2
 
 sudo mkdir -p /volume1/docker/wedding-share
 cd /volume1/docker/wedding-share
@@ -62,7 +62,7 @@ ls
 
 ```powershell
 cd C:\path\ไปยัง\wedding-share
-.\scripts\push-to-nas.ps1 shafiq@192.168.2.2
+.\scripts\push-to-nas.ps1 shafiqadwh@192.168.2.2
 ```
 
 ใช้ `tar.exe` กับ `scp.exe` ที่ติดมากับ Windows 10/11 อยู่แล้ว ไม่ต้องลง WSL
@@ -75,13 +75,13 @@ cd C:\path\ไปยัง\wedding-share
 ### วิธีที่ 3 — ส่งจาก macOS / Linux
 
 ```bash
-./scripts/push-to-nas.sh shafiq@192.168.2.2 --restart
+./scripts/push-to-nas.sh shafiqadwh@192.168.2.2 --restart
 ```
 
 ## 2. ยกคอนเทนเนอร์ขึ้น
 
 ```bash
-ssh shafiq@192.168.2.2
+ssh shafiqadwh@192.168.2.2
 cd /volume1/docker/wedding-share
 sudo ./scripts/deploy-nas.sh --lan        # --lan = เปิดสู่ LAN ไว้ทดสอบก่อน
 ```
@@ -217,7 +217,7 @@ curl https://wedding.shafiq-lap.com/healthz
 
 | กรณี | ต้องทำ |
 |---|---|
-| แก้โค้ด / ข้อความ / CSS / คำแปล | ส่งไฟล์ใหม่ (PowerShell: `.\scripts\push-to-nas.ps1 shafiq@192.168.2.2 -Restart`) หรือดึงใหม่ด้วย curl ตามวิธีที่ 1 แล้ว `sudo docker compose restart` — โค้ด bind-mount ไว้ ไม่ต้อง rebuild |
+| แก้โค้ด / ข้อความ / CSS / คำแปล | ส่งไฟล์ใหม่ (PowerShell: `.\scripts\push-to-nas.ps1 shafiqadwh@192.168.2.2 -Restart`) หรือดึงใหม่ด้วย curl ตามวิธีที่ 1 แล้ว `sudo docker compose restart` — โค้ด bind-mount ไว้ ไม่ต้อง rebuild |
 | แก้ `package.json` หรือ `Dockerfile` | ต้อง rebuild image: Stop → **Clean** → **Build** ใน Container Manager หรือ `sudo docker compose up -d --build` |
 | แก้ `.env` | `sudo docker compose up -d` |
 

@@ -42,8 +42,15 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    # กันไม่ให้การแปลงวิดีโอกิน CPU ของ NAS ทั้งเครื่องตอนแขกอัพโหลดพร้อมกัน
-    cpus: "2.0"
+    # กันไม่ให้การแปลงวิดีโอกิน NAS ทั้งเครื่องตอนแขกอัพโหลดพร้อมกัน
+    #
+    # ใช้ cpu_shares (น้ำหนักความสำคัญ) ไม่ใช่ cpus (โควตาแบบตายตัว) เพราะ
+    # kernel ของ DSM ไม่รองรับ CFS quota — ถ้าใส่ cpus จะขึ้น
+    # "NanoCPUs can not be set, as your kernel does not support CPU CFS scheduler"
+    # แล้วคอนเทนเนอร์สร้างไม่ขึ้นเลย
+    #
+    # ตัวคุมภาระ CPU จริง ๆ คือ FFMPEG_THREADS ใน .env
+    cpu_shares: 512
     mem_limit: 1g
     logging:
       driver: json-file

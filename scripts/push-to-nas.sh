@@ -1,10 +1,10 @@
 #!/bin/sh
 # ส่งโค้ดขึ้น NAS ที่ไม่มี git และ sshd ไม่มี SFTP subsystem
 #
-#   ./scripts/push-to-nas.sh shafiq@192.168.2.2
-#   ./scripts/push-to-nas.sh shafiq@192.168.2.2 --restart
-#   ./scripts/push-to-nas.sh shafiq@192.168.2.2 --dest /volume1/docker/wedding-share
-#   ./scripts/push-to-nas.sh shafiq@192.168.2.2 -i ~/.ssh/nas_ed25519
+#   ./scripts/push-to-nas.sh shafiqadwh@192.168.2.2
+#   ./scripts/push-to-nas.sh shafiqadwh@192.168.2.2 --restart
+#   ./scripts/push-to-nas.sh shafiqadwh@192.168.2.2 --dest /volume1/docker/wedding-share
+#   ./scripts/push-to-nas.sh shafiqadwh@192.168.2.2 -i ~/.ssh/nas_ed25519
 #
 # รันจากเครื่อง PC ของคุณ ไม่ใช่บน NAS
 # ใช้ `scp -O` (legacy protocol) เพราะ sshd ของ DSM ไม่มี SFTP subsystem
@@ -32,7 +32,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$TARGET" ]; then
-  echo "ต้องระบุปลายทาง เช่น: $0 shafiq@192.168.2.2" >&2
+  echo "ต้องระบุปลายทาง เช่น: $0 shafiqadwh@192.168.2.2" >&2
   exit 1
 fi
 

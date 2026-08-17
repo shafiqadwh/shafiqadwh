@@ -1,9 +1,9 @@
 # ส่งโค้ดขึ้น NAS จาก Windows PowerShell
 #
-#   .\scripts\push-to-nas.ps1 shafiq@192.168.2.2
-#   .\scripts\push-to-nas.ps1 shafiq@192.168.2.2 -Restart
-#   .\scripts\push-to-nas.ps1 shafiq@192.168.2.2 -Dest /volume1/docker/wedding-share
-#   .\scripts\push-to-nas.ps1 shafiq@192.168.2.2 -SshKey $HOME\.ssh\nas_ed25519
+#   .\scripts\push-to-nas.ps1 shafiqadwh@192.168.2.2
+#   .\scripts\push-to-nas.ps1 shafiqadwh@192.168.2.2 -Restart
+#   .\scripts\push-to-nas.ps1 shafiqadwh@192.168.2.2 -Dest /volume1/docker/wedding-share
+#   .\scripts\push-to-nas.ps1 shafiqadwh@192.168.2.2 -SshKey $HOME\.ssh\nas_ed25519
 #
 # ต้องรันจากในโฟลเดอร์โปรเจกต์ (ที่มีไฟล์ package.json)
 # ใช้ tar.exe และ scp.exe ที่ติดมากับ Windows 10/11 อยู่แล้ว ไม่ต้องลง WSL
