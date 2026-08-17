@@ -15,7 +15,7 @@
 | Certificate | wildcard `*.shafiq-lap.com` ที่มีอยู่แล้ว — **ไม่ต้องออกใหม่** |
 | โฮสต์ของงานนี้ | `wedding.shafiq-lap.com` |
 | พอร์ตบนโฮสต์ | `18090` ผูกกับ `127.0.0.1` เท่านั้น |
-| พอร์ตสาธารณะ | `443` ถ้าใช้ได้ ไม่งั้น `8443` (ดูขั้นที่ 5) |
+| พอร์ตสาธารณะ | **`443`** (ตัดสินใจแล้ว) — ถ้า DSM ไม่ยอมให้ใช้ ถอยไป `8443` ดูขั้นที่ 5 |
 | โฟลเดอร์โปรเจกต์ | `/volume1/docker/wedding-share` |
 | โฟลเดอร์ข้อมูล | `/volume1/wedding` |
 
@@ -132,7 +132,7 @@ nslookup wedding.shafiq-lap.com 8.8.8.8       # ต้องได้ 49.49.211.
 | Description | `wedding-share` |
 | Source protocol | **HTTPS** ⚠️ ค่าเริ่มต้นเป็น HTTP — ลืมแก้แล้วมันบันทึกผ่านเงียบ ๆ |
 | Source hostname | `wedding.shafiq-lap.com` |
-| Source port | **ลอง `443` ก่อน** — ถ้าเด้ง *"This port number is used by another application"* ให้ใช้ `8443` |
+| Source port | **`443`** — ถ้าเด้ง *"This port number is used by another application"* ให้ถอยไป `8443` แล้วอย่าลืมเติม `:8443` ต่อท้าย `BASE_URL` |
 | Destination protocol | HTTP |
 | Destination hostname | `localhost` |
 | Destination port | `18090` |
@@ -143,20 +143,21 @@ nslookup wedding.shafiq-lap.com 8.8.8.8       # ต้องได้ 49.49.211.
 |---|---|
 | `X-Forwarded-Proto` | `https` |
 
-**ทำไมควรพยายามใช้ 443**: URL จะเป็น `https://wedding.shafiq-lap.com` สั้น พิมพ์ตามได้ง่าย
-ถ้าเป็น `:8443` ต้องมีเลขพอร์ตติดอยู่บนการ์ด QR ทุกใบ — แขกที่พิมพ์ URL เองจะพลาดง่าย
-(`jellyfin.shafiq-lap.com` ใช้ 443 อยู่แล้ว จึงมีโอกาสสูงที่ 443 จะว่างสำหรับ hostname ใหม่)
+**ทำไมเลือก 443**: URL เป็น `https://wedding.shafiq-lap.com` สั้น พิมพ์ตามได้ง่าย
+ถ้าเป็น `:8443` เลขพอร์ตจะติดอยู่บนการ์ด QR ทุกใบ (คนที่สแกนไม่กระทบ แต่คนที่พิมพ์เองพลาดง่าย)
+nginx ของ DSM แยก hostname ด้วย SNI ได้ จึงมีหลาย service บนพอร์ต 443 พร้อมกันได้
 
 จากนั้น **Security → Certificate → Settings → Configure** → ชี้ `wedding.shafiq-lap.com`
 ไปที่ `*.shafiq-lap.com` (ไม่ทำขั้นนี้จะเจอ `no alternative certificate subject name matches`)
 
-## 6. NAT บน MikroTik — เฉพาะเมื่อจำเป็น
+## 6. NAT บน MikroTik — เช็คก่อนว่ามี rule 443 หรือยัง
 
-ถ้าใช้พอร์ตที่ forward ไว้อยู่แล้ว (443 ที่ jellyfin ใช้ หรือ 8443 ที่ api ใช้) **ไม่ต้องแก้ router เลย**
-reverse proxy แยกด้วย hostname ให้เอง
+⚠️ `jellyfin.shafiq-lap.com` **ไม่มีระเบียน DNS สาธารณะ** (ตรวจแล้วเมื่อ 17 ส.ค. 2026) แปลว่า
+ที่ผ่านมามันถูกใช้เฉพาะใน LAN — จึง **ยังสรุปไม่ได้ว่า WAN:443 ถูก forward ไว้แล้ว**
+ต่างจาก 8443 ที่ `api` ใช้งานจากข้างนอกได้จริง
 
-เช็คก่อนด้วย WinBox (อย่าเชื่อ filter ของ CLI — landmine #5) ที่ IP → Firewall → NAT
-ถ้ายังไม่มี rule ของพอร์ตที่เลือก
+เช็คด้วย WinBox (อย่าเชื่อ filter ของ CLI — landmine #5) ที่ IP → Firewall → NAT
+ถ้ายังไม่มี rule ของพอร์ต 443
 
 ```
 /ip firewall nat add chain=dstnat action=dst-nat \
