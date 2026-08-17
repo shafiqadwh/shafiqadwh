@@ -1,6 +1,4 @@
-import fs from 'node:fs/promises';
-import { open } from 'node:fs/promises';
-import path from 'node:path';
+import fs, { open } from 'node:fs/promises';
 import express from 'express';
 import multer from 'multer';
 import { config } from '../config.js';
@@ -146,4 +144,3 @@ uploadRouter.post('/api/upload', uploadLimiter, (req, res) => {
 
 /** Shared with the guest book, which accepts a single optional attachment. */
 export const singleAttachment = upload.single('attachment');
-export const attachmentTmpDir = path.resolve(config.paths.tmp);
