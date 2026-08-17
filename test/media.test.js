@@ -74,3 +74,43 @@ test('byte sizes read the way a person would say them', () => {
   assert.equal(formatBytes(5 * 1024 * 1024), '5.0 MB');
   assert.equal(formatBytes(21 * 1024 * 1024 * 1024), '21 GB');
 });
+
+test('moveFile survives a destination on a different mount', async (t) => {
+  // Regression: uploads/ and tmp/ are separate bind mounts on the NAS, so
+  // rename(2) fails with EXDEV and every single upload was rejected.
+  const fsp = (await import('node:fs/promises')).default;
+  const os = await import('node:os');
+  const nodePath = await import('node:path');
+
+  const dir = await fsp.mkdtemp(nodePath.join(os.tmpdir(), 'movefile-'));
+  const from = nodePath.join(dir, 'source.bin');
+  const to = nodePath.join(dir, 'destination.bin');
+  await fsp.writeFile(from, 'wedding photo bytes');
+
+  const rename = t.mock.method(fsp, 'rename', async () => {
+    const error = new Error('cross-device link not permitted');
+    error.code = 'EXDEV';
+    throw error;
+  });
+
+  const { moveFile } = await import('../src/lib/media.js');
+  await moveFile(from, to);
+
+  assert.equal(rename.mock.callCount(), 1, 'rename is still tried first');
+  assert.equal(await fsp.readFile(to, 'utf8'), 'wedding photo bytes');
+  await assert.rejects(fsp.access(from), 'the temporary file is cleaned up');
+
+  await fsp.rm(dir, { recursive: true, force: true });
+});
+
+test('moveFile still reports failures that are not about mounts', async (t) => {
+  const fsp = (await import('node:fs/promises')).default;
+  t.mock.method(fsp, 'rename', async () => {
+    const error = new Error('permission denied');
+    error.code = 'EACCES';
+    throw error;
+  });
+
+  const { moveFile } = await import('../src/lib/media.js');
+  await assert.rejects(() => moveFile('/nowhere/a', '/nowhere/b'), { code: 'EACCES' });
+});

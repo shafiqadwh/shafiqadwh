@@ -96,7 +96,14 @@ export async function ingestFile(file, { uploader, t, status }) {
         error: t('errors.video_too_long', { name: displayName, max: config.limits.videoSeconds }),
       };
     }
-    console.error('[upload] failed to process', displayName, error);
+    // Log the code as well as the message: the guest only ever sees a generic
+    // apology, so this line is the whole diagnosis when something goes wrong
+    // on the night.
+    console.error(
+      `[upload] failed to process "${displayName}" (${sniffed.kind}/${sniffed.ext}):`,
+      error.code ?? '',
+      error.message,
+    );
     return { error: t('errors.server_error') };
   }
 }

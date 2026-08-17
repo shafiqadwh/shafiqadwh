@@ -77,6 +77,25 @@ export function safeOriginalName(name) {
   return cleaned.slice(0, 120) || 'file';
 }
 
+/**
+ * Move a file, coping with the destination living on another mount.
+ *
+ * On the NAS each data directory is its own bind mount, so uploads/ and tmp/
+ * are separate mount points even though they sit on the same volume — and
+ * rename(2) refuses to cross a mount boundary with EXDEV. Copy and delete is
+ * the only way across; it is slower, so it stays the fallback rather than the
+ * default.
+ */
+export async function moveFile(from, to) {
+  try {
+    await fs.rename(from, to);
+  } catch (error) {
+    if (error.code !== 'EXDEV') throw error;
+    await fs.copyFile(from, to);
+    await fs.rm(from, { force: true });
+  }
+}
+
 export async function ensureDirs() {
   await Promise.all([
     fs.mkdir(config.paths.uploads, { recursive: true }),
@@ -93,7 +112,7 @@ export async function ensureDirs() {
 export async function processImage(tmpPath, sniffed) {
   const storedName = randomName(sniffed.ext);
   const storedPath = path.join(config.paths.uploads, storedName);
-  await fs.rename(tmpPath, storedPath);
+  await moveFile(tmpPath, storedPath);
 
   let sourceForSharp = storedPath;
   let playbackName = null;
@@ -202,7 +221,7 @@ export async function processVideo(tmpPath, sniffed) {
 
   const storedName = randomName(sniffed.ext);
   const storedPath = path.join(config.paths.uploads, storedName);
-  await fs.rename(tmpPath, storedPath);
+  await moveFile(tmpPath, storedPath);
 
   const thumbName = `${path.parse(storedName).name}-poster.jpg`;
   try {
