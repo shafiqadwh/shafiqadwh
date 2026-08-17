@@ -29,31 +29,54 @@
 
 ---
 
-## 1. ส่งโค้ดขึ้น NAS (NAS ไม่มี git)
+## 1. เอาโค้ดขึ้น NAS
 
-รันจากเครื่อง PC ของคุณ ไม่ใช่บน NAS
+NAS ตัวนี้ไม่มี `git` และ sshd ไม่มี SFTP subsystem จึงมี 3 ทางเลือก
 
-```bash
-./scripts/push-to-nas.sh shafiq@192.168.2.2
-```
+### วิธีที่ 1 — โหลดจาก GitHub ลง NAS ตรง ๆ ⭐ แนะนำสำหรับติดตั้งครั้งแรก
 
-สคริปต์จะ tar โดยตัด `.git`, `node_modules`, `data` ออก แล้วส่งด้วย `scp -O`
-(sshd ของ NAS ไม่มี SFTP subsystem จึงใช้ `scp` ธรรมดาไม่ได้) และแตกไฟล์ให้
-
-ทำเองก็ได้
+ไม่ต้องใช้เครื่อง PC เลย ไม่ต้องมี git ไม่ต้อง scp
+**ssh เข้า NAS ก่อน** แล้วรันทั้งชุดนี้บน NAS
 
 ```bash
-tar --exclude=.git --exclude=node_modules --exclude=data --exclude=.env \
-    -czf /tmp/ws.tar.gz .
-scp -O /tmp/ws.tar.gz shafiq@192.168.2.2:/volume1/docker/
-ssh shafiq@192.168.2.2 \
-  "mkdir -p /volume1/docker/wedding-share && \
-   tar -xzf /volume1/docker/ws.tar.gz -C /volume1/docker/wedding-share && \
-   rm /volume1/docker/ws.tar.gz"
+ssh shafiq@192.168.2.2
+
+sudo mkdir -p /volume1/docker/wedding-share
+cd /volume1/docker/wedding-share
+sudo curl -L -o code.tar.gz \
+  "https://codeload.github.com/shafiqadwh/shafiqadwh/tar.gz/refs/heads/claude/wedding-photo-sharing-qr-j1oxn8"
+sudo tar -xzf code.tar.gz --strip-components=1
+sudo rm code.tar.gz
+sudo chmod +x scripts/*.sh
+ls
 ```
 
-> ⚠️ ใช้ SSH client จริง (Termius / PuTTY / ssh) — **อย่าใช้ terminal ในหน้าเว็บ DSM**
-> มันทำ input เพี้ยน (`O` กลายเป็น `0`) ตาม landmine #6
+ต้องเห็น `docker-compose.yml`, `src`, `docs`, `scripts` ครบ
+
+> ตัว NAS เองออกอินเทอร์เน็ตได้ปกติ — ที่ออกไม่ได้คือ `docker0` bridge ตอน build
+> เท่านั้น จึงโหลดไฟล์ด้วย curl ได้สบาย
+
+### วิธีที่ 2 — ส่งจาก Windows (สำหรับอัปเดตครั้งถัดไป)
+
+รันใน **PowerShell จากในโฟลเดอร์โปรเจกต์** ที่ clone ไว้บนเครื่อง
+
+```powershell
+cd C:\path\ไปยัง\wedding-share
+.\scripts\push-to-nas.ps1 shafiq@192.168.2.2
+```
+
+ใช้ `tar.exe` กับ `scp.exe` ที่ติดมากับ Windows 10/11 อยู่แล้ว ไม่ต้องลง WSL
+เติม `-Restart` เพื่อสั่งรีสตาร์ทคอนเทนเนอร์ต่อให้เลย
+
+> ⚠️ ไฟล์ `.sh` รันใน PowerShell ไม่ได้ ให้ใช้ `.ps1` ตัวนี้แทน
+> ส่วนคำสั่งที่ขึ้นต้นด้วย `sudo` ทุกคำสั่งในคู่มือนี้ **รันบน NAS หลัง ssh เข้าไปแล้ว**
+> ไม่ใช่รันบน Windows
+
+### วิธีที่ 3 — ส่งจาก macOS / Linux
+
+```bash
+./scripts/push-to-nas.sh shafiq@192.168.2.2 --restart
+```
 
 ## 2. ยกคอนเทนเนอร์ขึ้น
 
@@ -194,7 +217,7 @@ curl https://wedding.shafiq-lap.com/healthz
 
 | กรณี | ต้องทำ |
 |---|---|
-| แก้โค้ด / ข้อความ / CSS / คำแปล | `./scripts/push-to-nas.sh` แล้ว `sudo docker compose restart` — โค้ด bind-mount ไว้ ไม่ต้อง rebuild |
+| แก้โค้ด / ข้อความ / CSS / คำแปล | ส่งไฟล์ใหม่ (PowerShell: `.\scripts\push-to-nas.ps1 shafiq@192.168.2.2 -Restart`) หรือดึงใหม่ด้วย curl ตามวิธีที่ 1 แล้ว `sudo docker compose restart` — โค้ด bind-mount ไว้ ไม่ต้อง rebuild |
 | แก้ `package.json` หรือ `Dockerfile` | ต้อง rebuild image: Stop → **Clean** → **Build** ใน Container Manager หรือ `sudo docker compose up -d --build` |
 | แก้ `.env` | `sudo docker compose up -d` |
 
