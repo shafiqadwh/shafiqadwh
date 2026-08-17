@@ -1,27 +1,47 @@
+# ตั้งชื่อ project ให้แน่นอน จะได้ขึ้นเป็น "wedding-share" ใน Container Manager
+# ไม่ว่าจะวางโค้ดไว้ในโฟลเดอร์ชื่ออะไร
+name: wedding-share
+
 services:
   wedding-share:
     container_name: wedding-share
-    build: .
-    # เมื่อ build บน NAS แล้วอยากล็อกอิมเมจไว้ ให้ตั้งชื่อด้วย image: wedding-share:1.0.0
     image: wedding-share:latest
-    restart: always
+    build:
+      context: .
+      # จำเป็นบน NAS ตัวนี้: docker0 bridge ออกอินเทอร์เน็ตไม่ได้ (iptables MASQUERADE เสีย)
+      # ถ้าเอาบรรทัดนี้ออก `npm ci` จะล้มตอน build ด้วย ETIMEDOUT / ENOTFOUND
+      network: host
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      # ให้ผู้ใช้/กลุ่มตรงกับเจ้าของโฟลเดอร์บน DSM ดูวิธีหาเลขได้ในคู่มือบทที่ 1
       TZ: ${TZ:-Asia/Bangkok}
+    # ให้ตรงกับเจ้าของโฟลเดอร์บน DSM ไม่งั้นเขียนไฟล์ไม่ได้ (หาเลขด้วย `id`)
     user: "${PUID:-1026}:${PGID:-100}"
     ports:
-      - "${HTTP_PORT:-8080}:3000"
+      # ค่าเริ่มต้นผูกกับ loopback เท่านั้น — เข้าถึงได้เฉพาะ reverse proxy บน NAS
+      # ตั้ง BIND_ADDR=0.0.0.0 ชั่วคราวเพื่อทดสอบจากมือถือใน LAN ก่อนตั้ง reverse proxy
+      - "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-18090}:3000"
     volumes:
-      # ต้นฉบับทั้งหมด — ชี้ไปที่ shared folder จริงบน NAS เพื่อให้เปิดผ่าน
-      # File Station / SMB และให้ Synology Photos ไล่ index ได้
+      # ── ข้อมูลจริง: bind mount ไปโฟลเดอร์บน DSM ─────────────────────────
+      # เปิดดูผ่าน File Station / SMB ได้ ให้ Synology Photos ไล่ index ได้
+      # และ Clean + Build ใน Container Manager ไม่แตะต้องไฟล์เหล่านี้
       - /volume1/wedding/uploads:/app/data/uploads
-      # รูปย่อ ภาพปกวิดีโอ และวิดีโอที่แปลงแล้ว (สร้างใหม่ได้เสมอ)
       - /volume1/wedding/derived:/app/data/derived
-      # ฐานข้อมูล SQLite — ไฟล์เล็กแต่สำคัญที่สุด ควรใส่ใน Hyper Backup
       - /volume1/wedding/db:/app/data/db
       - /volume1/wedding/tmp:/app/data/tmp
+      # ── โค้ด: bind mount แบบอ่านอย่างเดียว ──────────────────────────────
+      # แก้โค้ดแล้ว Restart พอ ไม่ต้อง rebuild image (node_modules อยู่ใน image)
+      - ./src:/app/src:ro
+      - ./views:/app/views:ro
+      - ./public:/app/public:ro
+      - ./locales:/app/locales:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     # กันไม่ให้การแปลงวิดีโอกิน CPU ของ NAS ทั้งเครื่องตอนแขกอัพโหลดพร้อมกัน
     cpus: "2.0"
     mem_limit: 1g

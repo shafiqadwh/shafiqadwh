@@ -3,6 +3,9 @@
 เป้าหมายของบทนี้: เปิดเว็บได้จากมือถือที่อยู่ใน Wi-Fi บ้านเดียวกับ NAS
 (ยังไม่ต้องสนใจอินเทอร์เน็ต จะทำในบทที่ 2)
 
+> 📍 ถ้าติดตั้งบน **Shafiq-NAS** ให้ใช้ [บทที่ 7](07-shafiq-nas.md) แทนทั้งบทนี้และบทที่ 2
+> เพราะ NAS ตัวนั้นไม่มี git, docker0 ออกเน็ตไม่ได้ และมี reverse proxy + wildcard cert อยู่แล้ว
+
 ---
 
 ## 1. สร้างโฟลเดอร์เก็บรูป
@@ -77,8 +80,13 @@ BASE_URL=https://wedding.xxxx.synology.me     # ที่อยู่จริ�
 ```env
 PUID=1026
 PGID=100
-HTTP_PORT=8080
+HTTP_PORT=18090
+BIND_ADDR=127.0.0.1
 ```
+
+> `BIND_ADDR=127.0.0.1` คือค่ามาตรฐาน — พอร์ตจะเปิดเฉพาะบน NAS เท่านั้น
+> คนใน LAN เข้าตรงไม่ได้ ต้องผ่าน reverse proxy + HTTPS (บทที่ 2)
+> ระหว่างทดสอบก่อนตั้ง reverse proxy ให้ใช้ `--lan` ตามข้างล่าง
 
 ## 6. สั่งรัน
 
@@ -86,7 +94,7 @@ HTTP_PORT=8080
 
 ```bash
 cd /volume1/docker/wedding-share
-sudo ./scripts/deploy-nas.sh
+sudo ./scripts/deploy-nas.sh --lan
 ```
 
 สคริปต์จะทำข้อ 1–6 ให้ทั้งหมด: ตรวจ docker, เช็คว่าพอร์ตว่าง, สร้างโฟลเดอร์,
@@ -95,7 +103,9 @@ build, รัน แล้วรอจนเว็บตอบก่อนบอ
 
 ```bash
 sudo ./scripts/deploy-nas.sh --dry-run          # ดูก่อนว่าจะทำอะไรบ้าง
-sudo ./scripts/deploy-nas.sh --port 8181        # ถ้าพอร์ต 8080 ชนกับแอปอื่น
+sudo ./scripts/deploy-nas.sh --lan              # เปิดสู่ LAN ไว้ทดสอบจากมือถือ
+sudo ./scripts/deploy-nas.sh                    # กลับไปผูก 127.0.0.1 (หลังตั้ง reverse proxy)
+sudo ./scripts/deploy-nas.sh --port 18091       # ถ้าพอร์ตชนกับแอปอื่น
 sudo ./scripts/deploy-nas.sh --data /volume2/wedding
 ```
 
@@ -127,16 +137,16 @@ DSM → **Container Manager → Project → Create**
 
 ## 7. ทดสอบ
 
-เปิดมือถือที่ต่อ Wi-Fi บ้าน แล้วเข้า
+เปิดมือถือที่ต่อ Wi-Fi บ้าน แล้วเข้า (ต้องรันด้วย `--lan` ก่อน)
 
 ```
-http://ไอพีของ-nas:8080
+http://ไอพีของ-nas:18090
 ```
 
 ต้องเห็นหน้าภาษาไทย ลองอัพโหลดรูป 1 รูป แล้วเช็คว่าไฟล์โผล่ใน File Station
 ที่ `wedding/uploads` จริง
 
-ลองเข้า `http://ไอพีของ-nas:8080/admin` แล้วล็อกอินด้วยรหัสใน `.env`
+ลองเข้า `http://ไอพีของ-nas:18090/admin` แล้วล็อกอินด้วยรหัสใน `.env`
 
 ---
 
@@ -154,8 +164,8 @@ sudo docker compose restart
 ดู log ด้วย `sudo docker compose logs --tail 50` — ถ้าเขียนว่า
 `ADMIN_PASSWORD is required` แปลว่ายังไม่ได้ตั้งรหัสใน `.env`
 
-**พอร์ต 8080 ชนกับแอปอื่นของ DSM**
-เปลี่ยน `HTTP_PORT` ใน `.env` เป็นเลขอื่น เช่น 8181 แล้ว `docker compose up -d`
+**พอร์ต 18090 ชนกับแอปอื่นของ DSM**
+เปลี่ยน `HTTP_PORT` ใน `.env` เป็นเลขอื่น เช่น 18091 แล้ว `docker compose up -d`
 
 **อยากอัปเดตโค้ดใหม่**
 ```bash

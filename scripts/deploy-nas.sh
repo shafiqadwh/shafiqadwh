@@ -1,24 +1,26 @@
 #!/bin/sh
 # ติดตั้งหรืออัปเดต wedding-share บน Synology / Xpenology (DSM 7)
 #
-#   sudo ./scripts/deploy-nas.sh
-#   sudo ./scripts/deploy-nas.sh --port 8181 --data /volume2/wedding
-#   sudo ./scripts/deploy-nas.sh --dry-run       ดูว่าจะทำอะไรบ้างโดยยังไม่ลงมือ
+#   sudo ./scripts/deploy-nas.sh --lan      ทดสอบจากมือถือใน LAN ก่อน (เปิดพอร์ตสู่ LAN)
+#   sudo ./scripts/deploy-nas.sh            มาตรฐาน: ผูก 127.0.0.1 ให้ reverse proxy เท่านั้น
+#   sudo ./scripts/deploy-nas.sh --port 18091 --data /volume2/wedding
+#   sudo ./scripts/deploy-nas.sh --dry-run  ดูว่าจะทำอะไรบ้างโดยยังไม่ลงมือ
 #
-# สคริปต์นี้จะ: ตรวจ docker → สร้างโฟลเดอร์ข้อมูล → ตั้งสิทธิ์ให้ถูก →
-# สร้างไฟล์ .env พร้อมรหัสแอดมินแบบสุ่ม (ถ้ายังไม่มี) → build → รัน →
-# รอจนเว็บตอบ แล้วบอก URL ที่เปิดได้
+# สคริปต์นี้จะ: ตรวจ docker → เช็คพอร์ต → สร้างโฟลเดอร์ → ตั้งสิทธิ์ให้ถูก →
+# สร้าง .env พร้อมรหัสแอดมินแบบสุ่ม (ถ้ายังไม่มี) → build → รัน → รอจนเว็บตอบ
 
 set -eu
 
 DATA_ROOT="/volume1/wedding"
-PORT="8080"
+PORT=""
+BIND="127.0.0.1"
 DRY_RUN="0"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --port) PORT="$2"; shift 2 ;;
     --data) DATA_ROOT="$2"; shift 2 ;;
+    --lan) BIND="0.0.0.0"; shift ;;
     --dry-run) DRY_RUN="1"; shift ;;
     -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "ไม่รู้จักตัวเลือก: $1" >&2; exit 1 ;;
@@ -38,6 +40,15 @@ run() {
   fi
 }
 
+# ค่าพอร์ต: จากอาร์กิวเมนต์ → จาก .env เดิม → ค่าเริ่มต้น
+if [ -z "$PORT" ]; then
+  if [ -f .env ] && grep -q '^HTTP_PORT=' .env; then
+    PORT="$(grep '^HTTP_PORT=' .env | head -1 | cut -d= -f2)"
+  else
+    PORT="18090"
+  fi
+fi
+
 # ── 1. หา docker compose ────────────────────────────────────────────────────
 step "ตรวจ Docker"
 
@@ -54,6 +65,8 @@ else
 
 ถ้าใช้ DSM 7: ติดตั้ง "Container Manager" จาก Package Center ก่อน
 แล้วรันสคริปต์นี้ด้วย sudo อีกครั้ง
+(ถ้า user ไม่มีสิทธิ์ docker CLI ให้ใช้หน้า Container Manager → Project แทน
+ ดู docs/07-shafiq-nas.md)
 EOF
   exit 1
 fi
@@ -66,7 +79,7 @@ if command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | grep -q "[:.
   say "  ⚠ พอร์ต $PORT ถูกใช้อยู่แล้ว — สิ่งที่รันอยู่ตอนนี้:"
   docker ps --format '     {{.Names}}  {{.Ports}}' 2>/dev/null || true
   say ""
-  say "  เลือกพอร์ตอื่นแล้วรันใหม่ เช่น:  sudo $0 --port 8181"
+  say "  เลือกพอร์ตอื่นแล้วรันใหม่ เช่น:  sudo $0 --port 18091"
   [ "$DRY_RUN" = "1" ] || exit 1
 else
   say "  พอร์ต $PORT ว่าง"
@@ -103,6 +116,12 @@ LAN_IP="$(ip route get 1.1.1.1 2>/dev/null | awk '/src/ {print $7; exit}')"
 
 if [ -f .env ]; then
   say "  มี .env อยู่แล้ว — ไม่แก้ทับ"
+  if [ "$DRY_RUN" = "0" ]; then
+    # อัปเดตเฉพาะค่าที่สั่งมาทางอาร์กิวเมนต์
+    grep -q '^BIND_ADDR=' .env && sed -i "s|^BIND_ADDR=.*|BIND_ADDR=$BIND|" .env || printf 'BIND_ADDR=%s\n' "$BIND" >> .env
+    grep -q '^HTTP_PORT=' .env && sed -i "s|^HTTP_PORT=.*|HTTP_PORT=$PORT|" .env || printf 'HTTP_PORT=%s\n' "$PORT" >> .env
+    say "  ตั้ง BIND_ADDR=$BIND, HTTP_PORT=$PORT"
+  fi
 else
   ADMIN_PW="$(head -c 12 /dev/urandom | base64 | tr -d '/+=' | cut -c1-12)"
   if [ "$DRY_RUN" = "1" ]; then
@@ -111,8 +130,12 @@ else
     cp .env.example .env
     sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$ADMIN_PW|" .env
     sed -i "s|^BASE_URL=.*|BASE_URL=http://$LAN_IP:$PORT|" .env
-    printf '\nPUID=%s\nPGID=%s\nHTTP_PORT=%s\n' "$PUID" "$PGID" "$PORT" >> .env
-    say "  สร้าง .env แล้ว"
+    sed -i "s|^HTTP_PORT=.*|HTTP_PORT=$PORT|" .env
+    sed -i "s|^BIND_ADDR=.*|BIND_ADDR=$BIND|" .env
+    sed -i "s|^PUID=.*|PUID=$PUID|" .env
+    sed -i "s|^PGID=.*|PGID=$PGID|" .env
+    chmod 600 .env
+    say "  สร้าง .env แล้ว (chmod 600)"
     say ""
     say "  ┌──────────────────────────────────────────────┐"
     printf '  │ รหัสผ่านแอดมิน: %-28s │\n' "$ADMIN_PW"
@@ -146,23 +169,46 @@ else
     fi
     sleep 1
   done
-  say "  ✓ เว็บตอบแล้ว"
+  say "  ✓ เว็บตอบแล้วที่ http://127.0.0.1:$PORT/healthz"
 fi
 
-cat <<EOF
+# ── 7. สรุป ─────────────────────────────────────────────────────────────────
+if [ "$BIND" = "0.0.0.0" ]; then
+  cat <<EOF
 
 ═══════════════════════════════════════════════════════════
- เสร็จแล้ว เปิดจากมือถือที่ต่อ Wi-Fi เดียวกับ NAS:
+ เสร็จแล้ว — โหมดทดสอบใน LAN
 
    เว็บแขก      http://$LAN_IP:$PORT
    หน้าแอดมิน   http://$LAN_IP:$PORT/admin
    สไลด์โชว์    http://$LAN_IP:$PORT/slideshow
 
- คำสั่งที่ใช้บ่อย:
-   $COMPOSE logs -f          ดู log
-   $COMPOSE restart          รีสตาร์ท
-   $COMPOSE down             หยุด
+ ⚠ ตอนนี้พอร์ตเปิดสู่ LAN ทั้งวง (ไม่มี TLS) — ใช้ทดสอบเท่านั้น
+   พอตั้ง reverse proxy เสร็จแล้วให้กลับมาผูก loopback:
 
- ขั้นถัดไป: เปิดให้เข้าจากอินเทอร์เน็ต → docs/02-ddns-reverse-proxy.md
+     sudo $0
+
 ═══════════════════════════════════════════════════════════
 EOF
+else
+  cat <<EOF
+
+═══════════════════════════════════════════════════════════
+ เสร็จแล้ว — ผูกกับ 127.0.0.1:$PORT (มาตรฐาน)
+
+ คนนอกยังเข้าไม่ได้จนกว่าจะตั้ง reverse proxy ของ DSM ให้ชี้มาที่
+ http://localhost:$PORT  →  ดูขั้นตอนใน docs/07-shafiq-nas.md
+
+ ทดสอบบน NAS ตอนนี้:
+   curl http://127.0.0.1:$PORT/healthz
+
+ อยากทดสอบจากมือถือใน LAN ก่อนตั้ง reverse proxy:
+   sudo $0 --lan
+
+ คำสั่งที่ใช้บ่อย:
+   $COMPOSE logs -f          ดู log
+   $COMPOSE restart          รีสตาร์ท (พอสำหรับการแก้โค้ด — ไม่ต้อง rebuild)
+   $COMPOSE down             หยุด
+═══════════════════════════════════════════════════════════
+EOF
+fi

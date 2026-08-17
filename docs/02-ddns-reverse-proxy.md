@@ -3,6 +3,9 @@
 บทนี้ยาวที่สุดและพลาดกันบ่อยที่สุด แนะนำให้ทำล่วงหน้า **อย่างน้อย 1 สัปดาห์**
 ก่อนวันงาน จะได้มีเวลาแก้ถ้าติดปัญหา
 
+> 📍 ถ้าติดตั้งบน **Shafiq-NAS** (มี AdGuard + Cloudflare + wildcard cert อยู่แล้ว)
+> ให้ข้ามไปที่ [บทที่ 7](07-shafiq-nas.md) แทน — สั้นกว่าและใช้ค่าจริงของระบบนั้น
+
 > ทำไมต้อง HTTPS: เบราว์เซอร์มือถือรุ่นใหม่จะ **ไม่ยอมให้เว็บที่ไม่ใช่ HTTPS
 > เปิดกล้องหรืออัพโหลดไฟล์บางชนิด** และ Safari จะขึ้นคำเตือน "Not Secure"
 > ซึ่งแขกในงานเห็นแล้วจะไม่กล้ากด
@@ -61,7 +64,7 @@ DSM → **Control Panel → Login Portal → Advanced → Reverse Proxy → Crea
 | Enable HSTS | ติ๊ก |
 | Destination Protocol | `HTTP` |
 | Destination Hostname | `localhost` |
-| Destination Port | `8080` (ตรงกับ `HTTP_PORT` ใน `.env`) |
+| Destination Port | `18090` (ตรงกับ `HTTP_PORT` ใน `.env`) |
 
 **แท็บ Custom Header** → กด **Create → WebSocket** (เพิ่ม 2 บรรทัดให้อัตโนมัติ)
 

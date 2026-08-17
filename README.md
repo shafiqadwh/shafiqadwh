@@ -36,13 +36,15 @@
 
 ```bash
 git clone <repo> wedding-share && cd wedding-share
-sudo ./scripts/deploy-nas.sh    # เตรียมโฟลเดอร์ + .env + build + รัน ให้ครบในคำสั่งเดียว
+sudo ./scripts/deploy-nas.sh --lan   # เตรียมโฟลเดอร์ + .env + build + รัน ให้ครบในคำสั่งเดียว
 ```
 
 สคริปต์จะสุ่มรหัสแอดมินให้และบอก URL ที่เปิดได้เมื่อเสร็จ
-เพิ่ม `--dry-run` เพื่อดูก่อนว่าจะทำอะไรบ้าง หรือ `--port 8181` ถ้าพอร์ตชนกับแอปอื่น
+`--lan` เปิดพอร์ตสู่ LAN ไว้ทดสอบจากมือถือก่อน — พอตั้ง reverse proxy เสร็จให้รันซ้ำ
+โดยไม่ใส่ `--lan` เพื่อกลับไปผูกเฉพาะ `127.0.0.1` (ค่ามาตรฐาน บังคับให้ผ่าน TLS)
+เพิ่ม `--dry-run` เพื่อดูก่อนว่าจะทำอะไรบ้าง หรือ `--port 18091` ถ้าพอร์ตชนกับแอปอื่น
 
-เปิด `http://ไอพีของ-nas:8080` แล้วเข้า `/admin` เพื่อพิมพ์การ์ด QR
+เปิด `http://ไอพีของ-nas:18090` แล้วเข้า `/admin` เพื่อพิมพ์การ์ด QR
 
 **รันบนเครื่องตัวเองเพื่อลองเล่น**
 
@@ -59,6 +61,7 @@ ADMIN_PASSWORD=changeme123 npm start        # http://localhost:3000
 4. [ต่อจอ Slideshow ในงาน](docs/04-slideshow.md)
 5. [ดาวน์โหลดและสำรองข้อมูล](docs/05-download-backup.md)
 6. [เช็คลิสต์วันงาน](docs/06-checklist.md) — พิมพ์แผ่นนี้ติดตัวไว้
+7. [ติดตั้งบน Shafiq-NAS (as-built)](docs/07-shafiq-nas.md) — ค่าจริงของ infra ชุดนั้น: `wedding.shafiq-lap.com`, AdGuard + Cloudflare, wildcard cert, MikroTik NAT และวิธีส่งโค้ดขึ้น NAS ที่ไม่มี git
 
 ## การตั้งค่า
 
