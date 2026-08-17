@@ -82,7 +82,28 @@ HTTP_PORT=8080
 
 ## 6. สั่งรัน
 
-**วิธีที่ 1 — ผ่าน SSH (แนะนำ เพราะเห็น log ตอนมีปัญหา)**
+**วิธีที่เร็วที่สุด — สคริปต์เดียวจบ**
+
+```bash
+cd /volume1/docker/wedding-share
+sudo ./scripts/deploy-nas.sh
+```
+
+สคริปต์จะทำข้อ 1–6 ให้ทั้งหมด: ตรวจ docker, เช็คว่าพอร์ตว่าง, สร้างโฟลเดอร์,
+ตั้งสิทธิ์ตาม PUID/PGID ของคุณ, สร้าง `.env` พร้อม**รหัสแอดมินแบบสุ่ม**,
+build, รัน แล้วรอจนเว็บตอบก่อนบอก URL
+
+```bash
+sudo ./scripts/deploy-nas.sh --dry-run          # ดูก่อนว่าจะทำอะไรบ้าง
+sudo ./scripts/deploy-nas.sh --port 8181        # ถ้าพอร์ต 8080 ชนกับแอปอื่น
+sudo ./scripts/deploy-nas.sh --data /volume2/wedding
+```
+
+ถ้าเคยสร้าง `.env` ไว้แล้ว สคริปต์จะไม่เขียนทับ
+
+หรือถ้าอยากทำเองทีละขั้น ใช้สองวิธีข้างล่างนี้
+
+**วิธีที่ 1 — ผ่าน SSH (เห็น log ตอนมีปัญหา)**
 
 ```bash
 cd /volume1/docker/wedding-share

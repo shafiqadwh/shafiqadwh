@@ -36,10 +36,11 @@
 
 ```bash
 git clone <repo> wedding-share && cd wedding-share
-cp .env.example .env
-nano .env                       # ตั้ง ADMIN_PASSWORD, COUPLE_NAMES, BASE_URL
-sudo docker compose up -d --build
+sudo ./scripts/deploy-nas.sh    # เตรียมโฟลเดอร์ + .env + build + รัน ให้ครบในคำสั่งเดียว
 ```
+
+สคริปต์จะสุ่มรหัสแอดมินให้และบอก URL ที่เปิดได้เมื่อเสร็จ
+เพิ่ม `--dry-run` เพื่อดูก่อนว่าจะทำอะไรบ้าง หรือ `--port 8181` ถ้าพอร์ตชนกับแอปอื่น
 
 เปิด `http://ไอพีของ-nas:8080` แล้วเข้า `/admin` เพื่อพิมพ์การ์ด QR
 
