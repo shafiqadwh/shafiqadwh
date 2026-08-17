@@ -36,6 +36,29 @@ test('the gallery page renders in each language', async () => {
   }
 });
 
+test('the camera buttons can actually open a camera', async () => {
+  // Regression: `capture` is ignored when accept lists more than one media
+  // type, so the button fell back to the plain file picker on every phone.
+  const html = await (await fetch(`${app.baseUrl}/?lang=en`)).text();
+
+  const captureInputs = [...html.matchAll(/<input[^>]*\bcapture=[^>]*>/g)].map((m) => m[0]);
+  assert.equal(captureInputs.length, 2, 'one camera input for photos, one for videos');
+
+  for (const input of captureInputs) {
+    const accept = input.match(/accept="([^"]+)"/)[1];
+    assert.ok(
+      accept === 'image/*' || accept === 'video/*',
+      `capture needs a single media type, got accept="${accept}"`,
+    );
+  }
+
+  // The plain picker stays multi-type and multi-file, and must not capture.
+  const picker = html.match(/<input[^>]*id="file-input"[^>]*>/)[0];
+  assert.ok(picker.includes('accept="image/*,video/*"'));
+  assert.ok(picker.includes('multiple'));
+  assert.ok(!picker.includes('capture'));
+});
+
 test('a phone with a Malaysian locale gets Malay without asking', async () => {
   const response = await fetch(app.baseUrl, { headers: { 'Accept-Language': 'ms-MY,ms;q=0.9,en;q=0.6' } });
   const html = await response.text();

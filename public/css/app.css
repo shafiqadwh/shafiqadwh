@@ -340,6 +340,14 @@ a:focus-visible {
   cursor: pointer;
 }
 
+/* เดสก์ท็อปไม่รองรับ capture — ปุ่มถ่ายรูปจะเปิดตัวเลือกไฟล์เฉย ๆ ซึ่งชวนสับสน
+   จึงแสดงเฉพาะเครื่องที่ใช้นิ้วจิ้ม (มือถือ/แท็บเล็ต) */
+@media (hover: hover) and (pointer: fine) {
+  .camera-only {
+    display: none;
+  }
+}
+
 .dropzone__hint {
   margin: 12px 0 4px;
   color: var(--ink-soft);

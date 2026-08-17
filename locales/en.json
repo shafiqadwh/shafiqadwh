@@ -33,7 +33,8 @@
   "upload": {
     "heading": "Share your photos and videos",
     "choose": "Choose photos / videos",
-    "camera": "Take one now",
+    "camera_photo": "Take a photo",
+    "camera_video": "Record a video",
     "drop_hint": "or drag your files here",
     "your_name": "Your name",
     "name_placeholder": "e.g. Sarah (optional)",

@@ -13,7 +13,10 @@
   if (!dropzone) return;
 
   const fileInput = document.getElementById('file-input');
-  const cameraInput = document.getElementById('camera-input');
+  const cameraInputs = [
+    document.getElementById('camera-photo'),
+    document.getElementById('camera-video'),
+  ].filter(Boolean);
   const nameInput = document.getElementById('uploader-name');
   const queueList = document.getElementById('upload-queue');
   const statusLine = document.getElementById('upload-status');
@@ -172,9 +175,11 @@
     fileInput.value = '';
   });
 
-  cameraInput?.addEventListener('change', () => {
-    handleFiles(cameraInput.files);
-    cameraInput.value = '';
+  cameraInputs.forEach((input) => {
+    input.addEventListener('change', () => {
+      handleFiles(input.files);
+      input.value = '';
+    });
   });
 
   ['dragenter', 'dragover'].forEach((type) => {

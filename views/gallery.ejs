@@ -21,9 +21,17 @@
           <%= t('upload.choose') %>
           <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
         </label>
-        <label class="button button--ghost">
-          <%= t('upload.camera') %>
-          <input type="file" id="camera-input" accept="image/*,video/*" capture="environment" hidden>
+
+        <!-- capture ทำงานเฉพาะเมื่อ accept ระบุชนิดเดียว ถ้าใส่ทั้ง image/* และ
+             video/* เบราว์เซอร์จะเลือกโหมดกล้องไม่ได้ แล้วถอยไปเปิดตัวเลือกไฟล์แทน
+             จึงต้องแยกเป็นสองปุ่ม ปุ่มพวกนี้ซ่อนบนคอมเพราะเดสก์ท็อปไม่รองรับ capture -->
+        <label class="button button--ghost camera-only">
+          <%= t('upload.camera_photo') %>
+          <input type="file" id="camera-photo" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="button button--ghost camera-only">
+          <%= t('upload.camera_video') %>
+          <input type="file" id="camera-video" accept="video/*" capture="environment" hidden>
         </label>
       </div>
       <p class="dropzone__hint"><%= t('upload.drop_hint') %></p>
