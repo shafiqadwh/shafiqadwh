@@ -75,12 +75,25 @@ say "  ใช้: $COMPOSE"
 # ── 2. เช็คว่าพอร์ตว่างไหม ──────────────────────────────────────────────────
 step "ตรวจพอร์ต $PORT"
 
+# คอนเทนเนอร์ของงานนี้เองก็ถือพอร์ตนี้อยู่ ถ้านับว่า "ชน" สคริปต์จะบล็อกตัวเอง
+# ทุกครั้งที่รันซ้ำ — ผิดหลัก idempotent ข้อ 2 ของมาตรฐาน (รันซ้ำต้องปลอดภัย)
+# compose จะสร้างคอนเทนเนอร์ใหม่ทับตัวเดิมให้เองอยู่แล้ว
+port_held_by_this_project() {
+  docker ps --filter 'name=^wedding-share$' --format '{{.Ports}}' 2>/dev/null \
+    | grep -q "[:.]${PORT}->"
+}
+
 if command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | grep -q "[:.]$PORT "; then
-  say "  ⚠ พอร์ต $PORT ถูกใช้อยู่แล้ว — สิ่งที่รันอยู่ตอนนี้:"
-  docker ps --format '     {{.Names}}  {{.Ports}}' 2>/dev/null || true
-  say ""
-  say "  เลือกพอร์ตอื่นแล้วรันใหม่ เช่น:  sudo $0 --port 18091"
-  [ "$DRY_RUN" = "1" ] || exit 1
+  if port_held_by_this_project; then
+    say "  พอร์ต $PORT ถือโดยคอนเทนเนอร์ wedding-share ของงานนี้เอง — compose จะสร้างทับให้"
+  else
+    say "  ⚠ พอร์ต $PORT ถูกใช้โดยบริการอื่น — สิ่งที่รันอยู่ตอนนี้:"
+    docker ps --format '     {{.Names}}  {{.Ports}}' 2>/dev/null || true
+    say ""
+    say "  เลือกพอร์ตอื่นแล้วรันใหม่ เช่น:  sudo $0 --port 18091"
+    say "  (อย่าลืมแก้ Destination port ใน reverse proxy ของ DSM ตามด้วย)"
+    [ "$DRY_RUN" = "1" ] || exit 1
+  fi
 else
   say "  พอร์ต $PORT ว่าง"
 fi
