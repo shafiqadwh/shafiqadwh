@@ -1,0 +1,12 @@
+  </main>
+
+  <footer class="site-footer">
+    <p><%= event.coupleNames || event.title %><% if (event.date) { %> · <%= event.date %><% } %></p>
+  </footer>
+
+  <script>
+    window.I18N = <%- JSON.stringify(clientStrings) %>;
+    window.APP = <%- JSON.stringify(clientConfig || {}) %>;
+  </script>
+</body>
+</html>

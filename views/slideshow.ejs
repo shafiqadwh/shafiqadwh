@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="<%= htmlLang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= event.title %> · <%= t('nav.slideshow') %></title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body class="slideshow-body" data-page="slideshow">
+  <div class="stage" id="stage">
+    <div class="stage__waiting" id="waiting">
+      <p class="stage__waiting-text"><%= t('slideshow.waiting') %></p>
+      <img class="stage__waiting-qr" src="<%= qrImage %>" alt="QR">
+    </div>
+  </div>
+
+  <div class="stage__caption" id="caption" hidden></div>
+
+  <aside class="stage__qr" id="qr-badge">
+    <img src="<%= qrImage %>" alt="QR">
+    <div class="stage__qr-text">
+      <strong><%= t('slideshow.scan_title') %></strong>
+      <span><%= shareUrl.replace(/^https?:\/\//, '') %></span>
+    </div>
+  </aside>
+
+  <script>
+    window.I18N = <%- JSON.stringify(clientStrings) %>;
+    window.SLIDESHOW = <%- JSON.stringify({
+      seconds: settings.seconds,
+      videoMaxSeconds: settings.videoMaxSeconds,
+      qrEvery: settings.qrEverySlides,
+      muted: settings.muted,
+      qrImage,
+      shareUrl,
+    }) %>;
+  </script>
+  <script src="/static/js/slideshow.js" defer></script>
+</body>
+</html>

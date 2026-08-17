@@ -1,0 +1,107 @@
+<%- include('partials/head', { pageTitle: t('admin.title') }) %>
+
+<section class="admin-head">
+  <h1 class="section-title"><%= t('admin.title') %></h1>
+  <form method="post" action="/admin/logout">
+    <button type="submit" class="button button--small button--ghost"><%= t('admin.logout') %></button>
+  </form>
+</section>
+
+<section class="stats">
+  <div class="stat"><span class="stat__value"><%= stats.photos %></span><span class="stat__label"><%= t('admin.stat_photos') %></span></div>
+  <div class="stat"><span class="stat__value"><%= stats.videos %></span><span class="stat__label"><%= t('admin.stat_videos') %></span></div>
+  <div class="stat"><span class="stat__value"><%= stats.messages %></span><span class="stat__label"><%= t('admin.stat_messages') %></span></div>
+  <div class="stat"><span class="stat__value"><%= stats.storage %></span><span class="stat__label"><%= t('admin.stat_storage') %></span></div>
+  <div class="stat"><span class="stat__value"><%= queue %></span><span class="stat__label"><%= t('admin.stat_queue') %></span></div>
+</section>
+
+<section class="card">
+  <h2 class="section-title"><%= t('admin.settings') %></h2>
+  <form method="post" action="/admin/settings" class="form form--inline">
+    <label class="switch">
+      <input type="checkbox" name="uploads_enabled" <%= uploadsEnabled ? 'checked' : '' %>>
+      <span><%= t('admin.uploads_enabled') %></span>
+    </label>
+    <label class="switch">
+      <input type="checkbox" name="require_review" <%= requireReview ? 'checked' : '' %>>
+      <span><%= t('admin.review_required') %></span>
+    </label>
+    <button type="submit" class="button button--primary button--small"><%= t('common.ok') %></button>
+  </form>
+</section>
+
+<section class="card">
+  <h2 class="section-title"><%= t('admin.download') %></h2>
+  <div class="button-row">
+    <a class="button button--ghost" href="/admin/zip?videos=0"><%= t('admin.download_photos') %></a>
+    <a class="button button--ghost" href="/admin/zip"><%= t('admin.download_all') %></a>
+    <a class="button button--ghost" href="/admin/qr" target="_blank" rel="noopener"><%= t('admin.qr') %></a>
+    <a class="button button--ghost" href="/slideshow" target="_blank" rel="noopener"><%= t('nav.slideshow') %></a>
+  </div>
+  <p class="notice"><%= t('admin.download_note') %></p>
+</section>
+
+<section class="card">
+  <h2 class="section-title"><%= t('admin.items') %><% if (stats.pending) { %> · <%= t('admin.pending') %> (<%= stats.pending %>)<% } %></h2>
+
+  <div class="admin-grid">
+    <% items.forEach(function (item) { %>
+      <figure class="admin-item admin-item--<%= item.status %>">
+        <% if (item.thumb_name) { %>
+          <img loading="lazy" src="/thumb/<%= item.id %>" alt="">
+        <% } else { %>
+          <div class="admin-item__placeholder"><%= item.kind === 'video' ? '🎬' : '🖼' %></div>
+        <% } %>
+
+        <figcaption>
+          <span class="admin-item__meta">
+            #<%= item.id %> · <%= item.kind === 'video' ? t('common.video') : t('common.photo') %>
+            <% if (item.uploader) { %> · <%= item.uploader %><% } %>
+            <% if (item.status !== 'visible') { %> · <%= item.status %><% } %>
+          </span>
+
+          <span class="admin-item__actions">
+            <% if (item.status === 'pending') { %>
+              <form method="post" action="/admin/items/<%= item.id %>/approve">
+                <button class="button button--tiny"><%= t('admin.approve') %></button>
+              </form>
+            <% } %>
+            <% if (item.status === 'hidden') { %>
+              <form method="post" action="/admin/items/<%= item.id %>/show">
+                <button class="button button--tiny"><%= t('admin.unhide') %></button>
+              </form>
+            <% } else { %>
+              <form method="post" action="/admin/items/<%= item.id %>/hide">
+                <button class="button button--tiny"><%= t('admin.hide') %></button>
+              </form>
+            <% } %>
+            <form method="post" action="/admin/items/<%= item.id %>/delete"
+                  onsubmit="return confirm(<%= JSON.stringify(t('admin.confirm_delete')) %>)">
+              <button class="button button--tiny button--danger"><%= t('admin.delete') %></button>
+            </form>
+          </span>
+        </figcaption>
+      </figure>
+    <% }); %>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="section-title"><%= t('guestbook.heading') %></h2>
+  <ul class="admin-messages">
+    <% messages.forEach(function (message) { %>
+      <li class="admin-message">
+        <div>
+          <strong><%= message.author || t('gallery.anonymous') %></strong>
+          <p><%= message.body %></p>
+        </div>
+        <form method="post" action="/admin/messages/<%= message.id %>/delete"
+              onsubmit="return confirm(<%= JSON.stringify(t('admin.confirm_delete')) %>)">
+          <button class="button button--tiny button--danger"><%= t('admin.delete') %></button>
+        </form>
+      </li>
+    <% }); %>
+  </ul>
+</section>
+
+<%- include('partials/foot') %>

@@ -1,0 +1,16 @@
+<%- include('partials/head', { pageTitle: t('admin.title') }) %>
+
+<section class="card card--narrow">
+  <h1 class="section-title"><%= t('admin.title') %></h1>
+
+  <form method="post" action="/admin/login" class="form">
+    <label class="field">
+      <span class="field__label"><%= t('admin.password') %></span>
+      <input type="password" name="password" autocomplete="current-password" required autofocus>
+    </label>
+    <% if (error) { %><p class="notice notice--error"><%= error %></p><% } %>
+    <button type="submit" class="button button--primary"><%= t('admin.login') %></button>
+  </form>
+</section>
+
+<%- include('partials/foot') %>

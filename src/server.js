@@ -1,0 +1,106 @@
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import cookieParser from 'cookie-parser';
+import { assertConfig, config } from './config.js';
+import { catalogue, languageMiddleware } from './i18n.js';
+import { ensureDirs } from './lib/media.js';
+import { resumeQueue } from './lib/queue.js';
+import { startLimiterCleanup } from './lib/ratelimit.js';
+import { adminRouter, isAdmin } from './routes/admin.js';
+import { galleryRouter } from './routes/gallery.js';
+import { guestbookRouter } from './routes/guestbook.js';
+import { slideshowRouter } from './routes/slideshow.js';
+import { uploadRouter } from './routes/upload.js';
+
+export function createApp() {
+  const app = express();
+
+  if (config.trustProxy) app.set('trust proxy', true);
+  app.set('view engine', 'ejs');
+  app.set('views', config.paths.views);
+  app.disable('x-powered-by');
+
+  app.use(cookieParser());
+  app.use(languageMiddleware);
+
+  app.use((req, res, next) => {
+    res.locals.event = config.event;
+    res.locals.limits = config.limits;
+    res.locals.isAdmin = isAdmin(req);
+    res.locals.currentPath = req.path;
+    // Everything the browser-side scripts need, in the guest's language.
+    res.locals.clientStrings = catalogue(req.lang);
+    res.locals.clientConfig = {
+      lang: req.lang,
+      limits: {
+        imageMb: config.limits.imageMb,
+        videoMb: config.limits.videoMb,
+        videoSeconds: config.limits.videoSeconds,
+        filesPerRequest: config.limits.filesPerRequest,
+      },
+    };
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'same-origin');
+    next();
+  });
+
+  app.use('/static', express.static(config.paths.public, { maxAge: '7d' }));
+  app.get('/healthz', (req, res) => res.json({ ok: true }));
+
+  app.use(galleryRouter);
+  app.use(uploadRouter);
+  app.use(guestbookRouter);
+  app.use(slideshowRouter);
+  app.use(adminRouter);
+
+  app.use((req, res) => {
+    res.status(404);
+    if (req.accepts('html')) return res.render('error', { page: 'error', message: req.t('errors.not_found') });
+    return res.json({ error: req.t('errors.not_found') });
+  });
+
+  app.use((error, req, res, next) => {
+    console.error('[error]', error);
+    if (res.headersSent) return next(error);
+    res.status(500);
+    const message = req.t ? req.t('errors.server_error') : 'Server error';
+    if (req.accepts('html')) return res.render('error', { page: 'error', message });
+    return res.json({ error: message });
+  });
+
+  return app;
+}
+
+export async function start() {
+  assertConfig();
+  await ensureDirs();
+  resumeQueue();
+  startLimiterCleanup();
+
+  const app = createApp();
+  const server = app.listen(config.port, config.host, () => {
+    console.log(`${config.event.title} — listening on http://${config.host}:${config.port}`);
+    if (config.baseUrl) console.log(`Guests will scan: ${config.baseUrl}`);
+  });
+
+  const shutdown = (signal) => {
+    console.log(`\n${signal} received, shutting down`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 10_000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
+  return server;
+}
+
+const invokedDirectly =
+  process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  start().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}

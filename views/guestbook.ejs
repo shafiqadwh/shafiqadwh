@@ -1,0 +1,41 @@
+<%- include('partials/head', { pageTitle: t('nav.guestbook') }) %>
+
+<section class="hero">
+  <h1 class="hero__title"><%= t('guestbook.heading') %></h1>
+  <p class="hero__text"><%= t('guestbook.intro') %></p>
+</section>
+
+<section class="card">
+  <form id="message-form" class="form">
+    <label class="field">
+      <span class="field__label"><%= t('guestbook.name') %></span>
+      <input type="text" name="author" id="message-author" maxlength="60" autocomplete="name">
+    </label>
+
+    <label class="field">
+      <span class="field__label"><%= t('guestbook.message') %></span>
+      <textarea name="body" id="message-body" rows="4" maxlength="2000" required
+                placeholder="<%= t('guestbook.message_placeholder') %>"></textarea>
+    </label>
+
+    <% if (uploadsOpen) { %>
+      <label class="field">
+        <span class="field__label"><%= t('guestbook.attach') %></span>
+        <input type="file" name="attachment" id="message-file" accept="image/*,video/*">
+      </label>
+    <% } %>
+
+    <button type="submit" class="button button--primary" id="message-submit">
+      <%= t('guestbook.submit') %>
+    </button>
+    <p class="notice" id="message-status" role="status" hidden></p>
+  </form>
+</section>
+
+<section class="messages" id="messages" aria-live="polite"></section>
+
+<p class="empty" id="messages-empty" hidden><%= t('guestbook.empty') %></p>
+
+<script src="/static/js/guestbook.js" defer></script>
+
+<%- include('partials/foot') %>

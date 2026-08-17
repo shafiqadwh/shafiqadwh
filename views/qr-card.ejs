@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="<%= htmlLang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= event.title %> · QR</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="card-body">
+  <div class="no-print print-bar">
+    <button onclick="window.print()" class="button button--primary"><%= t('admin.print') %></button>
+    <a class="button button--ghost" href="/admin/qr.png" download="wedding-qr.png">PNG</a>
+    <a class="button button--ghost" href="/admin"><%= t('common.back') %></a>
+  </div>
+
+  <% for (let copy = 0; copy < 2; copy++) { %>
+    <article class="qr-card">
+      <header class="qr-card__header">
+        <p class="qr-card__names"><%= event.coupleNames || event.title %></p>
+        <% if (event.date) { %><p class="qr-card__date"><%= event.date %></p><% } %>
+      </header>
+
+      <img class="qr-card__code" src="<%= qrImage %>" alt="QR code">
+
+      <% cards.forEach(function (card) { %>
+        <section class="qr-card__block" lang="<%= card.code %>">
+          <h2><%= card.title %></h2>
+          <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
+        </section>
+      <% }); %>
+
+      <footer class="qr-card__footer">
+        <span><%= shareUrl.replace(/^https?:\/\//, '') %></span>
+      </footer>
+    </article>
+  <% } %>
+</body>
+</html>

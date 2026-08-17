@@ -1,0 +1,83 @@
+<%- include('partials/head', { pageTitle: t('nav.gallery') }) %>
+
+<section class="hero">
+  <h1 class="hero__title"><%= t('site.welcome') %></h1>
+  <p class="hero__text"><%= t('site.share_hint') %></p>
+</section>
+
+<% if (uploadsOpen) { %>
+  <section class="uploader" id="uploader">
+    <h2 class="section-title"><%= t('upload.heading') %></h2>
+
+    <label class="field">
+      <span class="field__label"><%= t('upload.your_name') %></span>
+      <input type="text" id="uploader-name" maxlength="60"
+             placeholder="<%= t('upload.name_placeholder') %>" autocomplete="name">
+    </label>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone__actions">
+        <label class="button button--primary">
+          <%= t('upload.choose') %>
+          <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
+        </label>
+        <label class="button button--ghost">
+          <%= t('upload.camera') %>
+          <input type="file" id="camera-input" accept="image/*,video/*" capture="environment" hidden>
+        </label>
+      </div>
+      <p class="dropzone__hint"><%= t('upload.drop_hint') %></p>
+      <p class="dropzone__limits">
+        <%= t('upload.limits', { image: limits.imageMb, video: limits.videoMb, seconds: limits.videoSeconds }) %>
+      </p>
+    </div>
+
+    <ul class="queue" id="upload-queue" hidden></ul>
+    <p class="notice" id="upload-status" role="status" hidden></p>
+  </section>
+<% } else { %>
+  <section class="uploader uploader--closed">
+    <h2 class="section-title"><%= t('upload.closed_title') %></h2>
+    <p class="notice"><%= t('upload.closed_body') %></p>
+  </section>
+<% } %>
+
+<section class="gallery">
+  <div class="gallery__bar">
+    <h2 class="section-title"><%= t('gallery.heading') %></h2>
+    <div class="filters" role="group">
+      <button class="chip is-active" data-filter="all"><%= t('gallery.filter_all') %></button>
+      <button class="chip" data-filter="photos"><%= t('gallery.filter_photos') %></button>
+      <button class="chip" data-filter="videos"><%= t('gallery.filter_videos') %></button>
+    </div>
+  </div>
+
+  <p class="gallery__count" id="gallery-count"><%= t('gallery.count', { n: total }) %></p>
+
+  <button class="new-items" id="new-items" hidden></button>
+
+  <div class="grid" id="grid" aria-live="polite"></div>
+
+  <div class="empty" id="empty" hidden>
+    <p class="empty__title"><%= t('gallery.empty_title') %></p>
+    <p class="empty__text"><%= t('gallery.empty_body') %></p>
+  </div>
+
+  <button class="button button--ghost load-more" id="load-more" hidden><%= t('gallery.load_more') %></button>
+</section>
+
+<div class="lightbox" id="lightbox" hidden>
+  <button class="lightbox__close" id="lightbox-close" aria-label="<%= t('common.close') %>">&times;</button>
+  <button class="lightbox__nav lightbox__nav--prev" id="lightbox-prev" aria-label="<%= t('gallery.prev') %>">&#8249;</button>
+  <div class="lightbox__stage" id="lightbox-stage"></div>
+  <button class="lightbox__nav lightbox__nav--next" id="lightbox-next" aria-label="<%= t('gallery.next') %>">&#8250;</button>
+  <div class="lightbox__meta">
+    <span id="lightbox-caption"></span>
+    <a class="button button--small" id="lightbox-download" download><%= t('gallery.download_item') %></a>
+  </div>
+</div>
+
+<script src="/static/js/upload.js" defer></script>
+<script src="/static/js/gallery.js" defer></script>
+
+<%- include('partials/foot') %>

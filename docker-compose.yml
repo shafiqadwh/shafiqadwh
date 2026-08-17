@@ -1,0 +1,32 @@
+services:
+  wedding-share:
+    container_name: wedding-share
+    build: .
+    # เมื่อ build บน NAS แล้วอยากล็อกอิมเมจไว้ ให้ตั้งชื่อด้วย image: wedding-share:1.0.0
+    image: wedding-share:latest
+    restart: always
+    env_file:
+      - .env
+    environment:
+      # ให้ผู้ใช้/กลุ่มตรงกับเจ้าของโฟลเดอร์บน DSM ดูวิธีหาเลขได้ในคู่มือบทที่ 1
+      TZ: ${TZ:-Asia/Bangkok}
+    user: "${PUID:-1026}:${PGID:-100}"
+    ports:
+      - "${HTTP_PORT:-8080}:3000"
+    volumes:
+      # ต้นฉบับทั้งหมด — ชี้ไปที่ shared folder จริงบน NAS เพื่อให้เปิดผ่าน
+      # File Station / SMB และให้ Synology Photos ไล่ index ได้
+      - /volume1/wedding/uploads:/app/data/uploads
+      # รูปย่อ ภาพปกวิดีโอ และวิดีโอที่แปลงแล้ว (สร้างใหม่ได้เสมอ)
+      - /volume1/wedding/derived:/app/data/derived
+      # ฐานข้อมูล SQLite — ไฟล์เล็กแต่สำคัญที่สุด ควรใส่ใน Hyper Backup
+      - /volume1/wedding/db:/app/data/db
+      - /volume1/wedding/tmp:/app/data/tmp
+    # กันไม่ให้การแปลงวิดีโอกิน CPU ของ NAS ทั้งเครื่องตอนแขกอัพโหลดพร้อมกัน
+    cpus: "2.0"
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

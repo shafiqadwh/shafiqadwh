@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="<%= htmlLang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f1ea">
+  <title><%= event.title %><%= typeof pageTitle !== 'undefined' ? ' · ' + pageTitle : '' %></title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body data-page="<%= page %>">
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="/">
+        <span class="brand__names"><%= event.coupleNames || event.title %></span>
+        <% if (event.date) { %><span class="brand__date"><%= event.date %></span><% } %>
+      </a>
+
+      <nav class="lang" aria-label="<%= t('common.language') %>">
+        <% languages.forEach(function (option) { %>
+          <a class="lang__option <%= option.code === lang ? 'is-active' : '' %>"
+             href="<%= currentPath %>?lang=<%= option.code %>"
+             lang="<%= option.code %>"
+             aria-current="<%= option.code === lang ? 'true' : 'false' %>"><%= option.short %></a>
+        <% }); %>
+      </nav>
+    </div>
+
+    <nav class="tabs">
+      <a class="tabs__link <%= page === 'gallery' ? 'is-active' : '' %>" href="/"><%= t('nav.gallery') %></a>
+      <a class="tabs__link <%= page === 'guestbook' ? 'is-active' : '' %>" href="/guestbook"><%= t('nav.guestbook') %></a>
+      <% if (isAdmin) { %>
+        <a class="tabs__link <%= page === 'admin' ? 'is-active' : '' %>" href="/admin"><%= t('nav.admin') %></a>
+      <% } %>
+    </nav>
+  </header>
+
+  <main class="page">

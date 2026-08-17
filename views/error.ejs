@@ -1,0 +1,8 @@
+<%- include('partials/head', { pageTitle: message }) %>
+
+<section class="card card--narrow">
+  <p class="notice notice--error"><%= message %></p>
+  <a class="button button--primary" href="/"><%= t('common.back') %></a>
+</section>
+
+<%- include('partials/foot') %>
