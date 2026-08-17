@@ -9,6 +9,8 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 </head>
 <body data-page="<%= page %>">
+  <%- include('flags') %>
+
   <header class="site-header">
     <div class="site-header__inner">
       <a class="brand" href="/">
@@ -16,12 +18,18 @@
         <% if (event.date) { %><span class="brand__date"><%= event.date %></span><% } %>
       </a>
 
+      <%# ลำดับภาษาตามที่ตั้งไว้ใน config: ไทย → มลายู → อังกฤษ %>
       <nav class="lang" aria-label="<%= t('common.language') %>">
         <% languages.forEach(function (option) { %>
           <a class="lang__option <%= option.code === lang ? 'is-active' : '' %>"
              href="<%= currentPath %>?lang=<%= option.code %>"
              lang="<%= option.code %>"
-             aria-current="<%= option.code === lang ? 'true' : 'false' %>"><%= option.short %></a>
+             title="<%= option.name %>"
+             aria-label="<%= option.name %>"
+             aria-current="<%= option.code === lang ? 'true' : 'false' %>">
+            <svg class="lang__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= option.code %>"/></svg>
+            <span class="lang__code"><%= option.short %></span>
+          </a>
         <% }); %>
       </nav>
     </div>

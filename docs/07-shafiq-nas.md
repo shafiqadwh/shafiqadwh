@@ -19,13 +19,45 @@
 | โฟลเดอร์โปรเจกต์ | `/volume1/docker/wedding-share` |
 | โฟลเดอร์ข้อมูล | `/volume1/wedding` |
 
-**สอดคล้องกับมาตรฐานเดิมอย่างไร**
+**เทียบกับกฎ 7 ข้อใน `INFRASTANDARDS.md` ส่วนที่ 2.1**
 
-- `ports: "127.0.0.1:18090:3000"` — ไม่เปิดสู่ LAN ตรง ๆ บังคับผ่าน reverse proxy + TLS
-- `build: network: host` — จำเป็นเพราะ `docker0` บนเครื่องนี้ออกเน็ตไม่ได้ (landmine #2)
+| กฎ | สถานะ |
+|---|---|
+| (1) `dns:` | ✅ ใส่ `1.1.1.1` + `192.168.2.2` แล้ว (แอปไม่ได้เรียกเน็ตออก แต่ใส่ตามมาตรฐาน) |
+| (2) `build: network: host` | ✅ ขาดไม่ได้ — `npm ci` จะพังตอน build |
+| (3) จำกัดขนาด log | ✅ `max-size: 10m`, `max-file: 3` |
+| (4) `restart: unless-stopped` | ✅ |
+| (5) `env_file:` | ✅ ใช้ `env_file` ไม่ได้ไล่ list ทีละตัว |
+| (6) named volume สำหรับข้อมูลโปรแกรม | ⚠️ **จงใจไม่ทำตาม — ดูเหตุผลข้างล่าง** |
+| (7) `name:` แยกโปรเจกต์ | ✅ `name: wedding-share` |
+
+**ข้อ (6) — ทำไมถึงใช้ bind mount ทั้งที่มาตรฐานบอกให้ใช้ named volume**
+
+มาตรฐานเตือนว่า Synology ACL บล็อกการเขียนแบบเงียบ ๆ (เจอกับ MariaDB, Postgres, syslog-ng)
+แต่กรณีนี้ต่างออกไป และ **ทดสอบบนเครื่องจริงแล้วเขียนได้ปกติ** (17 ส.ค. 2569 อัพโหลดรูปและวิดีโอสำเร็จ)
+
+| โฟลเดอร์ | จัดอยู่ในหมวดไหนของมาตรฐาน | เลือกใช้ |
+|---|---|---|
+| `uploads/`, `derived/` | **สื่อที่เราจัดการเอง** เหมือน `/volume1/video` | bind mount ✅ ตรงมาตรฐาน |
+| `db/` (SQLite) | ฐานข้อมูล → มาตรฐานบอกให้ใช้ named volume | bind mount ⚠️ ฝืนมาตรฐาน |
+
+เหตุผลที่ยอมฝืนสำหรับ `db/`:
+
+1. รูปทั้งงานต้องเข้าถึงผ่าน **File Station / SMB / Synology Photos** ได้ — เป็นข้อกำหนดของงานนี้
+2. ไฟล์ SQLite เก็บ**ชื่อผู้ส่งกับคำอวยพร** ถ้าแยกไปอยู่ named volume จะต้อง backup คนละวิธีกับรูป
+   ทำให้ Hyper Backup job เดียวครอบไม่ครบ — เสี่ยงลืมมากกว่าเสี่ยง ACL
+3. SQLite เขียนไฟล์เดียวบน ext4 ในเครื่อง ไม่ใช่ DB server ที่ init ทั้งไดเรกทอรีแบบ Postgres/MariaDB
+   ซึ่งเป็นเคสที่มาตรฐานเจอปัญหา
+
+**ถ้าเจออาการเขียน DB ไม่ได้เมื่อไหร่** ให้ย้าย `db/` ไป named volume แล้วสำรองด้วย
+`docker run --rm -v wedding-share_db:/d -v /volume1/backup:/b alpine tar -czf /b/db.tar.gz -C /d .`
+
+**ข้ออื่นที่ทำตามอยู่แล้ว**
+
+- `ports: "127.0.0.1:18090:3000"` — ไม่เปิดสู่ LAN ตรง ๆ (§3.2 ข้อ 5)
 - โค้ด bind-mount แบบ read-only → แก้โค้ดแล้ว **Restart พอ ไม่ต้อง rebuild** (landmine #1)
-- `.env` สร้างบน NAS เท่านั้น `chmod 600` ไม่เข้า git
-- ข้อมูลอยู่ที่ `/volume1/wedding` (bind mount) → **Clean + Build ไม่ลบรูป**
+- `.env` `chmod 600` + อยู่ใน `.gitignore` (§7.1)
+- ต้นฉบับอยู่ใน git ส่งขึ้น NAS ทั้งชุดเสมอ ไม่ patch เฉพาะบน NAS (§8.1 กฎเหล็ก)
 
 ---
 
@@ -214,6 +246,28 @@ curl https://wedding.shafiq-lap.com/healthz
 
 ---
 
+## เปลี่ยนรหัสผ่านแอดมิน
+
+```bash
+cd /volume1/docker/wedding-share
+sudo ./scripts/set-admin-password.sh          # สุ่มให้ แล้วแสดงบนจอ
+sudo ./scripts/set-admin-password.sh --ask    # พิมพ์เอง ไม่แสดงบนจอ
+sudo docker compose up -d                      # ต้อง up -d ไม่ใช่ restart
+```
+
+มีสคริปต์นี้เพราะ §8.4 ข้อ 3 ของมาตรฐาน — ห้ามให้คำสั่งที่มีช่องแทนค่าเอง
+เซสชันที่ล็อกอินค้างไว้ในมือถือจะยังใช้ได้ต่อ ไม่หลุดกลางงาน
+
+## แก้ปัญหาที่เจอบ่อยกับ reverse proxy
+
+| อาการ | สาเหตุจริง |
+|---|---|
+| `Bad Request 400` | ต่อ https ไปยังพอร์ตที่พูด http (หรือกลับกัน) **ไม่ใช่ปัญหาใบรับรอง** — เบราว์เซอร์ไม่ auto-upgrade เป็น https บนพอร์ตที่ไม่ใช่ 443 (§6.4) |
+| `no alternative certificate subject name matches` | ยังไม่ได้ map cert ที่ Security → Certificate → Settings → Configure |
+| เข้าได้ในบ้าน แต่ NXDOMAIN บนมือถือ 4G | ขาดระเบียน Cloudflare (มีแต่ AdGuard rewrite) — เคสเดียวกับ `jellyfin.shafiq-lap.com` |
+| หน้า DSM เด้งขึ้นมาแทนเว็บงานแต่ง | reverse proxy ไม่ match hostname → เช็คว่า Source hostname สะกดตรงและ Source protocol เป็น HTTPS |
+| อัพรูปได้ แต่วิดีโอไม่ผ่าน | ลิมิต nginx ยังไม่มีผล — ทำขั้นที่ 7 ซ้ำแล้ว restart nginx |
+
 ## อัปเดตโค้ดภายหลัง
 
 | กรณี | ต้องทำ |
@@ -229,6 +283,9 @@ curl https://wedding.shafiq-lap.com/healthz
 ไม่ใช่ใน docker volume
 
 ## พอร์ตที่งานนี้จอง
+
+> 📌 **จดลงตารางส่วนที่ 3.1 ของ `INFRASTANDARDS.md` ด้วย** ตามกฎ §3.2 ข้อ 2
+> ไม่งั้นอีกไม่กี่เดือนจะชนกันเอง (18090 ไม่ชนกับของเดิม — NetControl ใช้ 8090 คนละตัว)
 
 | Port | อยู่ที่ | เปิดถึงใคร | ใช้ทำอะไร |
 |---|---|---|---|

@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body class="card-body">
+  <%- include('partials/flags') %>
+
   <div class="no-print print-bar">
     <button onclick="window.print()" class="button button--primary"><%= t('admin.print') %></button>
     <a class="button button--ghost" href="/admin/qr.png" download="wedding-qr.png">PNG</a>
@@ -31,7 +33,10 @@
       <div class="qr-card__blocks">
         <% cards.forEach(function (card) { %>
           <section class="qr-card__block" lang="<%= card.code %>">
-            <h2><%= card.title %></h2>
+            <h2>
+              <svg class="qr-card__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= card.code %>"/></svg>
+              <%= card.title %>
+            </h2>
             <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
           </section>
         <% }); %>
