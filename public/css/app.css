@@ -1082,3 +1082,19 @@ a:focus-visible {
 .site-footer p {
   margin: 0;
 }
+
+/* ทางเข้าของเจ้าภาพ — จงใจให้จางไว้ ไม่ให้แย่งความสนใจจากปุ่มอัพโหลด */
+.site-footer__admin {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-decoration: none;
+  opacity: 0.7;
+  padding: 6px 10px;
+}
+
+.site-footer__admin:hover {
+  opacity: 1;
+  color: var(--accent-dark);
+}

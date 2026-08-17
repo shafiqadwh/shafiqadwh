@@ -2,6 +2,11 @@
 
   <footer class="site-footer">
     <p><%= event.coupleNames || event.title %><% if (event.date) { %> · <%= event.date %><% } %></p>
+    <% if (!isAdmin) { %>
+      <%# ทางเข้าสำหรับเจ้าภาพ — ไม่งั้นต้องจำ URL /admin เอง
+          ปลอดภัยเพราะมีรหัสผ่านและจำกัดจำนวนครั้งที่เดารหัสอยู่แล้ว %>
+      <p><a class="site-footer__admin" href="/admin"><%= t('nav.admin') %></a></p>
+    <% } %>
   </footer>
 
   <script>
