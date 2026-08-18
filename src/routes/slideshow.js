@@ -66,8 +66,12 @@ slideshowRouter.get('/api/slideshow', (req, res) => {
   const sinceMessage = Number(req.query.sinceMessage) || 0;
 
   // First load fills the deck; later polls only ask for what is new.
+  //
+  // หน้าต่าง poll ต้องกว้างเท่ารอบแรก — จอ poll ทุก 15 วินาที ช่วงพีคหลังพิธี
+  // แขกพันคนอัพเกิน 60 รูปใน 15 วินาทีได้จริง ถ้าหน้าต่างแคบกว่านั้น รูปที่
+  // เกินมาจะไม่ขึ้นจอเลยตลอดงาน โดยไม่มีใครรู้ว่าหายไป
   const rows = since
-    ? listItems({ limit: 60 }).filter((row) => row.id > since)
+    ? listItems({ limit: 200 }).filter((row) => row.id > since)
     : listItems({ limit: 200 });
 
   const items = rows

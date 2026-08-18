@@ -170,18 +170,25 @@ export async function ensureDisplayCopy(row) {
     ? path.join(config.paths.derived, row.playback_name)
     : path.join(config.paths.uploads, row.stored_name);
 
-  const partial = `${displayPath}.part.jpg`;
-  await sharp(source, { failOn: 'none' })
-    .rotate()
-    .resize(config.media.displaySize, config.media.displaySize, {
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .jpeg({ quality: 86, mozjpeg: true })
-    .toFile(partial);
+  // ชื่อชั่วคราวต้องไม่ซ้ำกันต่อคำขอ — จอสไลด์โชว์กับมือถือแขกอาจขอรูปเดียวกัน
+  // วินาทีเดียวกัน ถ้าใช้ชื่อ .part เดียวกัน คนแรก rename สำเร็จแล้วไฟล์หาย
+  // คนที่สอง rename เจอ ENOENT ทั้งที่งานสำเร็จดี
+  const partial = `${displayPath}.${crypto.randomBytes(4).toString('hex')}.part.jpg`;
+  try {
+    await sharp(source, { failOn: 'none' })
+      .rotate()
+      .resize(config.media.displaySize, config.media.displaySize, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 86, mozjpeg: true })
+      .toFile(partial);
 
-  // เขียนที่ชื่อชั่วคราวก่อนแล้วค่อยเปลี่ยนชื่อ กันคนขอพร้อมกันแล้วได้ไฟล์ที่เขียนไม่จบ
-  await fs.rename(partial, displayPath);
+    // rename ทับกันเองได้อย่างปลอดภัย — เนื้อไฟล์เหมือนกันทุกสำเนาอยู่แล้ว
+    await fs.rename(partial, displayPath);
+  } finally {
+    await fs.rm(partial, { force: true });
+  }
   return displayName;
 }
 
@@ -195,6 +202,20 @@ export async function processImage(tmpPath, sniffed) {
   const storedPath = path.join(config.paths.uploads, storedName);
   await moveFile(tmpPath, storedPath);
 
+  // ถ้าประมวลผลล้มหลังย้ายไฟล์แล้ว ต้องเก็บกวาดเองก่อนโยน error ต่อ
+  // เพราะตัว catch ข้างนอกรู้จักแต่ tmpPath ซึ่งย้ายไปแล้ว — ไม่งั้นทุกไฟล์เสีย
+  // ที่แขกส่งมาจะค้างเป็นไฟล์กำพร้าใน uploads/ มองไม่เห็นและกินดิสก์ไปเรื่อย ๆ
+  try {
+    return await deriveImage(storedName, storedPath, sniffed);
+  } catch (error) {
+    await fs.rm(storedPath, { force: true });
+    await fs.rm(path.join(config.paths.derived, `${path.parse(storedName).name}.jpg`), { force: true });
+    await fs.rm(path.join(config.paths.derived, `${path.parse(storedName).name}-thumb.jpg`), { force: true });
+    throw error;
+  }
+}
+
+async function deriveImage(storedName, storedPath, sniffed) {
   let sourceForSharp = storedPath;
   let playbackName = null;
 
