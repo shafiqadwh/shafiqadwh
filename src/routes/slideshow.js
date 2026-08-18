@@ -19,6 +19,8 @@ function attachedMedia(row) {
     id: row.item_id,
     kind: row.item_kind,
     mediaUrl: `/media/${row.item_id}`,
+    displayUrl: row.item_kind === 'image' ? `/display/${row.item_id}` : `/media/${row.item_id}`,
+    thumbUrl: row.item_thumb ? `/thumb/${row.item_id}` : null,
     duration: row.item_duration,
     width: row.item_width,
     height: row.item_height,

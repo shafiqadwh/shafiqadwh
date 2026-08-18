@@ -3,9 +3,13 @@
     <string name="app_name">Wedding Slideshow</string>
 
     <!-- ที่อยู่ที่จะเปิด ลองไล่จากบนลงล่างจนกว่าจะมีตัวที่ตอบ
-         ตัวแรกคือโดเมนจริง ตัวที่สองคือไอพีในวง LAN เผื่อ DNS ที่สถานที่จัดงานเพี้ยน -->
-    <string name="default_url">https://wedding.shafiq-lap.com/slideshow</string>
-    <string name="fallback_url">http://192.168.2.2:18090/slideshow</string>
+         ตัวแรกคือโดเมนจริง ตัวที่สองคือไอพีในวง LAN เผื่อ DNS ที่สถานที่จัดงานเพี้ยน
+
+         ?lite=1 = โหมดเบา ปิดพื้นหลังเบลอ เกรนฟิล์ม และการซูมภาพ
+         สามอย่างนี้บังคับให้ GPU วาดใหม่ทั้งจอทุกเฟรม ซึ่งกล่องทีวีทำไม่ไหว
+         เอาออกได้ถ้าทีวีแรงพอ — กดปุ่ม MENU แล้วลบ ?lite=1 ทิ้ง -->
+    <string name="default_url">https://wedding.shafiq-lap.com/slideshow?lite=1</string>
+    <string name="fallback_url">http://192.168.2.2:18090/slideshow?lite=1</string>
 
     <string name="connecting">กำลังเชื่อมต่อ…</string>
     <string name="retrying">เชื่อมต่อไม่ได้ กำลังลองใหม่…</string>

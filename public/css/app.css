@@ -857,27 +857,31 @@ a:focus-visible {
   inset: -6%;
   background-size: cover;
   background-position: center;
-  filter: blur(46px) saturate(0.72) brightness(0.4);
+  filter: blur(30px) saturate(0.72) brightness(0.4);
   transform: scale(1.12);
 }
 
 .slide__media {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
   padding: 3.2vh 3.2vw;
+  /* กันไว้อีกชั้น ต่อให้คำนวณขนาดพลาดก็ไม่ล้นออกไปทับสไลด์อื่น */
+  overflow: hidden;
 }
 
+/* ⚠️ ต้องเป็น width/height 100% + object-fit ห้ามใช้ max-width/max-height
+   เปอร์เซ็นต์ของ max-* จะถูกทิ้งเมื่อกล่องแม่มีความสูงแบบ auto (เช่นอยู่ใน grid
+   ที่วัดจากเนื้อหา) เบราว์เซอร์จึงกางรูปที่ขนาดพิกเซลจริง — รูปจาก iPhone
+   4000px ก็จะกาง 4000px ล้นจอจนเห็นแค่มุมเดียว
+   ส่วน width/height 100% อ้างอิงกับกล่องที่ position: absolute; inset: 0
+   ซึ่งมีขนาดแน่นอนเสมอ แล้ว object-fit: contain ย่อให้พอดีโดยไม่ตัดอะไรทิ้ง */
 .slide__media img,
 .slide__media video {
-  max-width: 100%;
-  max-height: 100%;
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  border-radius: 4px;
-  box-shadow:
-    0 0 0 1px rgba(240, 217, 168, 0.16),
-    0 24px 70px rgba(0, 0, 0, 0.62);
+  object-position: center;
 }
 
 /* ── Ken Burns ────────────────────────────────────────────────────────────
@@ -1000,13 +1004,16 @@ a:focus-visible {
   padding: 0;
 }
 
+/* เดิมใช้ object-fit: cover เพื่อให้รูปเต็มจอ แต่รูปแนวตั้งจากมือถือถูกตัดทิ้ง
+   เกินครึ่ง หน้าคนหายหมด — ใช้ contain แล้วเว้นแถบล่างไว้ให้ข้อความแทน
+   พื้นหลังเบลอเป็นตัวเติมจอให้อยู่แล้ว จึงไม่มีแถบดำ */
+.slide--wish-media .slide__media {
+  padding: 2.5vh 4vw 26vh;
+}
+
 .slide--wish-media .slide__media img,
 .slide--wish-media .slide__media video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 0;
-  box-shadow: none;
+  object-position: center top;
 }
 
 .wish--overlay {
@@ -1014,12 +1021,14 @@ a:focus-visible {
   inset: 0;
   align-content: end;
   padding: 0 8vw 9vh;
+  /* แผ่นมืดต้องจบก่อนถึงขอบล่างของรูปพอดี ไม่งั้นจะไปคลุมส่วนล่างของรูป
+     ซึ่งมักเป็นตรงที่มีหน้าคน — รูปสิ้นสุดที่ 26vh จากขอบล่าง (ดู padding ข้างบน) */
   background: linear-gradient(
     to top,
-    rgba(8, 6, 4, 0.92) 0%,
-    rgba(8, 6, 4, 0.78) 26%,
-    rgba(8, 6, 4, 0.34) 52%,
-    rgba(8, 6, 4, 0) 76%
+    rgba(8, 6, 4, 0.95) 0%,
+    rgba(8, 6, 4, 0.94) 21%,
+    rgba(8, 6, 4, 0.55) 26%,
+    rgba(8, 6, 4, 0) 32%
   );
 }
 
@@ -1227,6 +1236,34 @@ a:focus-visible {
   height: 100%;
   width: 0;
   background: linear-gradient(90deg, #b87a14, #f0d9a8);
+}
+
+/* ── โหมดเบาสำหรับกล่องทีวีที่แรงน้อย (?lite=1) ────────────────────────────
+   สามอย่างนี้คือสาเหตุที่ Google TV กระตุก แต่ละอย่างบังคับให้ GPU วาดใหม่
+   ทั้งจอทุกเฟรม: เบลอเต็มจอ, เกรนที่ผสมสีทั้งจอ (mix-blend-mode) และการซูมภาพ
+   ปิดสามอย่างนี้แล้วเหลือแค่การเฟดข้าม ซึ่งกล่องราคาถูกทำได้สบาย */
+
+.is-lite .stage__grain {
+  display: none;
+}
+
+.is-lite .slide__backdrop {
+  display: none;
+}
+
+/* พอไม่มีพื้นหลังเบลอ ต้องมีพื้นทึบรองแทน ไม่งั้นเห็นสไลด์เก่าทะลุตอนเฟด */
+.is-lite .slide {
+  background: linear-gradient(160deg, #17110c 0%, #0d0a08 60%, #140f0b 100%);
+}
+
+.is-lite .kb--a,
+.is-lite .kb--b {
+  animation: none;
+}
+
+/* เฟดสั้นลงด้วย ยิ่งเฟดนาน ยิ่งมีเฟรมที่ต้องวาดสองสไลด์ซ้อนกันนาน */
+.is-lite .slide {
+  transition: opacity 0.55s ease;
 }
 
 /* ── หน้าจอตอนยังไม่มีอะไรเลย ────────────────────────────────────────────── */

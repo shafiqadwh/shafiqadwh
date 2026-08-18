@@ -32,7 +32,13 @@
   const QR_EVERY = Number(settings.qrEvery) || 0;
   const MESSAGE_EVERY = Number(settings.messageEvery) || 0;
   const TITLE_EVERY = Number(settings.titleEvery) || 0;
-  const KEN_BURNS = settings.kenBurns !== false;
+  // โหมดเบาสำหรับกล่องทีวีที่แรงน้อย — ปิดพื้นหลังเบลอ เกรนฟิล์ม และการซูม
+  // ทั้งสามอย่างเป็นงานที่ GPU ต้องวาดใหม่ทั้งจอทุกเฟรม ซึ่งกล่องราคาถูกไม่ไหว
+  const LITE = new URLSearchParams(window.location.search).get('lite') === '1'
+    || settings.lite === true;
+  const KEN_BURNS = settings.kenBurns !== false && !LITE;
+
+  if (LITE) document.body.classList.add('is-lite');
 
   // ── การประกอบสไลด์ ────────────────────────────────────────────────────────
 
@@ -54,10 +60,20 @@
 
   // รูปจากมือถือส่วนใหญ่เป็นแนวตั้ง วางบนจอ 16:9 แล้วเหลือแถบดำสองข้าง
   // เอารูปเดิมมาเบลอเต็มจอเป็นพื้นหลัง จอจะเต็มโดยไม่ต้อง crop รูปของแขกทิ้ง
-  function backdrop(url) {
+  function backdrop(item) {
+    if (LITE) return null;
+    // เบลอรูปย่อ 720px ไม่ใช่รูปเต็ม — ได้ผลตาเหมือนกันเป๊ะเพราะมันเบลออยู่แล้ว
+    // แต่เบากว่ามาก เบลอรูป 12 ล้านพิกเซลคือสาเหตุที่จอทีวีกระตุก
+    const url = item.thumbUrl || item.displayUrl || item.mediaUrl;
+    if (!url) return null;
     const node = el('div', 'slide__backdrop');
-    node.style.backgroundImage = `url("${url.replace(/"/g, '%22')}")`;
+    node.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
     return node;
+  }
+
+  function addBackdrop(slide, item) {
+    const node = backdrop(item);
+    if (node) slide.appendChild(node);
   }
 
   function kenBurnsClass() {
@@ -81,7 +97,8 @@
       wrap.appendChild(video);
     } else {
       const img = el('img', `slide__image${kenBurnsClass()}`);
-      img.src = item.mediaUrl;
+      // รูปขนาดพอดีจอ ไม่ใช่ต้นฉบับหลายสิบเมกะพิกเซล
+      img.src = item.displayUrl || item.mediaUrl;
       img.alt = '';
       img.addEventListener('error', onDone);
       wrap.appendChild(img);
@@ -155,7 +172,7 @@
 
   function showMedia(item) {
     const slide = el('div', 'slide slide--photo');
-    if (item.kind === 'image') slide.appendChild(backdrop(item.mediaUrl));
+    if (item.kind === 'image') addBackdrop(slide, item);
     slide.appendChild(mediaNode(item, next));
     paint(slide);
 
@@ -173,7 +190,7 @@
   // คำอวยพรที่แนบไฟล์มา — โชว์รูปเต็มจอแล้ววางข้อความทับ ผูกคำกับภาพไว้ด้วยกัน
   function showWishWithMedia(message) {
     const slide = el('div', 'slide slide--wish slide--wish-media');
-    slide.appendChild(backdrop(message.media.mediaUrl));
+    addBackdrop(slide, message.media);
     slide.appendChild(mediaNode(message.media, next));
     slide.appendChild(wishBlock(message, 'overlay'));
     paint(slide);

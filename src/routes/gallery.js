@@ -3,7 +3,7 @@ import express from 'express';
 import { config, withinUploadWindow } from '../config.js';
 import { getFlag } from '../db.js';
 import { countItems, getItem, listItems, newerCount } from '../repo.js';
-import { safeOriginalName } from '../lib/media.js';
+import { ensureDisplayCopy, safeOriginalName } from '../lib/media.js';
 
 export const galleryRouter = express.Router();
 
@@ -19,6 +19,8 @@ export function toPublicItem(row) {
     createdAt: row.created_at,
     thumbUrl: row.thumb_name ? `/thumb/${row.id}` : null,
     mediaUrl: `/media/${row.id}`,
+    // รูปย่อขนาดพอดีจอ ใช้กับสไลด์โชว์ วิดีโอไม่มี ให้ใช้ mediaUrl ตามเดิม
+    displayUrl: row.kind === 'image' ? `/display/${row.id}` : `/media/${row.id}`,
     downloadUrl: `/download/${row.id}`,
     converting: row.kind === 'video' && ['queued', 'running'].includes(row.convert_state),
   };
@@ -77,6 +79,26 @@ galleryRouter.get('/thumb/:id', async (req, res, next) => {
     await sendMedia(res, config.paths.derived, row.thumb_name);
   } catch (error) {
     next(error);
+  }
+});
+
+/**
+ * รูปขนาดพอดีจอสำหรับสไลด์โชว์ — ไม่ใช่ต้นฉบับ 12 ล้านพิกเซล
+ *
+ * กล่อง Google TV ถอดรหัสรูปเต็มทุกสไลด์ไม่ไหว จอจะกระตุกและบางครั้งขึ้นดำ
+ * ถ้าย่อไม่สำเร็จด้วยเหตุใดก็ตาม ตกกลับไปใช้ /media เพื่อให้ยังมีภาพขึ้นจอ
+ */
+galleryRouter.get('/display/:id', async (req, res, next) => {
+  const row = getItem(Number(req.params.id));
+  if (!row || row.status === 'hidden') return next();
+  if (row.kind !== 'image') return res.redirect(302, `/media/${row.id}`);
+
+  try {
+    const displayName = await ensureDisplayCopy(row);
+    await sendMedia(res, config.paths.derived, displayName);
+  } catch (error) {
+    console.error(`[display] could not build a display copy for item ${row.id}:`, error.message);
+    if (!res.headersSent) res.redirect(302, `/media/${row.id}`);
   }
 });
 

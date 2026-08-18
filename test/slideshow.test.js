@@ -88,3 +88,51 @@ test('the slideshow page ships the settings and artwork the deck needs', async (
   assert.match(html, /"kenBurns":\s*(true|false)/);
   assert.match(html, /"event":\s*\{/, 'the title card needs the couple names and date');
 });
+
+test('the slideshow gets a screen-sized copy, not the full-resolution original', async () => {
+  // กล่อง Google TV ถอดรหัสรูป 12 ล้านพิกเซลทุกสไลด์ไม่ไหว จอกระตุกและบางครั้งขึ้นดำ
+  const big = path.join(dataDir, 'huge.jpg');
+  await makeJpeg(big, { width: 4032, height: 3024 });
+
+  const form = new FormData();
+  form.append('files', new Blob([await fs.readFile(big)], { type: 'image/jpeg' }), 'huge.jpg');
+  const upload = await fetch(`${app.baseUrl}/api/upload`, { method: 'POST', body: form });
+  const { ids } = JSON.parse(await upload.text());
+  const id = ids[0];
+
+  const listed = await (await fetch(`${app.baseUrl}/api/items`)).json();
+  const item = listed.items.find((entry) => entry.id === id);
+  assert.equal(item.displayUrl, `/display/${id}`, 'the slideshow needs its own URL for the smaller copy');
+
+  const response = await fetch(`${app.baseUrl}${item.displayUrl}`);
+  assert.equal(response.status, 200);
+
+  const sharp = (await import('sharp')).default;
+  const meta = await sharp(Buffer.from(await response.arrayBuffer())).metadata();
+
+  assert.ok(meta.width <= 1920 && meta.height <= 1920,
+    `display copy should fit inside 1920px, got ${meta.width}x${meta.height}`);
+  assert.ok(meta.width > 1000, 'but still big enough to look sharp on a 1080p screen');
+
+  // ต้นฉบับต้องยังอยู่ครบ ไม่ถูกแทนที่ — ZIP ตอนท้ายงานต้องได้ของเต็ม
+  const original = await fetch(`${app.baseUrl}/media/${id}`);
+  const originalMeta = await sharp(Buffer.from(await original.arrayBuffer())).metadata();
+  assert.equal(originalMeta.width, 4032, 'the original must be untouched');
+});
+
+test('slideshow media is sized by the box, never by its own pixel count', async () => {
+  // บั๊กจริงที่เจอหน้างาน: max-height เป็นเปอร์เซ็นต์ถูกเบราว์เซอร์ทิ้งเมื่อกล่องแม่
+  // สูงแบบ auto รูปแนวตั้ง 1080x1920 จึงกางเต็ม 1930px บนจอสูง 1080px
+  // เห็นแค่ครึ่งบน หน้าคนที่อยู่ล่างหายหมด
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+  const rule = css.match(/\.slide__media img,\s*\n\.slide__media video \{([^}]*)\}/);
+
+  assert.ok(rule, 'the slideshow media rule should still exist');
+  const body = rule[1];
+
+  assert.match(body, /width:\s*100%/, 'width must come from the box');
+  assert.match(body, /height:\s*100%/, 'height must come from the box');
+  assert.match(body, /object-fit:\s*contain/, 'contain is what keeps the whole picture visible');
+  assert.doesNotMatch(body, /max-height:\s*\d+%/,
+    'percentage max-height is silently dropped when the parent height is auto');
+});

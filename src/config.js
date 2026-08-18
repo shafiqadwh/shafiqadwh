@@ -114,6 +114,8 @@ export const config = {
 
   media: {
     thumbnailSize: num('THUMBNAIL_SIZE', 720),
+    // ขนาดสำเนาที่ส่งให้สไลด์โชว์ — ใหญ่พอสำหรับจอ 1080p แต่เบาพอให้กล่องทีวีไหว
+    displaySize: num('DISPLAY_SIZE', 1920),
     convertVideos: bool('CONVERT_VIDEOS', true),
     ffmpegThreads: num('FFMPEG_THREADS', 2),
     // จำนวนงาน ffmpeg ที่ทำพร้อมกันได้ตอนแขกยืนรอ (อ่านข้อมูล + ดึงภาพปก)

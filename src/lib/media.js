@@ -144,6 +144,48 @@ async function warnIfTmpIsOnAnotherDevice() {
 }
 
 /**
+ * สร้างสำเนาขนาดพอดีจอไว้ใช้กับสไลด์โชว์ แล้วเก็บไว้ใช้ซ้ำ
+ *
+ * รูปจากมือถือสมัยนี้ 12 ล้านพิกเซลขึ้นไป การส่งไฟล์เต็มไปให้กล่อง Google TV
+ * ถอดรหัสทุกสไลด์คือสาเหตุที่จอกระตุกและบางครั้งขึ้นดำ (หน่วยความจำไม่พอ)
+ * ย่อเหลือกว้างสุด 1920 ก่อน แล้วทีวีจะเบาลงหลายเท่าโดยตาคนดูไม่เห็นความต่าง
+ *
+ * ทำแบบ lazy ตอนมีคนขอครั้งแรก ไม่ทำตอนอัพโหลด เพราะตอนอัพโหลดแขกยืนรออยู่
+ */
+export async function ensureDisplayCopy(row) {
+  if (row.kind !== 'image') return null;
+
+  const displayName = `${path.parse(row.stored_name).name}-display.jpg`;
+  const displayPath = path.join(config.paths.derived, displayName);
+
+  try {
+    await fs.access(displayPath);
+    return displayName;
+  } catch {
+    // ยังไม่เคยสร้าง — สร้างเดี๋ยวนี้
+  }
+
+  // ถ้าเคยแปลง HEIC ไว้แล้ว ใช้ตัวที่แปลงแล้วเป็นต้นทาง sharp อ่าน HEIC ไม่ได้ทุกเครื่อง
+  const source = row.playback_name
+    ? path.join(config.paths.derived, row.playback_name)
+    : path.join(config.paths.uploads, row.stored_name);
+
+  const partial = `${displayPath}.part.jpg`;
+  await sharp(source, { failOn: 'none' })
+    .rotate()
+    .resize(config.media.displaySize, config.media.displaySize, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 86, mozjpeg: true })
+    .toFile(partial);
+
+  // เขียนที่ชื่อชั่วคราวก่อนแล้วค่อยเปลี่ยนชื่อ กันคนขอพร้อมกันแล้วได้ไฟล์ที่เขียนไม่จบ
+  await fs.rename(partial, displayPath);
+  return displayName;
+}
+
+/**
  * Turn an uploaded image into { storedName, playbackName, thumbName, ... }.
  * HEIC from iPhones is converted to JPEG so non-Apple browsers can display it;
  * the original is always kept for the download-everything ZIP.
