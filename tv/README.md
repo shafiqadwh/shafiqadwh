@@ -74,11 +74,47 @@ APK เซ็นด้วยกุญแจ debug จึงติดตั้ง
 
 จากนั้นเลือกวิธีส่งไฟล์
 
-| วิธี | ทำยังไง |
-|---|---|
-| **adb ผ่าน Wi-Fi** (แนะนำ) | ดูไอพีของทีวีที่ Settings → Network แล้วรัน `adb connect <ไอพีทีวี>:5555` ตามด้วย `adb install -r app-debug.apk` |
-| **แอป Downloader** | ติดตั้ง Downloader (AFTVnews) จาก Play Store บนทีวี แล้วใส่ลิงก์ตรงของไฟล์ APK |
-| **Send files to TV** | ติดตั้งทั้งบนมือถือและบนทีวี แล้วส่งไฟล์ข้ามกัน |
+### วิธีที่ 1 — ส่งจากมือถือ ⭐ ง่ายที่สุด ไม่ต้องใช้คอมเลย
+
+1. ติดตั้งแอป **Send files to TV** จาก Play Store **ทั้งบนมือถือและบนทีวี**
+2. เปิดแอปบนทีวี เลือก **Receive**
+3. เปิดแอปบนมือถือ เลือก **Send** → เลือกไฟล์ `app-debug.apk` → เลือกชื่อทีวี
+4. ทีวีจะถามว่าจะติดตั้งไหม กด Install
+
+ทั้งสองเครื่องต้องอยู่ Wi-Fi วงเดียวกัน
+
+### วิธีที่ 2 — ส่งจาก Windows ด้วย adb
+
+Windows ไม่มี `adb` มาให้ ต้องโหลดชุดเครื่องมือก่อน ไม่ต้องติดตั้ง แตกไฟล์แล้วใช้ได้เลย
+
+```powershell
+cd $HOME\Downloads
+Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile "platform-tools.zip"
+Expand-Archive -Path "platform-tools.zip" -DestinationPath "." -Force
+cd platform-tools
+```
+
+จากนั้นดูไอพีของทีวีที่ **Settings → Network & Internet** แล้วรัน (แทนเลขไอพีเป็นของทีวีเครื่องคุณ)
+
+```powershell
+.\adb.exe connect 192.168.2.16:5555
+```
+
+ทีวีจะเด้งถามว่า *"Allow USB debugging?"* ให้กด **Always allow** แล้วค่อยติดตั้ง
+
+```powershell
+.\adb.exe install -r $HOME\Downloads\app-debug.apk
+```
+
+ต้องขึ้นว่า `Success`
+
+> ⚠️ ต้องมี `.\` นำหน้า `adb.exe` เสมอ — PowerShell ไม่รันไฟล์ในโฟลเดอร์ปัจจุบัน
+> ถ้าไม่ระบุพาธ และเลขไอพี **ห้ามใส่วงเล็บ `< >`** ครอบ ให้พิมพ์เลขล้วน ๆ
+
+### วิธีที่ 3 — แอป Downloader บนทีวี
+
+ติดตั้ง **Downloader** (AFTVnews) จาก Play Store บนทีวี แล้วใส่ลิงก์ตรงของไฟล์ APK
+เหมาะเมื่อมีที่วางไฟล์ให้โหลดผ่านเว็บอยู่แล้ว
 
 ติดตั้งเสร็จแล้วแอปจะขึ้นในแถวแอปของหน้าโฮม ชื่อ **Wedding Slideshow**
 
