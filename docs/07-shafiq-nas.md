@@ -166,8 +166,13 @@ nslookup wedding.shafiq-lap.com 8.8.8.8       # ต้องได้ 49.49.211.
 | Source hostname | `wedding.shafiq-lap.com` |
 | Source port | **`443`** — ถ้าเด้ง *"This port number is used by another application"* ให้ถอยไป `8443` แล้วอย่าลืมเติม `:8443` ต่อท้าย `BASE_URL` |
 | Destination protocol | HTTP |
-| Destination hostname | `localhost` |
-| Destination port | `18090` |
+| Destination hostname | **`127.0.0.1`** ⚠️ อย่าใช้ `localhost` — เหตุผลด้านล่าง |
+| Destination port | `18090` — ตรวจให้ครบ 5 หลัก (เคยพิมพ์เป็น `1809` มาแล้ว แล้วได้ 502) |
+
+> **ทำไมต้อง `127.0.0.1` ไม่ใช่ `localhost`**: คอนเทนเนอร์ผูกพอร์ตไว้ที่ IPv4 loopback
+> อย่างเดียว (`127.0.0.1:18090`) ส่วน `localhost` บนระบบที่เปิด IPv6 จะถูก resolve เป็น
+> `::1` ก่อน → nginx ต่อไม่ติด → ตอบ **502 Bad Gateway** ทั้งที่แอปทำงานปกติดี
+> ใส่ IP ตรง ๆ ตัดปัญหานี้ทิ้งไปเลย
 
 **Custom Header** → Create → **WebSocket** แล้วเพิ่มเองอีกบรรทัด
 
@@ -202,7 +207,7 @@ nginx ของ DSM แยก hostname ด้วย SNI ได้ จึงม�
 
 ```bash
 sudo mkdir -p /usr/local/etc/nginx/conf.d
-sudo tee /usr/local/etc/nginx/conf.d/www.wedding.conf > /dev/null <<'EOF'
+sudo tee /usr/local/etc/nginx/conf.d/wedding-upload-limits.conf > /dev/null <<'EOF'
 client_max_body_size 512m;
 proxy_read_timeout 900s;
 proxy_send_timeout 900s;
@@ -210,6 +215,21 @@ proxy_request_buffering off;
 EOF
 sudo synosystemctl restart nginx
 ```
+
+> ⚠️ **ชื่อไฟล์ตั้งใจไม่ขึ้นต้นด้วย `www.`** — แอปแชตกับเทอร์มินัลบางตัวเห็นข้อความที่
+> ขึ้นต้นด้วย `www.` แล้วแปลงเป็นลิงก์อัตโนมัติ พอวางคำสั่งลงเชลล์ ชื่อไฟล์จะกลายเป็น
+> `[www.wedding.conf](https://www.wedding.conf)` แล้วลิมิตไม่มีผลโดยไม่มี error ให้เห็น
+
+**ยืนยันว่าได้ผลจริง ไม่ใช่แค่ไม่มี error** (กฎข้อ 4 ของมาตรฐาน)
+
+```bash
+ls -l /usr/local/etc/nginx/conf.d/          # ต้องเห็นชื่อไฟล์เต็ม ๆ ไม่มี [ ] ( )
+sudo nginx -t                                # ต้องขึ้น syntax is ok / test is successful
+sudo ./scripts/diagnose-nas.sh               # ข้อ 4-6 ต้องผ่านหมด
+```
+
+`synosystemctl restart nginx` พิมพ์ `[nginx] restarted.` **ทุกครั้ง** แม้ config พังจน
+สตาร์ทไม่ขึ้น อย่าใช้ข้อความนั้นเป็นหลักฐาน ให้ดูว่าพอร์ต 443 ยัง listen อยู่ไหมแทน
 
 `client_max_body_size` ต้องมากกว่า `MAX_VIDEO_MB` ใน `.env` (ค่าเริ่มต้น 300 MB)
 ไฟล์นี้อาจหายเมื่ออัปเดต DSM ครั้งใหญ่ — ใส่ไว้ในเช็คลิสต์ก่อนวันงาน
@@ -230,7 +250,17 @@ sudo ./scripts/deploy-nas.sh        # ไม่ใส่ --lan = กลับไ
 ทดสอบจากในบ้านพิสูจน์อะไรไม่ได้ เพราะ AdGuard ชี้กลับเข้า NAS อยู่แล้ว
 
 ```bash
-# บน NAS
+# ตรวจทุกชั้นในคำสั่งเดียว (อ่านอย่างเดียว รันซ้ำได้)
+sudo ./scripts/diagnose-nas.sh
+```
+
+สคริปต์นี้ไล่ให้ครบ: คอนเทนเนอร์ → แอปที่ loopback → พอร์ตที่ผูกไว้ → nginx ยังขึ้นไหม →
+ไฟล์ลิมิตอัพโหลดชื่อถูกไหม → ไวยากรณ์ nginx → ยิงผ่านโดเมนจริง → เนื้อหาที่ได้ใช่ของแอปไหม
+พร้อมบอกวิธีแก้ของแต่ละข้อที่ไม่ผ่าน
+
+ถ้าอยากยิงเองทีละอัน
+
+```bash
 curl http://127.0.0.1:18090/healthz            # {"ok":true}
 
 # ผ่าน reverse proxy + TLS (ห้ามใส่ -k) — ต้องดู body ไม่ใช่แค่ status code
@@ -267,6 +297,82 @@ sudo docker compose up -d                      # ต้อง up -d ไม่ใ
 | เข้าได้ในบ้าน แต่ NXDOMAIN บนมือถือ 4G | ขาดระเบียน Cloudflare (มีแต่ AdGuard rewrite) — เคสเดียวกับ `jellyfin.shafiq-lap.com` |
 | หน้า DSM เด้งขึ้นมาแทนเว็บงานแต่ง | reverse proxy ไม่ match hostname → เช็คว่า Source hostname สะกดตรงและ Source protocol เป็น HTTPS |
 | อัพรูปได้ แต่วิดีโอไม่ผ่าน | ลิมิต nginx ยังไม่มีผล — ทำขั้นที่ 7 ซ้ำแล้ว restart nginx |
+| `502 Bad Gateway` | nginx รับสายได้แต่ต่อไปหาแอปไม่ติด — เรียงความน่าจะเป็น: คอนเทนเนอร์ไม่ได้รัน → Destination hostname เป็น `localhost` (แก้เป็น `127.0.0.1`) → Destination port พิมพ์ตกเลข |
+| **5G ใช้ได้ แต่ในบ้านเข้าไม่ได้** | ดูหัวข้อถัดไป — เกือบทุกครั้งคือ DNS ของเครื่องไคลเอนต์ ไม่ใช่ปัญหาที่ NAS |
+
+## เข้าจาก 5G ได้ แต่ในวง LAN ไม่ได้
+
+อาการนี้ **ไม่ใช่ปัญหาของ NAS** — พิสูจน์ได้ทันทีด้วยการยิงจากข้างนอก ถ้าได้ `{"ok":true}`
+แปลว่า nginx + คอนเทนเนอร์ + cert + NAT ครบดีหมดแล้ว เหลือแค่เส้นทางฝั่ง LAN
+
+สาเหตุคือ **เครื่องในบ้าน resolve ชื่อนี้ได้ IP สาธารณะ** แล้ววิ่งออกไปหาเราเตอร์
+เพื่อวกกลับเข้าบ้าน (hairpin NAT / NAT loopback) ซึ่ง MikroTik ไม่ได้เปิดให้โดยดีฟอลต์
+→ ต่อไม่ติด ขึ้น `Could not connect to server`
+
+⚠️ `nslookup` **หลอกเราตรงนี้** เพราะมันยิงถาม DNS server ตรง ๆ ส่วนเบราว์เซอร์กับ
+`curl.exe` ใช้ resolver ของ Windows ซึ่งอาจไปถาม DNS ตัวสำรองในรายการแทน
+ให้ใช้ `Resolve-DnsName` แทน — ตัวนี้เดินผ่าน resolver จริงของ Windows
+
+```powershell
+Resolve-DnsName wedding.shafiq-lap.com | Select-Object Name, IPAddress
+Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, ServerAddresses
+```
+
+| ผลที่ได้ | แปลว่า | วิธีแก้ |
+|---|---|---|
+| `192.168.2.2` | DNS ถูกแล้ว ปัญหาอยู่ที่อื่น (ไฟร์วอลล์เครื่อง / VPN / proxy) | ลอง `curl.exe --resolve` ชี้ IP เองเพื่อยืนยัน |
+| IP สาธารณะ (ขึ้นต้นไม่ใช่ `192.168.`) | เครื่องไม่ได้ถาม AdGuard | **วิธี ก** ด้านล่าง |
+| ตอบช้ามาก / สลับไปมา | มี DNS หลายตัวตั้งไว้ ตัวที่ไม่ใช่ AdGuard ชนะบ้าง | **วิธี ก** ด้านล่าง |
+
+**วิธี ก (แนะนำ) — บังคับให้ทุกเครื่องในบ้านใช้ AdGuard ตัวเดียว**
+
+ที่ MikroTik → IP → DHCP Server → Networks ตั้ง `dns-server=192.168.2.2` **ตัวเดียว**
+ห้ามใส่ `1.1.1.1` หรือ `8.8.8.8` เป็นตัวสำรอง เพราะ Windows จะสลับไปใช้ตัวสำรอง
+เมื่อไหร่ก็ได้ แล้ว rewrite ของ AdGuard ก็ไม่มีผล
+
+```
+/ip dhcp-server network set [find] dns-server=192.168.2.2
+```
+
+จากนั้นบนเครื่อง Windows ล้างแคชแล้วต่ออายุ DHCP
+
+```powershell
+ipconfig /release
+ipconfig /renew
+ipconfig /flushdns
+```
+
+**วิธี ข — เปิด hairpin NAT ที่ MikroTik** (ถ้าจำเป็นต้องให้ IP สาธารณะใช้ได้จากในบ้านด้วย)
+
+ต้องมี **2 rule** ไม่ใช่แค่ rule เดียว — ขาด src-nat ปลายทางจะตอบกลับตรงไปหาไคลเอนต์
+ด้วย IP ภายใน แล้วไคลเอนต์จะทิ้งแพ็กเก็ตนั้นเพราะไม่ตรงกับที่ส่งไป
+
+```
+/ip firewall nat add chain=dstnat action=dst-nat \
+  protocol=tcp dst-port=443 src-address=192.168.2.0/24 \
+  dst-address=<ไอพีสาธารณะ> to-addresses=192.168.2.2 to-ports=443 \
+  comment="hairpin wedding 443"
+
+/ip firewall nat add chain=srcnat action=masquerade \
+  protocol=tcp dst-port=443 src-address=192.168.2.0/24 \
+  dst-address=192.168.2.2 comment="hairpin wedding masq"
+```
+
+> เลือกวิธี ก ก่อนเสมอ — น้อย rule กว่า เร็วกว่า (ไม่ต้องวิ่งออกไปที่เราเตอร์)
+> และไม่พังเมื่อ IP สาธารณะเปลี่ยน
+
+**สำคัญสำหรับวันงาน**: จอสไลด์โชว์จะอยู่ในวง LAN ของสถานที่จัดงาน ไม่ใช่วงบ้าน
+จึงต้องเข้าผ่านโดเมนเหมือนแขกทั่วไป → **ต้องแก้ข้อนี้ให้จบก่อนวันงาน**
+
+ถ้าอยากมีทางสำรองแบบไม่พึ่ง DNS เลย ให้เปิดพอร์ตสู่ LAN ชั่วคราวเฉพาะวันงาน
+
+```bash
+sudo ./scripts/deploy-nas.sh --lan     # ผูก 0.0.0.0:18090 → เข้าได้ทั้งวง (ไม่มี TLS)
+sudo ./scripts/deploy-nas.sh           # กลับมาผูก loopback หลังงานจบ
+```
+
+แล้วตั้งเครื่องฉายเป็น `http://192.168.2.2:18090/slideshow` — ใช้ได้เฉพาะเมื่อ
+เครื่องฉายอยู่วงเดียวกับ NAS เท่านั้น (ดู [บทที่ 4](04-slideshow.md))
 
 ## อัปเดตโค้ดภายหลัง
 
