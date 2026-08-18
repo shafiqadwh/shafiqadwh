@@ -29,6 +29,28 @@ export async function makeMp4(filePath, { seconds = 2, ffmpeg } = {}) {
   return filePath;
 }
 
+/**
+ * QuickTime wrapper around plain H.264 — what an iPhone set to "Most Compatible"
+ * sends. The codec is already web-playable; only the container needs changing.
+ */
+export async function makeMovH264(filePath, { seconds = 2, ffmpeg } = {}) {
+  await run(ffmpeg, [
+    '-y',
+    '-f', 'lavfi',
+    '-i', `testsrc=size=320x240:rate=15:duration=${seconds}`,
+    '-f', 'lavfi',
+    '-i', `sine=frequency=440:duration=${seconds}`,
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac',
+    '-t', String(seconds),
+    '-f', 'mov',
+    filePath,
+  ]);
+  return filePath;
+}
+
 /** Same footage wrapped as QuickTime/HEVC, which is what iPhones actually send. */
 export async function makeMovHevc(filePath, { seconds = 2, ffmpeg } = {}) {
   await run(ffmpeg, [

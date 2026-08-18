@@ -285,6 +285,36 @@ export async function processVideo(tmpPath, sniffed) {
   };
 }
 
+/**
+ * เลือกวิธีจัดการวิดีโอตามสิ่งที่อยู่ในไฟล์จริง ไม่ใช่ตามนามสกุล
+ *
+ * iPhone ส่ง .mov มาเสมอ แต่ข้างในเป็น H.264 หรือ HEVC ก็ได้ ขึ้นกับการตั้งค่า
+ * ของเครื่องแขก ถ้าเป็น H.264 อยู่แล้ว เบราว์เซอร์เล่นได้หมด สิ่งที่ต้องทำมีแค่
+ * เปลี่ยนกล่องจาก .mov เป็น .mp4 ซึ่ง ffmpeg ทำได้ด้วยการ "คัดลอกสตรีม" ตรง ๆ
+ * — ใช้เวลาไม่กี่วินาที ไม่เสียคุณภาพ และไม่กิน CPU
+ *
+ * ของเดิมบีบอัดใหม่ทุกไฟล์ที่ไม่ใช่ .mp4 รวมถึงพวกที่เป็น H.264 อยู่แล้ว
+ * เท่ากับเผา CPU ของ NAS ทิ้งเพื่อให้ได้ภาพที่แย่ลงกว่าเดิม
+ */
+function encodePlan(probed) {
+  const videoCopy = probed.codec === 'h264';
+  // aac คือของที่เบราว์เซอร์ทุกตัวเล่นได้ ส่วน .mov จากกล้องบางรุ่นเป็น pcm
+  const audioCopy = !probed.audioCodec || probed.audioCodec === 'aac';
+
+  return {
+    remux: videoCopy && audioCopy,
+    video: videoCopy
+      ? ['-c:v', 'copy']
+      : [
+          '-c:v', config.media.videoEncoder,
+          ...config.media.encoderArgs,
+          '-pix_fmt', 'yuv420p',
+          '-vf', "scale='min(1920,iw)':-2",
+        ],
+    audio: audioCopy ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', '128k'],
+  };
+}
+
 /** Run the actual transcode. Called by the background queue, never inline. */
 export async function transcodeVideo(storedName) {
   const input = path.join(config.paths.uploads, storedName);
@@ -292,19 +322,16 @@ export async function transcodeVideo(storedName) {
   const output = path.join(config.paths.derived, playbackName);
   const partial = `${output}.part.mp4`;
 
+  const plan = encodePlan(await probeVideo(input));
+
   await run(FFMPEG, [
     '-y',
+    ...config.media.decoderArgs,
     '-i', input,
     '-map', '0:v:0',
     '-map', '0:a:0?',
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '24',
-    '-profile:v', 'high',
-    '-pix_fmt', 'yuv420p',
-    '-vf', "scale='min(1920,iw)':-2",
-    '-c:a', 'aac',
-    '-b:a', '128k',
+    ...plan.video,
+    ...plan.audio,
     '-movflags', '+faststart',
     '-threads', String(config.media.ffmpegThreads),
     partial,

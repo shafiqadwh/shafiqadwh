@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test, { after, before } from 'node:test';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { login, startTestServer, useTempDataDir } from './helpers/app.js';
-import { makeMovHevc, makeMp4, uploadFiles } from './helpers/fixtures.js';
+import { makeMovH264, makeMovHevc, makeMp4, uploadFiles } from './helpers/fixtures.js';
 
 const dataDir = useTempDataDir('video');
 process.env.MAX_VIDEO_SECONDS = '4';
@@ -11,6 +13,8 @@ process.env.FFMPEG_THREADS = '1';
 
 const { FFMPEG } = await import('../src/lib/media.js');
 const { whenIdle } = await import('../src/lib/queue.js');
+
+const runFfmpeg = (args) => promisify(execFile)(FFMPEG, args);
 
 let app;
 let cookie;
@@ -157,4 +161,37 @@ test('asking for photos only leaves the videos behind', async () => {
   const response = await fetch(`${app.baseUrl}/admin/zip?videos=0`, { headers: { cookie } });
   const asText = Buffer.from(await response.arrayBuffer()).toString('latin1');
   assert.ok(!asText.includes('videos/'), 'the photos-only archive must skip the heavy files');
+});
+
+test('an H.264 .mov is only rewrapped, never re-encoded', async () => {
+  // iPhone ที่ตั้งเป็น "Most Compatible" ส่ง .mov ที่ข้างในเป็น H.264 อยู่แล้ว
+  // ของเดิมบีบอัดใหม่ทุกไฟล์ที่ไม่ใช่ .mp4 = เผา CPU ของ NAS ทิ้งเพื่อให้ได้
+  // ภาพที่แย่ลงกว่าเดิม ตอนนี้ต้องคัดลอกสตรีมตรง ๆ
+  const clip = path.join(dataDir, 'compatible.mov');
+  await makeMovH264(clip, { seconds: 2, ffmpeg: FFMPEG });
+
+  const upload = await uploadFiles(app.baseUrl, [clip], { uploader: 'Ali' });
+  assert.equal(upload.status, 201, JSON.stringify(upload.body));
+  const id = upload.body.ids[0];
+
+  await whenIdle();
+
+  const { db } = await import('../src/db.js');
+  const row = db.prepare('SELECT convert_state, playback_name FROM items WHERE id = ?').get(id);
+  assert.equal(row.convert_state, 'done');
+  assert.match(row.playback_name, /-web\.mp4$/);
+
+  // ถ้าคัดลอกสตรีมจริง แฮชของภาพต้นทางกับปลายทางต้องตรงกันเป๊ะ
+  // ถ้าบีบอัดใหม่ แฮชจะต่างกันแน่นอน — เป็นการพิสูจน์ที่เถียงไม่ได้
+  const videoHash = async (file) => {
+    const { stdout } = await runFfmpeg([
+      '-v', 'error', '-i', file, '-map', '0:v:0', '-c', 'copy', '-f', 'md5', '-',
+    ]);
+    return stdout.trim();
+  };
+
+  const source = await videoHash(clip);
+  const result = await videoHash(path.join(dataDir, 'derived', row.playback_name));
+
+  assert.equal(result, source, 'the picture data must survive untouched');
 });
