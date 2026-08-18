@@ -80,7 +80,8 @@
   "slideshow": {
     "scan_title": "Scan to share your photos",
     "scan_body": "Take photos at the party and send them straight to this screen",
-    "waiting": "Waiting for the first photo..."
+    "waiting": "Waiting for the first photo...",
+    "anonymous": "A guest"
   },
   "admin": {
     "title": "Admin panel",

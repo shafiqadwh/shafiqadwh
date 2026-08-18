@@ -80,7 +80,8 @@
   "slideshow": {
     "scan_title": "Imbas untuk kongsi gambar anda",
     "scan_body": "Rakam gambar di majlis ini dan hantar terus ke skrin",
-    "waiting": "Menunggu gambar pertama..."
+    "waiting": "Menunggu gambar pertama...",
+    "anonymous": "Tetamu"
   },
   "admin": {
     "title": "Panel pentadbir",

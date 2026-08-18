@@ -108,6 +108,13 @@ export const config = {
     videoMaxSeconds: num('SLIDESHOW_VIDEO_MAX_SECONDS', 30),
     qrEverySlides: num('SLIDESHOW_QR_EVERY', 12),
     muted: bool('SLIDESHOW_MUTED', true),
+    // คำอวยพรแทรกถี่กว่า QR เพราะเป็นของที่แขกอยากอ่าน ไม่ใช่ของที่เราอยากบอก
+    messageEverySlides: num('SLIDESHOW_MESSAGE_EVERY', 5),
+    titleEverySlides: num('SLIDESHOW_TITLE_EVERY', 24),
+    // คำอวยพรยาว ๆ ต้องมีเวลาอ่านมากกว่ารูป — คิดจากจำนวนตัวอักษร
+    messageSeconds: num('SLIDESHOW_MESSAGE_SECONDS', 11),
+    // ซูมช้า ๆ แบบ Ken Burns ทำให้ภาพนิ่งบนจอใหญ่ไม่ดูตาย ปิดได้ถ้าเครื่องฉายอืด
+    kenBurns: bool('SLIDESHOW_KEN_BURNS', true),
   },
 
   admin: {

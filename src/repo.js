@@ -102,7 +102,14 @@ export function listMessages({ limit = 100, includeHidden = false } = {}) {
   const where = includeHidden ? '1 = 1' : "m.status = 'visible'";
   return db
     .prepare(`
-      SELECT m.*, i.kind AS item_kind, i.thumb_name AS item_thumb
+      SELECT m.*,
+             i.kind          AS item_kind,
+             i.thumb_name    AS item_thumb,
+             i.status        AS item_status,
+             i.convert_state AS item_convert_state,
+             i.duration      AS item_duration,
+             i.width         AS item_width,
+             i.height        AS item_height
       FROM messages m
       LEFT JOIN items i ON i.id = m.item_id
       WHERE ${where}

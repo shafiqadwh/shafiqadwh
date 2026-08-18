@@ -811,144 +811,430 @@ a:focus-visible {
   font-size: 14px;
 }
 
-/* ---------- slideshow ---------- */
+/* ---------- slideshow ----------
+
+   ออกแบบให้ดูดีบนจอใหญ่ในห้องที่ไฟสลัว โดยยึดสามข้อ
+
+   1. ไม่มีแถบดำข้างภาพ — รูปจากมือถือส่วนใหญ่เป็นแนวตั้ง วางบนจอ 16:9 แล้วเหลือ
+      ที่ว่างสองข้าง ใช้รูปเดิมเบลอ ๆ ขยายเต็มจอเป็นพื้นหลังแทน (เทคนิคเดียวกับที่
+      รายการทีวีใช้) จอจึงเต็มตลอดโดยไม่ต้อง crop รูปของแขกทิ้ง
+   2. ภาพนิ่งต้องขยับ — ซูมช้า ๆ แบบ Ken Burns กันไม่ให้จอดูเหมือนค้าง
+   3. ตัวหนังสืออ่านออกจากท้ายห้อง — ขนาดอิงหน่วย vw/vh ไม่ใช่ px และมีแผ่นรอง
+      ทึบพอให้ตัดกับรูปด้านหลังเสมอ
+*/
 
 .slideshow-body {
   margin: 0;
-  background: #100e0d;
-  color: #fff;
+  background: #0d0a08;
+  color: #fbf4e8;
   overflow: hidden;
   height: 100vh;
+  cursor: none;
 }
 
 .stage {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
 }
 
-.stage__slide {
+/* ── สไลด์และการเฟดข้าม ─────────────────────────────────────────────────── */
+
+.slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1.15s ease;
+}
+
+.slide.is-visible {
+  opacity: 1;
+}
+
+/* พื้นหลังเบลอจากรูปเดียวกัน — ทำให้จอเต็มโดยไม่ crop รูปของแขก */
+.slide__backdrop {
+  position: absolute;
+  inset: -6%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(46px) saturate(0.72) brightness(0.4);
+  transform: scale(1.12);
+}
+
+.slide__media {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  opacity: 0;
-  transition: opacity 0.9s ease;
-  padding: 2vh;
+  padding: 3.2vh 3.2vw;
 }
 
-.stage__slide.is-visible {
-  opacity: 1;
-}
-
-.stage__slide img,
-.stage__slide video {
-  max-width: 96vw;
-  max-height: 96vh;
+.slide__media img,
+.slide__media video {
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 1px rgba(240, 217, 168, 0.16),
+    0 24px 70px rgba(0, 0, 0, 0.62);
 }
 
-.stage__message {
-  max-width: 60ch;
-  text-align: center;
-  padding: 6vh 4vw;
+/* ── Ken Burns ────────────────────────────────────────────────────────────
+   สลับทิศทางทีละสไลด์ เพื่อไม่ให้ทุกภาพขยับเหมือนกันจนดูเป็นเครื่องจักร */
+
+.kb {
+  will-change: transform;
+}
+
+.kb--a {
+  animation: kb-a 15s ease-out forwards;
+}
+
+.kb--b {
+  animation: kb-b 15s ease-out forwards;
+}
+
+@keyframes kb-a {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to   { transform: scale(1.075) translate3d(-1.1%, -0.9%, 0); }
+}
+
+@keyframes kb-b {
+  from { transform: scale(1.075) translate3d(1.1%, 0.7%, 0); }
+  to   { transform: scale(1) translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb--a,
+  .kb--b { animation: none; }
+}
+
+/* ── เกรนฟิล์ม + ขอบมืด ───────────────────────────────────────────────────
+   ขอบมืดช่วยดึงสายตาเข้ากลางจอ และกลบขอบจอโปรเจกเตอร์ที่มักสว่างไม่เท่ากัน */
+
+.stage__grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.55) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+/* ── การ์ดข้อความ: คำอวยพร ────────────────────────────────────────────────
+   สองแบบ — ทับบนรูปที่แขกแนบมา กับแบบข้อความล้วนเมื่อไม่ได้แนบไฟล์ */
+
+.wish {
   font-family: var(--font-display);
-}
-
-.stage__message blockquote {
-  margin: 0;
-  font-size: clamp(28px, 4vw, 54px);
-  line-height: 1.35;
-}
-
-.stage__message cite {
-  display: block;
-  margin-top: 24px;
-  font-style: normal;
-  font-size: clamp(16px, 1.6vw, 24px);
-  color: #d9c8b6;
-}
-
-.stage__waiting {
+  text-align: center;
   display: grid;
   justify-items: center;
-  gap: 28px;
+  gap: 2.6vh;
 }
 
-.stage__waiting-text {
-  font-family: var(--font-display);
-  font-size: clamp(22px, 3vw, 38px);
+.wish__mark {
+  display: block;
+  font-size: 7vh;
+  line-height: 0.5;
+  color: #d9a441;
+  opacity: 0.8;
+}
+
+.wish__body {
   margin: 0;
+  color: #fbf4e8;
+  line-height: 1.42;
+  text-wrap: balance;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.stage__waiting-qr {
-  width: min(38vh, 340px);
-  border-radius: 12px;
-  background: #fff;
-  padding: 14px;
+/* ขนาดตัวอักษรตามความยาวข้อความ — คำอวยพรสั้น ๆ ควรใหญ่เต็มจอ
+   ส่วนข้อความยาวต้องเล็กลงไม่งั้นล้นจอ */
+.wish__body.is-xs { font-size: clamp(34px, 6.4vw, 108px); }
+.wish__body.is-sm { font-size: clamp(30px, 4.6vw, 78px); }
+.wish__body.is-md { font-size: clamp(26px, 3.4vw, 56px); }
+.wish__body.is-lg { font-size: clamp(22px, 2.5vw, 40px); }
+
+.wish__by {
+  display: grid;
+  justify-items: center;
+  gap: 1.4vh;
+  font-size: clamp(15px, 1.5vw, 26px);
+  letter-spacing: 0.09em;
+  color: #e8c98a;
 }
 
-.stage__caption {
+.wish__rule {
+  display: block;
+  width: 12vh;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d9a441, transparent);
+}
+
+/* แบบข้อความล้วน — ไม่มีรูปให้พึ่ง ต้องออกแบบพื้นหลังเอง */
+.slide--wish-plain {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 34%, rgba(217, 164, 65, 0.14), transparent 70%),
+    linear-gradient(160deg, #1b1410 0%, #0d0a08 58%, #150f0b 100%);
+}
+
+.slide--wish-plain .wish {
+  position: absolute;
+  inset: 0;
+  align-content: center;
+  padding: 8vh 12vw;
+}
+
+.wish__ornament {
+  width: min(26vh, 210px);
+  color: #d9a441;
+  opacity: 0.85;
+}
+
+/* แบบทับบนรูป — แผ่นรองต้องทึบพอให้อ่านออกไม่ว่ารูปหลังจะสว่างแค่ไหน */
+.slide--wish-media .slide__media {
+  padding: 0;
+}
+
+.slide--wish-media .slide__media img,
+.slide--wish-media .slide__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.wish--overlay {
+  position: absolute;
+  inset: 0;
+  align-content: end;
+  padding: 0 8vw 9vh;
+  background: linear-gradient(
+    to top,
+    rgba(8, 6, 4, 0.92) 0%,
+    rgba(8, 6, 4, 0.78) 26%,
+    rgba(8, 6, 4, 0.34) 52%,
+    rgba(8, 6, 4, 0) 76%
+  );
+}
+
+.wish--overlay .wish__body {
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.7);
+  max-width: 26ch;
+}
+
+.wish--overlay .wish__mark {
+  font-size: 5vh;
+}
+
+/* ── การ์ดชื่อคู่บ่าวสาว ──────────────────────────────────────────────────── */
+
+.slide--title {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 42%, rgba(217, 164, 65, 0.16), transparent 68%),
+    linear-gradient(155deg, #1d1611 0%, #0d0a08 60%, #17110c 100%);
+}
+
+.title {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3vh;
+  padding: 8vh 10vw;
+  text-align: center;
+  font-family: var(--font-display);
+}
+
+.title__monogram {
+  font-size: clamp(30px, 4vw, 66px);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #e8c98a;
+}
+
+.title__names {
+  margin: 0;
+  font-size: clamp(40px, 6.6vw, 116px);
+  line-height: 1.14;
+  max-width: 15ch;
+  font-weight: 400;
+  color: #fbf4e8;
+  text-wrap: balance;
+}
+
+.title__meta {
+  margin: 0;
+  font-size: clamp(15px, 1.7vw, 28px);
+  letter-spacing: 0.11em;
+  color: #cdb894;
+}
+
+.title__flourish {
+  width: min(34vh, 300px);
+  color: #d9a441;
+  opacity: 0.9;
+}
+
+/* ── การ์ด QR ─────────────────────────────────────────────────────────────
+   สไลด์เต็มจอ ไม่ใช่ป้ายมุมจอที่ขยายออกมา แขกที่นั่งไกลจะได้สแกนทัน */
+
+.slide--qr {
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 46%, rgba(217, 164, 65, 0.14), transparent 68%),
+    linear-gradient(155deg, #1d1611 0%, #0d0a08 62%, #17110c 100%);
+}
+
+.share {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3vh;
+  padding: 7vh 8vw;
+  text-align: center;
+  font-family: var(--font-display);
+}
+
+.share__title {
+  margin: 0;
+  font-size: clamp(28px, 4.2vw, 70px);
+  font-weight: 400;
+  color: #fbf4e8;
+  text-wrap: balance;
+}
+
+.share__body {
+  margin: 0;
+  font-size: clamp(15px, 1.8vw, 30px);
+  color: #cdb894;
+  text-wrap: balance;
+}
+
+.share__qr {
+  width: min(42vh, 380px);
+  padding: 2.2vh;
+  border-radius: 10px;
+  background: #fbf4e8;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+.share__url {
+  font-size: clamp(14px, 1.5vw, 24px);
+  letter-spacing: 0.14em;
+  color: #e8c98a;
+  word-break: break-all;
+}
+
+/* ── ป้ายชื่อคนส่ง (lower third) ─────────────────────────────────────────── */
+
+.stage__meta {
   position: fixed;
-  left: 3vw;
-  bottom: 3vh;
-  font-size: clamp(15px, 1.6vw, 24px);
-  background: rgba(0, 0, 0, 0.45);
-  padding: 8px 18px;
-  border-radius: 999px;
-  backdrop-filter: blur(4px);
+  left: 4vw;
+  bottom: 4.6vh;
+  display: grid;
+  gap: 0.9vh;
+  font-family: var(--font-display);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+  pointer-events: none;
 }
+
+.stage__meta.is-on {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.stage__meta-rule {
+  width: 7vh;
+  height: 2px;
+  background: #d9a441;
+}
+
+.stage__meta-name {
+  font-size: clamp(17px, 2vw, 34px);
+  color: #fbf4e8;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+}
+
+/* ── ป้าย QR มุมจอ (อยู่ตลอด ยกเว้นตอนขึ้นสไลด์ QR เต็มจอ) ────────────────── */
 
 .stage__qr {
   position: fixed;
-  right: 3vw;
-  bottom: 3vh;
+  right: 4vw;
+  bottom: 4.6vh;
   display: flex;
   align-items: center;
-  gap: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--ink);
-  padding: 12px 18px 12px 12px;
-  border-radius: 16px;
+  gap: 1.4vh;
+  padding: 1.3vh;
+  border-radius: 10px;
+  background: rgba(251, 244, 232, 0.93);
+  color: #241f1a;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.6s ease;
 }
 
 .stage__qr img {
-  width: clamp(80px, 8vw, 120px);
+  width: clamp(64px, 7vw, 104px);
+  display: block;
 }
 
 .stage__qr-text {
   display: grid;
-  gap: 2px;
-  font-size: clamp(12px, 1.1vw, 17px);
-  max-width: 22ch;
+  gap: 3px;
+  padding-right: 1vh;
+  max-width: 20ch;
+  font-size: clamp(11px, 1vw, 16px);
+  line-height: 1.35;
+}
+
+.stage__qr-text strong {
+  font-family: var(--font-display);
+  font-weight: 600;
 }
 
 .stage__qr-text span {
-  color: var(--ink-soft);
+  color: #7a6a55;
   word-break: break-all;
 }
 
-.stage__qr.is-hero {
+.stage__qr.is-off {
+  opacity: 0;
+}
+
+/* ── แถบเวลาบาง ๆ ที่ขอบล่าง ──────────────────────────────────────────────
+   บอกว่าอีกนานแค่ไหนจะเปลี่ยนภาพ โดยไม่แย่งความสนใจจากรูป */
+
+.stage__progress {
   position: fixed;
-  inset: 0;
-  margin: auto;
-  width: fit-content;
-  height: fit-content;
-  flex-direction: column;
-  text-align: center;
-  padding: 32px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(251, 244, 232, 0.1);
 }
 
-.stage__qr.is-hero img {
-  width: min(45vh, 420px);
+.stage__progress i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #b87a14, #f0d9a8);
 }
 
-.stage__qr.is-hero .stage__qr-text {
-  font-size: clamp(16px, 2vw, 28px);
-  max-width: 24ch;
+/* ── หน้าจอตอนยังไม่มีอะไรเลย ────────────────────────────────────────────── */
+
+.slide--waiting {
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 44%, rgba(217, 164, 65, 0.13), transparent 68%),
+    linear-gradient(155deg, #1d1611 0%, #0d0a08 62%, #17110c 100%);
 }
 
 /* ---------- printable QR card ---------- */

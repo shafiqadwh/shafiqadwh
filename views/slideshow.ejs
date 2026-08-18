@@ -8,14 +8,31 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 </head>
 <body class="slideshow-body" data-page="slideshow">
-  <div class="stage" id="stage">
-    <div class="stage__waiting" id="waiting">
-      <p class="stage__waiting-text"><%= t('slideshow.waiting') %></p>
-      <img class="stage__waiting-qr" src="<%= qrImage %>" alt="QR">
-    </div>
-  </div>
+  <%
+    // ลายเส้นทองใช้ซ้ำในการ์ดชื่อคู่บ่าวสาวและการ์ดคำอวยพรแบบข้อความล้วน
+    // วาดเป็น SVG ในหน้าเลย ไม่ต้องโหลดไฟล์เพิ่ม — เครื่องฉายบางเครื่องเน็ตช้า
+  %>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="flourish" viewBox="0 0 240 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+        <path d="M4 12h78"/>
+        <path d="M158 12h78"/>
+        <path d="M96 12c6-7 14-7 20 0-6 7-14 7-20 0z"/>
+        <path d="M144 12c-6-7-14-7-20 0 6 7 14 7 20 0z"/>
+        <circle cx="120" cy="12" r="3.4"/>
+        <path d="M86 12l6-3.4v6.8z" fill="currentColor" stroke="none"/>
+        <path d="M154 12l-6-3.4v6.8z" fill="currentColor" stroke="none"/>
+      </g>
+    </symbol>
+  </svg>
 
-  <div class="stage__caption" id="caption" hidden></div>
+  <div class="stage" id="stage"></div>
+  <div class="stage__grain" aria-hidden="true"></div>
+
+  <div class="stage__meta" id="caption">
+    <span class="stage__meta-rule"></span>
+    <span class="stage__meta-name" id="caption-name"></span>
+  </div>
 
   <aside class="stage__qr" id="qr-badge">
     <img src="<%= qrImage %>" alt="QR">
@@ -25,15 +42,28 @@
     </div>
   </aside>
 
+  <div class="stage__progress"><i id="progress"></i></div>
+
   <script>
     window.I18N = <%- JSON.stringify(clientStrings) %>;
     window.SLIDESHOW = <%- JSON.stringify({
       seconds: settings.seconds,
       videoMaxSeconds: settings.videoMaxSeconds,
       qrEvery: settings.qrEverySlides,
+      messageEvery: settings.messageEverySlides,
+      titleEvery: settings.titleEverySlides,
+      messageSeconds: settings.messageSeconds,
+      kenBurns: settings.kenBurns,
       muted: settings.muted,
       qrImage,
       shareUrl,
+      event: {
+        title: event.title,
+        coupleNames: event.coupleNames,
+        date: event.date,
+        venue: event.venue,
+        monogram: event.monogram,
+      },
     }) %>;
   </script>
   <script src="/static/js/slideshow.js" defer></script>
