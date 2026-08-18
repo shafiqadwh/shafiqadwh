@@ -696,35 +696,61 @@ a:focus-visible {
   object-fit: cover;
 }
 
-/* ---------- admin ---------- */
+/* ---------- admin ----------
+
+   เจ้าภาพจะใช้หน้านี้บนมือถือ ระหว่างงาน มือเดียว ในห้องที่ไฟสลัว
+   ทุกอย่างจึงต้องแตะง่าย อ่านออกเร็ว และเรียงตามลำดับที่ใช้จริง:
+   ดูตัวเลข → เปิดสไลด์โชว์ → จัดการรูปที่ไม่เหมาะ
+*/
 
 .admin-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 18px;
+}
+
+.admin-head__title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 5vw, 30px);
+  font-weight: 500;
+  margin: 0;
+}
+
+/* ── ตัวเลขสรุป ──────────────────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-bottom: 16px;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  margin-bottom: 20px;
+@media (min-width: 640px) {
+  .stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .stat {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px;
+  box-shadow: var(--shadow);
+  padding: 14px 12px;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
   text-align: center;
 }
 
 .stat__value {
-  display: block;
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: clamp(24px, 6vw, 32px);
+  line-height: 1.1;
+  color: var(--accent-dark);
+  overflow-wrap: anywhere;
 }
 
 .stat__label {
@@ -732,60 +758,241 @@ a:focus-visible {
   color: var(--ink-soft);
 }
 
+/* แถบเตือนเรื่องชั่วคราว — คิววิดีโอ กับของที่รอตรวจ
+   ขึ้นเฉพาะตอนมีจริง ไม่ให้เลข 0 มาแย่งที่ของข้อมูลที่ต้องดูตลอด */
+.admin-alert {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  background: var(--blush);
+  border: 1px solid var(--line);
+  color: var(--accent-dark);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── เครื่องมือ ──────────────────────────────────────────────────────────── */
+
+.tools {
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .tools {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.tool {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  text-decoration: none;
+  color: inherit;
+  /* พื้นที่แตะสูงพอสำหรับนิ้วโป้ง ไม่ใช่ปุ่มเล็ก ๆ ที่ต้องเล็งบนมือถือ */
+  min-height: 62px;
+  align-content: center;
+}
+
+.tool:hover {
+  border-color: var(--accent);
+  background: var(--blush);
+}
+
+.tool--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.tool--primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.tool__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.tool__hint {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.tool--primary .tool__hint {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ── ตั้งค่า ─────────────────────────────────────────────────────────────── */
+
+.settings {
+  display: grid;
+  gap: 12px;
+}
+
+.setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.setting input {
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+  flex: none;
+}
+
+.setting__text {
+  display: grid;
+  gap: 2px;
+}
+
+.setting__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.setting__hint {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.settings__save {
+  justify-self: start;
+}
+
+/* ── หัวข้อพร้อมจำนวน ────────────────────────────────────────────────────── */
+
+.section-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--blush);
+  color: var(--accent-dark);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* ── ตารางไฟล์ ───────────────────────────────────────────────────────────── */
+
 .admin-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
 }
 
 .admin-item {
   margin: 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
+  background: var(--card);
   overflow: hidden;
-  background: var(--paper);
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 
 .admin-item--hidden {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
 .admin-item--pending {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--blush);
+}
+
+.admin-item__frame {
+  position: relative;
+  background: var(--blush);
 }
 
 .admin-item img {
+  display: block;
   width: 100%;
-  aspect-ratio: 1;
+  /* สูงเท่ากันทุกใบ ตารางจึงเรียงตรง ไม่ฟันหลอ ดูง่ายกว่าตอนไล่หารูปที่จะลบ */
+  height: 128px;
   object-fit: cover;
 }
 
 .admin-item__placeholder {
+  height: 128px;
   display: grid;
   place-items: center;
-  aspect-ratio: 1;
-  font-size: 32px;
-  background: var(--blush);
+  font-size: 30px;
+}
+
+.admin-item__tag {
+  position: absolute;
+  top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(3px);
+}
+
+.admin-item__tag--video {
+  left: 6px;
+  background: rgba(20, 16, 12, 0.72);
+  color: #fbf4e8;
+}
+
+.admin-item__tag--state {
+  right: 6px;
+  background: rgba(217, 154, 43, 0.94);
+  color: #fff;
 }
 
 .admin-item figcaption {
-  padding: 8px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  padding: 9px 10px 10px;
+  align-content: space-between;
 }
 
-.admin-item__meta {
-  font-size: 11px;
-  color: var(--ink-soft);
+.admin-item__who {
+  font-size: 13px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-item__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
+
+.admin-item__actions .button {
+  flex: 1 1 auto;
+  justify-content: center;
+  /* สูงกว่าปุ่มจิ๋วปกติ เพราะเจ้าภาพต้องแตะปุ่มนี้ด้วยนิ้วโป้งบนมือถือกลางงาน
+     ไม่ใช่คลิกด้วยเมาส์ — และปุ่มลบพลาดไม่ได้ */
+  min-height: 36px;
+  font-size: 13px;
+}
+
+/* ── สมุดอวยพร ───────────────────────────────────────────────────────────── */
 
 .admin-messages {
   list-style: none;
@@ -799,16 +1006,27 @@ a:focus-visible {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
   background: var(--paper);
 }
 
-.admin-message p {
-  margin: 2px 0 0;
+.admin-message__text {
+  min-width: 0;
+}
+
+.admin-message strong {
   font-size: 14px;
+}
+
+.admin-message p {
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- slideshow ----------

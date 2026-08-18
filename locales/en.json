@@ -121,7 +121,19 @@
     "download_note": "A ZIP that includes videos will be very large. Downloading from a computer is recommended.",
     "qr": "Printable QR card",
     "print": "Print",
-    "slideshow": "Big-screen slideshow"
+    "slideshow": "Big-screen slideshow",
+    "tools": "Tools",
+    "save": "Save",
+    "open_slideshow": "Open slideshow",
+    "uploads_enabled_hint": "Turn off after the party so no more photos arrive",
+    "review_required_hint": "New photos stay off the screen until you approve them",
+    "slideshow_hint": "Pick a style and put it on the TV or projector",
+    "qr_hint": "Print and put on the tables for guests to scan",
+    "zip_photos_hint": "Small file, fine to download on a phone",
+    "zip_all_hint": "Very large file, better downloaded on a computer",
+    "status_hidden": "Hidden",
+    "status_pending": "Awaiting review",
+    "empty_items": "No photos or videos yet"
   },
   "qr": {
     "title": "Scan to share your photos",
