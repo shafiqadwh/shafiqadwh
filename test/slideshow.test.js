@@ -120,19 +120,40 @@ test('the slideshow gets a screen-sized copy, not the full-resolution original',
   assert.equal(originalMeta.width, 4032, 'the original must be untouched');
 });
 
-test('slideshow media is sized by the box, never by its own pixel count', async () => {
-  // บั๊กจริงที่เจอหน้างาน: max-height เป็นเปอร์เซ็นต์ถูกเบราว์เซอร์ทิ้งเมื่อกล่องแม่
-  // สูงแบบ auto รูปแนวตั้ง 1080x1920 จึงกางเต็ม 1930px บนจอสูง 1080px
-  // เห็นแค่ครึ่งบน หน้าคนที่อยู่ล่างหายหมด
+test('slideshow media can never be sized by its own pixel count', async () => {
+  // พังมาแล้วสองรอบด้วยเหตุคนละอย่าง ทั้งสองรอบจบเหมือนกันคือรูปกางตามขนาด
+  // พิกเซลจริงแล้วล้นจอ
+  //   รอบแรก  max-height: 100% ถูกทิ้งเพราะกล่องแม่สูงแบบ auto
+  //   รอบสอง  width/height: 100% พังบน WebView ของทีวีที่ไม่รู้จัก inset
+  // ทั้งคู่คือการพึ่ง "เปอร์เซ็นต์" ซึ่งต้องอาศัยว่ากล่องแม่มีขนาดแน่นอน
   const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
   const rule = css.match(/\.slide__media img,\s*\n\.slide__media video \{([^}]*)\}/);
 
   assert.ok(rule, 'the slideshow media rule should still exist');
   const body = rule[1];
 
-  assert.match(body, /width:\s*100%/, 'width must come from the box');
-  assert.match(body, /height:\s*100%/, 'height must come from the box');
-  assert.match(body, /object-fit:\s*contain/, 'contain is what keeps the whole picture visible');
-  assert.doesNotMatch(body, /max-height:\s*\d+%/,
-    'percentage max-height is silently dropped when the parent height is auto');
+  assert.match(body, /max-width:\s*[\d.]+vw/, 'width must be capped against the screen, not the parent');
+  assert.match(body, /max-height:\s*[\d.]+vh/, 'height must be capped against the screen, not the parent');
+  assert.doesNotMatch(body, /(max-)?(width|height):\s*\d+%/,
+    'percentages here depend on the parent having a definite size, which has failed twice');
+
+  // inset เป็นชอร์ตแฮนด์ที่เพิ่งมีใน Chrome 87 — WebView ของกล่องทีวีหลายรุ่นเก่ากว่านั้น
+  // แล้วทิ้งทั้งบรรทัด กล่องเลยไม่มีขนาด
+  const slideshowBlock = css.slice(css.indexOf('/* ---------- slideshow'), css.indexOf('/* ---------- printable'));
+  assert.doesNotMatch(slideshowBlock, /^\s*inset:/m,
+    'the slideshow must not rely on the inset shorthand; old TV WebViews drop it');
+});
+
+test('the slideshow clamps media in JavaScript too, in case the CSS never applies', async () => {
+  // ตาข่ายกันตกชั้นสุดท้าย พิสูจน์แล้วว่ารูปไม่ล้นจอแม้ปิด stylesheet ทั้งไฟล์
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+
+  assert.match(js, /function clampToScreen/, 'the runtime safety net must stay');
+  assert.match(js, /naturalWidth/, 'it measures the real pixel size of what loaded');
+  assert.match(js, /window\.innerWidth/, 'and compares it against the screen, not against any box');
+  assert.match(js, /addEventListener\('load'/, 'images are measured once they have loaded');
+  assert.match(js, /addEventListener\('loadedmetadata'/, 'videos too — they report size later than images');
+
+  // เปิดทิ้งไว้ทั้งงานแล้วจอดำ เพราะบัฟเฟอร์ภาพที่ถอดรหัสไว้ไม่ถูกคืน
+  assert.match(js, /function releaseMedia/, 'decoded frames must be released when a slide is dropped');
 });

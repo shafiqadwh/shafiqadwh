@@ -82,7 +82,31 @@
     return kenBurnsFlip ? ' kb kb--a' : ' kb kb--b';
   }
 
-  function mediaNode(item, onDone) {
+  /**
+   * ตาข่ายกันตกชั้นสุดท้าย — วัดขนาดจริงหลังภาพโหลดเสร็จ ถ้าล้นจอก็สั่งขนาด
+   * เป็นพิกเซลตรง ๆ ไปเลย
+   *
+   * มีชั้นนี้เพราะพลาดมาแล้วสองรอบด้วยเหตุคนละอย่าง (max-height เปอร์เซ็นต์
+   * ถูกทิ้ง, WebView ทีวีไม่รู้จัก inset) ทั้งสองรอบ CSS ดูถูกต้องบนเดสก์ท็อป
+   * แต่พังบนเครื่องจริง โค้ดตรงนี้ไม่พึ่ง CSS เลย จึงพังตามกันไม่ได้
+   */
+  function clampToScreen(node, heightRatio) {
+    const naturalW = node.naturalWidth || node.videoWidth;
+    const naturalH = node.naturalHeight || node.videoHeight;
+    if (!naturalW || !naturalH) return;
+
+    const boxW = window.innerWidth * 0.92;
+    const boxH = window.innerHeight * heightRatio;
+    const scale = Math.min(boxW / naturalW, boxH / naturalH, 1);
+
+    node.style.width = `${Math.round(naturalW * scale)}px`;
+    node.style.height = `${Math.round(naturalH * scale)}px`;
+  }
+
+  // การ์ดคำอวยพรเว้นแถบล่างไว้ให้ข้อความ รูปจึงเตี้ยกว่าสไลด์รูปธรรมดา
+  // ส่งค่ามาเป็นพารามิเตอร์ ไม่ไปไล่หาจาก DOM เพราะตอนรูปในแคชโหลดเสร็จ
+  // node อาจยังไม่ได้ถูกใส่ลงหน้าเลย closest() จะคืน null
+  function mediaNode(item, onDone, heightRatio = 0.92) {
     const wrap = el('div', 'slide__media');
 
     if (item.kind === 'video') {
@@ -92,6 +116,7 @@
       video.muted = settings.muted !== false;
       video.playsInline = true;
       video.controls = false;
+      video.addEventListener('loadedmetadata', () => clampToScreen(video, heightRatio));
       video.addEventListener('ended', onDone);
       video.addEventListener('error', onDone);
       wrap.appendChild(video);
@@ -100,6 +125,9 @@
       // รูปขนาดพอดีจอ ไม่ใช่ต้นฉบับหลายสิบเมกะพิกเซล
       img.src = item.displayUrl || item.mediaUrl;
       img.alt = '';
+      img.decoding = 'async';
+      if (img.complete) clampToScreen(img, heightRatio);
+      img.addEventListener('load', () => clampToScreen(img, heightRatio));
       img.addEventListener('error', onDone);
       wrap.appendChild(img);
     }
@@ -151,8 +179,29 @@
     current = slide;
     if (previous) {
       previous.classList.remove('is-visible');
-      setTimeout(() => previous.remove(), 1300);
+      setTimeout(() => {
+        releaseMedia(previous);
+        previous.remove();
+      }, 1300);
     }
+  }
+
+  /**
+   * ปล่อยภาพที่ถอดรหัสไว้ในหน่วยความจำก่อนทิ้งสไลด์
+   *
+   * การลบ node ออกจาก DOM เฉย ๆ ไม่ได้แปลว่าเบราว์เซอร์คืนบัฟเฟอร์ภาพทันที
+   * กล่องทีวีมีแรมน้อย เปิดทิ้งไว้เป็นชั่วโมงแล้วจะเริ่มขึ้นจอดำเพราะโหลดรูป
+   * ใหม่ไม่ไหว — เคลียร์ src ทิ้งเองจึงจำเป็น ไม่ใช่การปรับแต่งเล็กน้อย
+   */
+  function releaseMedia(slide) {
+    slide.querySelectorAll('img').forEach((img) => {
+      img.removeAttribute('src');
+    });
+    slide.querySelectorAll('video').forEach((video) => {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    });
   }
 
   function setCaption(text) {
@@ -191,7 +240,7 @@
   function showWishWithMedia(message) {
     const slide = el('div', 'slide slide--wish slide--wish-media');
     addBackdrop(slide, message.media);
-    slide.appendChild(mediaNode(message.media, next));
+    slide.appendChild(mediaNode(message.media, next, 0.7));
     slide.appendChild(wishBlock(message, 'overlay'));
     paint(slide);
 

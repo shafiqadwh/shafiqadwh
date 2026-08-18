@@ -834,7 +834,10 @@ a:focus-visible {
 
 .stage {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   overflow: hidden;
 }
 
@@ -842,7 +845,10 @@ a:focus-visible {
 
 .slide {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   opacity: 0;
   transition: opacity 1.15s ease;
 }
@@ -854,7 +860,10 @@ a:focus-visible {
 /* พื้นหลังเบลอจากรูปเดียวกัน — ทำให้จอเต็มโดยไม่ crop รูปของแขก */
 .slide__backdrop {
   position: absolute;
-  inset: -6%;
+  top: -6%;
+  right: -6%;
+  bottom: -6%;
+  left: -6%;
   background-size: cover;
   background-position: center;
   filter: blur(30px) saturate(0.72) brightness(0.4);
@@ -863,23 +872,36 @@ a:focus-visible {
 
 .slide__media {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   padding: 3.2vh 3.2vw;
   /* กันไว้อีกชั้น ต่อให้คำนวณขนาดพลาดก็ไม่ล้นออกไปทับสไลด์อื่น */
   overflow: hidden;
 }
 
-/* ⚠️ ต้องเป็น width/height 100% + object-fit ห้ามใช้ max-width/max-height
-   เปอร์เซ็นต์ของ max-* จะถูกทิ้งเมื่อกล่องแม่มีความสูงแบบ auto (เช่นอยู่ใน grid
-   ที่วัดจากเนื้อหา) เบราว์เซอร์จึงกางรูปที่ขนาดพิกเซลจริง — รูปจาก iPhone
-   4000px ก็จะกาง 4000px ล้นจอจนเห็นแค่มุมเดียว
-   ส่วน width/height 100% อ้างอิงกับกล่องที่ position: absolute; inset: 0
-   ซึ่งมีขนาดแน่นอนเสมอ แล้ว object-fit: contain ย่อให้พอดีโดยไม่ตัดอะไรทิ้ง */
+/* ⚠️ ห้ามคุมขนาดรูปด้วย "เปอร์เซ็นต์" ไม่ว่าจะเป็น width/height หรือ max-*
+   เพราะเปอร์เซ็นต์ต้องอาศัยว่ากล่องแม่มีขนาดแน่นอน ซึ่งพังมาแล้วสองรอบ:
+     รอบแรก  max-height: 100% ถูกทิ้งเพราะกล่องแม่สูงแบบ auto (อยู่ใน grid)
+     รอบสอง  width/height: 100% พังบน WebView ของทีวีที่ไม่รู้จัก inset
+             พอ inset ถูกทิ้ง กล่องแม่ก็ไม่มีขนาด เปอร์เซ็นต์เลยอ้างอิงอะไรไม่ได้
+   ทั้งสองรอบผลลัพธ์เหมือนกันคือรูปกางตามขนาดพิกเซลจริงแล้วล้นจอ
+   หน่วย vw/vh อ้างอิงกับจอตรง ๆ ไม่ต้องพึ่งกล่องแม่เลย จึงไม่มีทางพังแบบนี้อีก */
 .slide__media img,
 .slide__media video {
   display: block;
-  width: 100%;
-  height: 100%;
+  margin: auto;
+
+  /* คุมขนาดด้วยหน่วยจอ (vw/vh) ไม่ใช่เปอร์เซ็นต์
+     เปอร์เซ็นต์ต้องอาศัยว่ากล่องแม่มีขนาดแน่นอน ซึ่งพังได้สองทาง —
+     กล่องแม่สูงแบบ auto หรือ WebView เก่าไม่รู้จัก inset แล้วทิ้งขนาดไปทั้งบรรทัด
+     ส่วน vw/vh อ้างอิงกับจอโดยตรง ไม่พังไม่ว่ากล่องแม่จะเป็นยังไง
+     คู่กับ width/height auto เบราว์เซอร์รักษาสัดส่วนภาพให้เอง */
+  width: auto;
+  height: auto;
+  max-width: 93.6vw;
+  max-height: 93.6vh;
   object-fit: contain;
   object-position: center;
 }
@@ -919,7 +941,10 @@ a:focus-visible {
 
 .stage__grain {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   pointer-events: none;
   background:
     radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.55) 100%),
@@ -988,7 +1013,10 @@ a:focus-visible {
 
 .slide--wish-plain .wish {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   align-content: center;
   padding: 8vh 12vw;
 }
@@ -1011,6 +1039,13 @@ a:focus-visible {
   padding: 2.5vh 4vw 26vh;
 }
 
+/* กล่องรูปของการ์ดคำอวยพรเตี้ยกว่า เพราะต้องเว้นแถบล่างให้ข้อความ */
+.slide--wish-media .slide__media img,
+.slide--wish-media .slide__media video {
+  max-width: 92vw;
+  max-height: 71vh;
+}
+
 .slide--wish-media .slide__media img,
 .slide--wish-media .slide__media video {
   object-position: center top;
@@ -1018,7 +1053,10 @@ a:focus-visible {
 
 .wish--overlay {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   align-content: end;
   padding: 0 8vw 9vh;
   /* แผ่นมืดต้องจบก่อนถึงขอบล่างของรูปพอดี ไม่งั้นจะไปคลุมส่วนล่างของรูป
@@ -1051,7 +1089,10 @@ a:focus-visible {
 
 .title {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -1102,7 +1143,10 @@ a:focus-visible {
 
 .share {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: grid;
   align-content: center;
   justify-items: center;
