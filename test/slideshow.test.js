@@ -157,3 +157,20 @@ test('the slideshow clamps media in JavaScript too, in case the CSS never applie
   // เปิดทิ้งไว้ทั้งงานแล้วจอดำ เพราะบัฟเฟอร์ภาพที่ถอดรหัสไว้ไม่ถูกคืน
   assert.match(js, /function releaseMedia/, 'decoded frames must be released when a slide is dropped');
 });
+
+test('the wall mode is available and ships everything it needs', async () => {
+  const html = await (await fetch(`${app.baseUrl}/slideshow?lang=th`)).text();
+  assert.match(html, /"mode":\s*"(cinema|wall)"/, 'the page must tell the client which mode to render');
+
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+  assert.match(js, /function startWall/, 'the wall renderer must stay');
+  assert.match(js, /mode.*wall|wall.*mode/s, 'and be reachable by ?mode=wall');
+
+  // การ์ดบนกำแพงต้องใช้รูปย่อ ไม่ใช่รูปเต็ม — มีรูปบนจอพร้อมกันสิบกว่าใบ
+  // ถ้าใช้รูปเต็มทุกใบ กล่องทีวีถอดรหัสไม่ไหวแน่
+  const wallBlock = js.slice(js.indexOf('function buildCard'), js.indexOf('function playBadge'));
+  assert.match(wallBlock, /entry\.thumbUrl/, 'wall cards must load the small thumbnail first');
+
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.wall__card\.is-hot/, 'the highlighted card needs its own styling');
+});

@@ -150,6 +150,8 @@ export const config = {
     messageSeconds: num('SLIDESHOW_MESSAGE_SECONDS', 11),
     // ซูมช้า ๆ แบบ Ken Burns ทำให้ภาพนิ่งบนจอใหญ่ไม่ดูตาย ปิดได้ถ้าเครื่องฉายอืด
     kenBurns: bool('SLIDESHOW_KEN_BURNS', true),
+    // cinema = ทีละรูปเต็มจอ · wall = กระจายทั้งจอเหมือนรูปโพลารอยด์แล้ววนไฮไลท์
+    mode: str('SLIDESHOW_MODE', 'cinema'),
   },
 
   admin: {

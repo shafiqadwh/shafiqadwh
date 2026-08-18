@@ -40,6 +40,11 @@
 
   if (LITE) document.body.classList.add('is-lite');
 
+  // โหมดการแสดงผล: cinema = ทีละรูปเต็มจอ, wall = กระจายทั้งจอแล้ววนไฮไลท์
+  const MODE = new URLSearchParams(window.location.search).get('mode')
+    || settings.mode
+    || 'cinema';
+
   // ── การประกอบสไลด์ ────────────────────────────────────────────────────────
 
   function el(tag, className, text) {
@@ -435,7 +440,335 @@
     }
   }
 
+
+  // ══ โหมดกำแพงรูป ═══════════════════════════════════════════════════════
+  //
+  // รูปทั้งหมดวางกระจายเต็มจอเหมือนรูปโพลารอยด์วางบนโต๊ะ ทีละใบถูกยกขึ้นมาเป็น
+  // ไฮไลท์ แล้วสลับไปเรื่อย ๆ รูปใหม่เข้ามาแทนใบที่อยู่มานานที่สุด
+  //
+  // ต่างจากโหมดโรงหนังตรงที่จอไม่เคยว่าง แขกเห็นรูปของตัวเองค้างอยู่บนจอได้นาน
+  // ไม่ใช่ผ่านไปแล้วผ่านเลย
+
+  function startWall() {
+    document.body.classList.add('is-wall');
+
+    const wall = el('div', 'wall');
+    stage.parentNode.insertBefore(wall, stage);
+    stage.remove();
+    caption.remove();
+
+    const slots = [];
+    const cards = [];
+    let hotIndex = -1;
+    let placedSerial = 0;
+
+    // ── ตำแหน่งของแต่ละใบ ────────────────────────────────────────────────
+    //
+    // วางบนตารางก่อน แล้วค่อยเขย่าตำแหน่งกับหมุนเอียงทีละใบ ได้ผลดูสุ่มแต่
+    // ไม่มีทางซ้อนทับกันจนบังหน้าคน ซึ่งเป็นสิ่งที่การสุ่มล้วน ๆ คุมไม่ได้
+    function buildSlots() {
+      slots.length = 0;
+
+      const ratio = window.innerWidth / Math.max(window.innerHeight, 1);
+      const cols = ratio > 1.6 ? 5 : 4;
+      const rows = ratio > 1.6 ? 3 : 4;
+
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          // ค่าเขย่าคงที่ต่อช่อง ไม่สุ่มใหม่ทุกครั้ง ไม่งั้นรูปจะกระโดดตอนสลับ
+          const noise = Math.sin((row * 7 + col * 13 + 1) * 12.9898) * 43758.5453;
+          const jitterX = ((noise % 1) + 1) % 1 - 0.5;
+          const jitterY = ((noise * 1.7 % 1) + 1) % 1 - 0.5;
+
+          slots.push({
+            x: (col + 0.5) / cols + jitterX * 0.06,
+            y: (row + 0.5) / rows + jitterY * 0.07,
+            rotate: jitterX * 17,
+            boxW: window.innerWidth / cols,
+            boxH: window.innerHeight / rows,
+            // ย่อขนาดต่างกันทีละใบ ไม่งั้นดูเป็นตารางแทนที่จะเป็นกองรูป
+            shrink: 0.82 + Math.abs(jitterY) * 0.32,
+          });
+        }
+      }
+    }
+
+    function place(card) {
+      const slot = slots[card.slotIndex];
+      const hot = card.slotIndex === hotIndex;
+
+      // ไฮไลท์ต้องใหญ่พอให้คนท้ายห้องเห็นหน้าชัด แต่ห้ามหลุดขอบจอ
+      const scale = hot
+        ? Math.min(
+          (window.innerHeight * 0.72) / Math.max(card.node.offsetHeight, 1),
+          (window.innerWidth * 0.46) / Math.max(card.node.offsetWidth, 1),
+        )
+        : 1;
+
+      const halfW = (card.node.offsetWidth * scale) / 2;
+      const halfH = (card.node.offsetHeight * scale) / 2;
+
+      // ดึงเข้ามาในจอเท่าที่จำเป็น ใบที่อยู่ริมจอจะได้ไม่โดนตัดตอนขยาย
+      const margin = 12;
+      const centreX = clamp(slot.x * window.innerWidth, halfW + margin, window.innerWidth - halfW - margin);
+      const centreY = clamp(slot.y * window.innerHeight, halfH + margin, window.innerHeight - halfH - margin);
+
+      card.node.style.transform =
+        `translate(${Math.round(centreX - card.node.offsetWidth / 2)}px, ${Math.round(centreY - card.node.offsetHeight / 2)}px)`
+        + ` rotate(${hot ? 0 : slot.rotate.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+
+      card.node.classList.toggle('is-hot', hot);
+    }
+
+    // วางลงตำแหน่งโดยยังไม่เปิด transition แล้วค่อยเปิดทีหลัง
+    // ถ้าเปิดไว้ตั้งแต่แรก การ์ดทุกใบจะพุ่งมาจากมุมซ้ายบนพร้อมกันตอนเปิดหน้า
+    function settle(card) {
+      requestAnimationFrame(() => {
+        place(card);
+        requestAnimationFrame(() => {
+          card.node.classList.remove('is-placing');
+          card.node.classList.remove('is-entering');
+        });
+      });
+    }
+
+    function clamp(value, low, high) {
+      return high < low ? (low + high) / 2 : Math.min(Math.max(value, low), high);
+    }
+
+    // ── การ์ดหนึ่งใบ ──────────────────────────────────────────────────────
+
+    /**
+     * ความกว้างของการ์ดต้องคิดถอยหลังจาก "ช่องที่มี" ไม่ใช่ตั้งจากความกว้างอย่างเดียว
+     *
+     * กรอบโพลารอยด์สูงกว่ารูปข้างในเสมอ (ขอบบน 5% ขอบล่าง 17% บวกบรรทัดชื่อ)
+     * ถ้าคิดจากความกว้างอย่างเดียว รูปแนวตั้งจะสูงล้นช่องแล้วไปทับใบข้างบนข้างล่าง
+     * จนกำแพงดูรกแทนที่จะดูเป็นกองรูปวางเรียง
+     */
+    function cardWidthFor(slot, ratio) {
+      const frameOverhead = 0.09 + 0.11 + 0.13; // ขอบบน + ขอบล่าง + บรรทัดชื่อ
+      const byWidth = slot.boxW * 0.94;
+      const byHeight = (slot.boxH * 0.94) / (0.9 * ratio + frameOverhead);
+      return Math.max(64, Math.min(byWidth, byHeight) * slot.shrink);
+    }
+
+    function buildCard(entry, slot) {
+      const node = el('div', 'wall__card is-entering is-placing');
+      const card = el('div', `card${entry.note ? ' card--note' : ''}`);
+
+      // กรอบรูปใช้สัดส่วนของรูปจริง แนวตั้งกับแนวนอนจึงหน้าตาไม่เหมือนกัน
+      // เหมือนกองรูปจริงที่ปนกันอยู่ ไม่ใช่ตารางที่ทุกใบเท่ากันเป๊ะ
+      const ratio = entry.note
+        ? 1.15
+        : clamp(entry.width && entry.height ? entry.height / entry.width : 1.2, 0.68, 1.5);
+      const width = cardWidthFor(slot, ratio);
+      node.style.width = `${Math.round(width)}px`;
+
+      const media = el('div', 'card__media');
+
+      if (entry.note) {
+        // คำอวยพรที่ไม่ได้แนบรูป ขึ้นเป็นกระดาษโน้ต ยาวเกินก็ตัดท้ายด้วย …
+        const text = el('p', 'card__note-text', entry.body.slice(0, 150) + (entry.body.length > 150 ? '…' : ''));
+        text.style.fontSize = `${Math.max(9, width * (entry.body.length > 70 ? 0.058 : 0.082))}px`;
+        media.style.height = `${Math.round(width * ratio)}px`;
+        media.appendChild(text);
+      } else {
+        media.style.height = `${Math.round(width * 0.9 * ratio)}px`;
+
+        const img = el('img');
+        // ใช้รูปย่อ 720px — การ์ดกว้างไม่กี่ร้อยพิกเซล ต่อให้ขยายเป็นไฮไลท์ก็ยังพอ
+        // ถ้าใช้รูปเต็ม จอจะมีรูปใหญ่สิบกว่าใบพร้อมกันแล้วกล่องทีวีตาย
+        img.src = entry.thumbUrl || entry.displayUrl || entry.mediaUrl;
+        img.alt = '';
+        img.decoding = 'async';
+        media.appendChild(img);
+
+        if (entry.kind === 'video') media.appendChild(playBadge());
+      }
+
+      card.appendChild(media);
+
+      const name = el('span', 'card__name', entry.name || t('slideshow.anonymous'));
+      name.style.fontSize = `${Math.max(8, width * 0.075)}px`;
+      card.appendChild(name);
+
+      node.appendChild(card);
+      wall.appendChild(node);
+
+      return { node, entry, slotIndex: 0, serial: placedSerial += 1 };
+    }
+
+    function playBadge() {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'card__play');
+      svg.setAttribute('viewBox', '0 0 40 40');
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '20');
+      circle.setAttribute('cy', '20');
+      circle.setAttribute('r', '19');
+      circle.setAttribute('fill', 'rgba(8,6,4,0.62)');
+      const tri = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      tri.setAttribute('d', 'M16 12l14 8-14 8z');
+      tri.setAttribute('fill', '#fbf4e8');
+      svg.appendChild(circle);
+      svg.appendChild(tri);
+      return svg;
+    }
+
+    // ── สิ่งที่เอาขึ้นกำแพงได้ ────────────────────────────────────────────
+    //
+    // รูป วิดีโอ และคำอวยพร รวมเป็นรายการเดียวกัน คำอวยพรที่แนบรูปมานับเป็นรูป
+    // ที่มีข้อความกำกับ ส่วนที่ไม่แนบก็เป็นกระดาษโน้ต
+
+    function entries() {
+      const list = deck.items.map((item) => ({
+        key: `i${item.id}`,
+        kind: item.kind,
+        thumbUrl: item.thumbUrl,
+        displayUrl: item.displayUrl,
+        mediaUrl: item.mediaUrl,
+        width: item.width,
+        height: item.height,
+        duration: item.duration,
+        name: item.uploader,
+        note: false,
+      }));
+
+      for (const message of deck.messages) {
+        if (message.media) continue; // รูปที่แนบมาอยู่ในรายการรูปแล้ว ไม่ต้องซ้ำ
+        list.push({ key: `m${message.id}`, note: true, body: message.body, name: message.author });
+      }
+
+      return list;
+    }
+
+    // ── เติมกำแพง และสลับของเก่าออกเมื่อมีของใหม่ ─────────────────────────
+
+    function sync() {
+      const available = entries();
+      if (available.length === 0) return;
+
+      const onWall = new Set(cards.map((card) => card.entry.key));
+      const waiting = available.filter((entry) => !onWall.has(entry.key));
+
+      // ยังมีช่องว่างอยู่ — เติมให้เต็มก่อน
+      while (cards.length < slots.length && available.length > 0) {
+        const entry = waiting.shift() ?? available[cards.length % available.length];
+        const slotIndex = cards.length;
+        const card = buildCard(entry, slots[slotIndex]);
+        card.slotIndex = slotIndex;
+        cards.push(card);
+        settle(card);
+      }
+
+      // เต็มแล้วแต่มีของใหม่รอ — เอาเข้าไปแทนใบที่อยู่บนกำแพงมานานที่สุด
+      // ข้ามใบที่กำลังเป็นไฮไลท์ ไม่งั้นรูปจะหายไปต่อหน้าคนที่กำลังดูอยู่
+      for (const entry of waiting) {
+        let oldest = null;
+        for (const card of cards) {
+          if (card.slotIndex === hotIndex) continue;
+          if (!oldest || card.serial < oldest.serial) oldest = card;
+        }
+        if (!oldest) break;
+        replace(oldest, entry);
+      }
+    }
+
+    function replace(card, entry) {
+      const slotIndex = card.slotIndex;
+      card.node.classList.add('is-entering');
+
+      setTimeout(() => {
+        card.node.remove();
+        const fresh = buildCard(entry, slots[slotIndex]);
+        fresh.slotIndex = slotIndex;
+        cards[cards.indexOf(card)] = fresh;
+        settle(fresh);
+      }, 900);
+    }
+
+    // ── วนไฮไลท์ ─────────────────────────────────────────────────────────
+
+    function highlightNext() {
+      if (cards.length === 0) {
+        setTimeout(highlightNext, 2000);
+        return;
+      }
+
+      const previous = cards.find((card) => card.slotIndex === hotIndex);
+      hotIndex = (hotIndex + 1) % cards.length;
+      const next = cards.find((card) => card.slotIndex === hotIndex);
+
+      if (previous) {
+        stopVideo(previous);
+        place(previous);
+      }
+
+      let hold = SECONDS * 1000;
+      if (next) {
+        place(next);
+        hold = playIfVideo(next) ?? hold;
+        // คำอวยพรต้องมีเวลาอ่าน เหมือนโหมดโรงหนัง
+        if (next.entry.note) hold = Math.max(hold, readingTime({ body: next.entry.body }) * 1000);
+      }
+
+      setTimeout(highlightNext, hold);
+    }
+
+    // วิดีโอเล่นเฉพาะตอนเป็นไฮไลท์ ถ้าเล่นทุกใบพร้อมกันกล่องทีวีตายแน่
+    function playIfVideo(card) {
+      if (card.entry.kind !== 'video') return null;
+
+      const media = card.node.querySelector('.card__media');
+      const video = el('video');
+      video.src = card.entry.mediaUrl;
+      video.autoplay = true;
+      video.muted = settings.muted !== false;
+      video.playsInline = true;
+      video.loop = true;
+      media.appendChild(video);
+
+      return Math.min(card.entry.duration || VIDEO_MAX, VIDEO_MAX) * 1000;
+    }
+
+    function stopVideo(card) {
+      card.node.querySelectorAll('video').forEach((video) => {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        video.remove();
+      });
+    }
+
+    // ── เริ่มทำงาน ───────────────────────────────────────────────────────
+
+    buildSlots();
+    sync();
+    highlightNext();
+    setInterval(async () => {
+      await refresh();
+      sync();
+    }, 15_000);
+
+    // เปลี่ยนความละเอียดจอหรือหมุนจอ — วางใหม่ทั้งกำแพง
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        buildSlots();
+        cards.forEach((card, index) => {
+          card.slotIndex = index;
+          place(card);
+        });
+      }, 400);
+    });
+  }
+
   refresh().then(() => {
+    if (MODE === 'wall') {
+      startWall();
+      return;
+    }
     if (deck.items.length > 0 || deck.messages.length > 0) showTitle();
     else next();
     setInterval(refresh, 15_000);
