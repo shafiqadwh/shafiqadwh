@@ -222,3 +222,24 @@ test('the admin page links to the slideshow chooser', async () => {
   const html = await (await fetch(`${app.baseUrl}/admin`, { headers: { Cookie: cookie } })).text();
   assert.match(html, /href="\/slideshow\/menu"/, 'one button on the admin page, not one per mode');
 });
+
+test('on the wall the QR is a card of its own, never the highlight', async () => {
+  // ป้าย QR มุมจอทับการ์ดที่อยู่ใต้มันจนอ่านไม่ออก บนกำแพงจึงต้องเป็นการ์ด
+  // ที่มีช่องของตัวเอง ย้ายที่ไปเรื่อย ๆ และห้ามถูกยกขึ้นมาเป็นไฮไลท์
+  // เพราะถ้าขยาย มันจะไปบังรูปแขกรอบ ๆ ซึ่งคือปัญหาเดิมในรูปแบบใหม่
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+
+  assert.match(js, /qrBadge\.remove\(\)/, 'the corner badge must go away in wall mode');
+  assert.match(js, /qr: true/, 'the wall builds a QR card instead');
+  assert.match(js, /card === qrCard/, 'new photos must never push the QR off the wall');
+  assert.match(js, /hotIndex === qrCard\.slotIndex/, 'the highlight must step over the QR slot');
+  assert.match(js, /function moveQrSomewhereElse/, 'and the QR must not sit in one corner all night');
+  assert.match(js, /slotDistance\(qrCard\.slotIndex, hotIndex\)/,
+    'it also has to dodge whichever card is about to grow next to it');
+
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+  const rule = css.match(/\.wall__card--qr \{([^}]*)\}/);
+  assert.ok(rule, 'the QR card needs its own styling');
+  assert.match(rule[1], /opacity:\s*0\.9[0-9]?/,
+    'it must stay bright enough to scan, not dim like the other cards');
+});

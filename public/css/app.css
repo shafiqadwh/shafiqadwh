@@ -1432,6 +1432,30 @@ a:focus-visible {
   text-overflow: ellipsis;
 }
 
+/* การ์ด QR — มีไว้ให้สแกน จึงต้องสว่างพออ่านได้เสมอ ไม่หรี่ตามใบอื่น
+   และไม่ถูกยกขึ้นมาเป็นไฮไลท์ เพราะถ้าขยายจะไปบังรูปแขกรอบ ๆ */
+.wall__card--qr {
+  opacity: 0.95;
+  z-index: 5;
+}
+
+.card--qr .card__media {
+  background: #fbf7ef;
+  display: grid;
+  place-items: center;
+  padding: 4%;
+}
+
+.card__qr {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.card--qr .card__name {
+  color: #6b5a44;
+}
+
 /* การ์ดคำอวยพรที่ไม่ได้แนบรูป — เป็นกระดาษโน้ตแทนที่จะเป็นรูป */
 .card--note .card__media {
   display: grid;
