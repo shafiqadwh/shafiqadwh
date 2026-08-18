@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="<%= htmlLang %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= event.title %> · <%= t('slideshow.menu_title') %></title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body class="menu-body">
+  <main class="menu">
+    <header class="menu__head">
+      <% if (event.monogram) { %><div class="menu__monogram"><%= event.monogram %></div><% } %>
+      <h1 class="menu__title"><%= t('slideshow.menu_title') %></h1>
+    </header>
+
+    <div class="menu__grid">
+      <%
+        // ตัวอย่างหน้าตาแต่ละแบบ วาดด้วย CSS ล้วน ไม่ต้องโหลดรูปมาแสดง
+        // จะได้ขึ้นทันทีแม้เน็ตที่สถานที่จัดงานช้า
+        const modes = [
+          { id: 'cinema', name: t('slideshow.mode_cinema'), hint: t('slideshow.mode_cinema_hint') },
+          { id: 'wall', name: t('slideshow.mode_wall'), hint: t('slideshow.mode_wall_hint') },
+        ];
+      %>
+      <% modes.forEach(function (mode, index) { %>
+        <a class="mode" href="<%= link(mode.id) %>" <%= index === 0 ? 'autofocus' : '' %>>
+          <span class="mode__preview mode__preview--<%= mode.id %>" aria-hidden="true">
+            <% if (mode.id === 'cinema') { %>
+              <span class="mode__frame"></span>
+            <% } else { %>
+              <% for (let i = 0; i < 9; i += 1) { %><span class="mode__chip<%= i === 4 ? ' is-hot' : '' %>"></span><% } %>
+            <% } %>
+          </span>
+          <span class="mode__name"><%= mode.name %></span>
+          <span class="mode__hint"><%= mode.hint %></span>
+          <span class="mode__go"><%= t('slideshow.menu_open') %></span>
+        </a>
+      <% }); %>
+    </div>
+
+    <p class="menu__foot"><%= t('slideshow.menu_hint') %></p>
+  </main>
+
+  <script>
+    // รีโมตทีวีมีแต่ปุ่มลูกศร ไม่มีเมาส์ — ต้องเลื่อนโฟกัสเองให้ได้
+    (function () {
+      var picks = Array.prototype.slice.call(document.querySelectorAll('.mode'));
+      if (picks.length === 0) return;
+      if (!document.activeElement || document.activeElement === document.body) picks[0].focus();
+
+      document.addEventListener('keydown', function (event) {
+        var at = picks.indexOf(document.activeElement);
+        if (at === -1) at = 0;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          picks[(at + 1) % picks.length].focus();
+          event.preventDefault();
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          picks[(at - 1 + picks.length) % picks.length].focus();
+          event.preventDefault();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

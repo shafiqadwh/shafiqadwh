@@ -27,6 +27,30 @@ function attachedMedia(row) {
   };
 }
 
+/**
+ * หน้าเลือกรูปแบบสไลด์โชว์ — เปิดจากหน้าแอดมิน และเป็นหน้าแรกของแอปบนทีวี
+ *
+ * ออกแบบให้เดินด้วยรีโมตได้ ไม่ใช่แค่คลิกด้วยเมาส์ พอเลือกแล้วกดปุ่มย้อนกลับ
+ * จะกลับมาหน้านี้เพราะเป็นการเดินหน้าไปอีกหน้าตามปกติ ไม่ได้เปลี่ยนเนื้อในหน้าเดิม
+ */
+slideshowRouter.get('/slideshow/menu', (req, res) => {
+  // ค่าที่ติดมากับ URL อย่าง lite กับ lang ต้องส่งต่อไปด้วย ไม่งั้นทีวีที่ตั้ง
+  // โหมดเบาไว้จะหลุดโหมดทันทีที่เลือกจากเมนู
+  const carry = ['lite', 'lang', 'tv'];
+
+  res.render('slideshow-menu', {
+    page: 'slideshow',
+    link(mode) {
+      const params = new URLSearchParams({ mode });
+      for (const key of carry) {
+        const value = req.query[key];
+        if (typeof value === 'string' && value !== '') params.set(key, value);
+      }
+      return `/slideshow?${params}`;
+    },
+  });
+});
+
 slideshowRouter.get('/slideshow', async (req, res) => {
   const url = shareUrl(req);
   res.render('slideshow', {

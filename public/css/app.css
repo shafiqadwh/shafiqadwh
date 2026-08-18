@@ -1467,6 +1467,155 @@ a:focus-visible {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
 }
 
+/* ── หน้าเลือกรูปแบบสไลด์โชว์ ──────────────────────────────────────────────
+   ใช้ทั้งบนคอมของเจ้าภาพและบนทีวีที่มีแต่รีโมต ปุ่มจึงต้องใหญ่ อ่านออกจากไกล
+   และต้องเห็นชัดว่าตอนนี้โฟกัสอยู่ที่อันไหน */
+
+.menu-body {
+  margin: 0;
+  min-height: 100vh;
+  color: #fbf4e8;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 34%, rgba(217, 164, 65, 0.15), transparent 68%),
+    linear-gradient(160deg, #1d1611 0%, #0d0a08 62%, #17110c 100%);
+}
+
+.menu {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 6vh 4vw 5vh;
+  display: grid;
+  gap: 4.5vh;
+  align-content: center;
+  min-height: 100vh;
+}
+
+.menu__head {
+  text-align: center;
+  display: grid;
+  gap: 1.6vh;
+  font-family: var(--font-display);
+}
+
+.menu__monogram {
+  font-size: clamp(16px, 1.9vw, 28px);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #e8c98a;
+}
+
+.menu__title {
+  margin: 0;
+  font-weight: 400;
+  font-size: clamp(26px, 3.6vw, 54px);
+}
+
+.menu__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: clamp(16px, 2.4vw, 34px);
+}
+
+.mode {
+  display: grid;
+  gap: 14px;
+  padding: clamp(18px, 2vw, 30px);
+  border-radius: 18px;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(251, 244, 232, 0.05);
+  border: 1px solid rgba(240, 217, 168, 0.22);
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+/* :focus ไม่ใช่ :focus-visible — บนทีวีการเลื่อนด้วยรีโมตนับเป็น focus ธรรมดา
+   ถ้าใช้ :focus-visible เจ้าภาพจะมองไม่ออกเลยว่าตอนนี้เลือกอันไหนอยู่ */
+.mode:hover,
+.mode:focus {
+  outline: none;
+  transform: translateY(-4px);
+  background: rgba(251, 244, 232, 0.1);
+  border-color: #e8c98a;
+  box-shadow: 0 0 0 3px rgba(232, 201, 138, 0.45), 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+.mode__preview {
+  display: block;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0c0907;
+  box-shadow: inset 0 0 0 1px rgba(240, 217, 168, 0.16);
+}
+
+/* ตัวอย่างแบบดั้งเดิม: รูปเดียวกลางจอ */
+.mode__frame {
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  left: 31%;
+  right: 31%;
+  border-radius: 3px;
+  background: linear-gradient(150deg, #d8a76b, #7a4e2b);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+/* ตัวอย่างแบบกำแพง: การ์ดเล็ก ๆ กระจาย มีใบหนึ่งสว่างกว่าเพื่อน */
+.mode__preview--wall {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7%;
+  padding: 9%;
+}
+
+.mode__chip {
+  border-radius: 2px;
+  background: #6d5c46;
+  opacity: 0.42;
+}
+
+.mode__chip.is-hot {
+  background: linear-gradient(150deg, #f0d9a8, #d8a76b);
+  opacity: 1;
+  transform: scale(1.16);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.mode__name {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.1vw, 32px);
+}
+
+.mode__hint {
+  color: #cdb894;
+  font-size: clamp(13px, 1.15vw, 18px);
+  line-height: 1.55;
+}
+
+.mode__go {
+  justify-self: start;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: rgba(232, 201, 138, 0.16);
+  color: #f0d9a8;
+  font-size: clamp(13px, 1.1vw, 17px);
+  letter-spacing: 0.08em;
+}
+
+.mode:hover .mode__go,
+.mode:focus .mode__go {
+  background: #e8c98a;
+  color: #241f1a;
+}
+
+.menu__foot {
+  margin: 0;
+  text-align: center;
+  color: #9d8a6f;
+  font-size: clamp(12px, 1.05vw, 16px);
+}
+
 /* ---------- printable QR card ---------- */
 
 .card-body {

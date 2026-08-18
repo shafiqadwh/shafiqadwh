@@ -196,3 +196,29 @@ test('the wall never stacks several cards into one slot', async () => {
   assert.match(cycleBlock, /try \{/, 'the highlight loop must survive one bad slide');
   assert.match(cycleBlock, /catch/, 'and schedule the next one anyway');
 });
+
+test('the chooser offers both styles and carries the settings through', async () => {
+  const response = await fetch(`${app.baseUrl}/slideshow/menu?lang=th&lite=1&tv=1`);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /href="\/slideshow\?mode=cinema[^"]*"/);
+  assert.match(html, /href="\/slideshow\?mode=wall[^"]*"/);
+
+  // ทีวีตั้งโหมดเบาไว้ ถ้าลิงก์ในเมนูไม่พา lite ไปด้วย จอจะกลับไปกระตุกทันที
+  // ที่เลือกจากเมนู ซึ่งเป็นจังหวะที่หาสาเหตุยากที่สุด
+  const links = [...html.matchAll(/href="(\/slideshow\?mode=[^"]+)"/g)].map((m) => m[1]);
+  assert.equal(links.length, 2);
+  for (const link of links) {
+    assert.match(link, /lite=1/, 'lite mode must survive the jump from the menu');
+    assert.match(link, /lang=th/, 'so must the language');
+  }
+
+  // รีโมตทีวีไม่มีเมาส์ ต้องมีตัวที่โฟกัสอยู่ตั้งแต่เปิดหน้า ไม่งั้นกดลูกศรแล้วไม่มีอะไรเกิด
+  assert.match(html, /autofocus/, 'the first choice must be focused when the page opens');
+});
+
+test('the admin page links to the slideshow chooser', async () => {
+  const html = await (await fetch(`${app.baseUrl}/admin`, { headers: { Cookie: cookie } })).text();
+  assert.match(html, /href="\/slideshow\/menu"/, 'one button on the admin page, not one per mode');
+});

@@ -186,7 +186,14 @@ public class SlideshowActivity extends Activity {
         }
 
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // กันกดปุ่มย้อนกลับโดนโดยไม่ตั้งใจกลางงาน ต้องกดสองครั้งถึงจะออก
+            // อยู่ในสไลด์โชว์ → ย้อนกลับไปหน้าเมนูให้เลือกแบบใหม่
+            // อยู่ที่หน้าเมนูอยู่แล้ว → ต้องกดสองครั้งถึงจะออกจากแอป
+            // กันกดโดนโดยไม่ตั้งใจกลางงานแล้วจอดับไปเฉย ๆ
+            if (web.canGoBack()) {
+                web.goBack();
+                return true;
+            }
+
             long now = System.currentTimeMillis();
             if (now - lastBackPress < 2000) {
                 finish();

@@ -81,7 +81,14 @@
     "scan_title": "Scan to share your photos",
     "scan_body": "Take photos at the party and send them straight to this screen",
     "waiting": "Waiting for the first photo...",
-    "anonymous": "A guest"
+    "anonymous": "A guest",
+    "menu_title": "Choose a slideshow style",
+    "menu_hint": "Press back at any time to choose again",
+    "mode_cinema": "Classic",
+    "mode_cinema_hint": "One photo at a time, full screen, with guest-book cards and the QR slide. Good for the ceremony.",
+    "mode_wall": "Photo wall",
+    "mode_wall_hint": "Every photo scattered across the screen like prints on a table, one lighting up at a time. Good for the reception.",
+    "menu_open": "Open"
   },
   "admin": {
     "title": "Admin panel",
@@ -113,7 +120,8 @@
     "download_all": "Photos + videos (.zip)",
     "download_note": "A ZIP that includes videos will be very large. Downloading from a computer is recommended.",
     "qr": "Printable QR card",
-    "print": "Print"
+    "print": "Print",
+    "slideshow": "Big-screen slideshow"
   },
   "qr": {
     "title": "Scan to share your photos",
