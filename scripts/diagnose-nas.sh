@@ -100,37 +100,35 @@ fi
 # ── 5. ไฟล์ config ที่เราเพิ่มเข้าไปเอง ─────────────────────────────────────
 step "5. ไฟล์ปรับลิมิตอัพโหลดใน /usr/local/etc/nginx/conf.d"
 
+# โฟลเดอร์นี้มีไฟล์ของ DSM เองหลายสิบไฟล์ — สนใจเฉพาะไฟล์ที่ตั้งลิมิตขนาด body
+# ไม่ต้องพ่นเนื้อไฟล์ทั้งหมดออกมา
 CONF_DIR="/usr/local/etc/nginx/conf.d"
+LIMIT_FILE=""
+
 if [ -d "$CONF_DIR" ]; then
-  FILES="$(ls -1 "$CONF_DIR" 2>/dev/null)"
-  if [ -z "$FILES" ]; then
-    info "โฟลเดอร์ว่าง — ยังไม่ได้ใส่ลิมิต (อัพวิดีโอใหญ่จะติด 413)"
-  else
-    printf '%s\n' "$FILES" | while read -r f; do
-      case "$f" in
-        *[\[\]\(\)]*)
-          printf '  ✗ ชื่อไฟล์ผิด: %s\n' "$f"
-          printf '    ตอนวางคำสั่ง ชื่อไฟล์โดนแปลงเป็นลิงก์ ต้องลบทิ้งแล้วสร้างใหม่:\n'
-          printf '      sudo rm -f "%s/%s"\n' "$CONF_DIR" "$f"
-          ;;
-        *.conf) printf '  ✓ %s\n' "$f" ;;
-        *)
-          printf '  ✗ %s — นามสกุลไม่ใช่ .conf nginx จะไม่อ่านไฟล์นี้\n' "$f"
-          ;;
-      esac
-    done
-    # ไฟล์ชื่อผิดไม่ถูกนับใน FAILED เพราะอยู่ใน subshell ของ while — เช็คซ้ำตรงนี้
-    if ls -1 "$CONF_DIR" 2>/dev/null | grep -q '[][()]'; then
-      FAILED=$((FAILED + 1))
-    fi
-    for f in "$CONF_DIR"/*.conf; do
-      [ -f "$f" ] || continue
-      info "── เนื้อไฟล์ $(basename "$f") ──"
-      sed 's/^/    /' "$f"
-    done
-  fi
+  LIMIT_FILE="$(grep -l 'client_max_body_size' "$CONF_DIR"/*.conf 2>/dev/null | head -1)"
+fi
+
+if [ -z "$LIMIT_FILE" ]; then
+  bad "ไม่พบไฟล์ที่ตั้ง client_max_body_size — แขกจะอัพวิดีโอใหญ่ไม่ได้ (413)"
+  info "แก้: ทำขั้นที่ 7 ใน docs/07-shafiq-nas.md แล้ว sudo synosystemctl restart nginx"
 else
-  info "ยังไม่มีโฟลเดอร์นี้ — ยังไม่ได้ใส่ลิมิต"
+  ok "$(basename "$LIMIT_FILE")"
+  sed 's/^/    /' "$LIMIT_FILE"
+
+  # ลิมิตของ nginx ต้องมากกว่าลิมิตของแอป ไม่งั้นแขกจะเจอ 413 ของ nginx
+  # ก่อนที่แอปจะได้อธิบายเป็นภาษาที่แขกอ่านออก
+  NGINX_MB="$(sed -n 's/.*client_max_body_size[[:space:]]*\([0-9]*\)[mM].*/\1/p' "$LIMIT_FILE" | head -1)"
+  APP_MB=""
+  [ -f .env ] && APP_MB="$(sed -n 's/^MAX_VIDEO_MB=\([0-9]*\).*/\1/p' .env | head -1)"
+  [ -n "$APP_MB" ] || APP_MB="300"
+
+  if [ -n "$NGINX_MB" ] && [ "$NGINX_MB" -gt "$APP_MB" ] 2>/dev/null; then
+    ok "ลิมิต nginx ${NGINX_MB}m > MAX_VIDEO_MB ของแอป ${APP_MB}m"
+  else
+    bad "ลิมิต nginx ${NGINX_MB:-?}m ไม่มากกว่า MAX_VIDEO_MB ${APP_MB}m"
+    info "แขกจะโดน 413 ของ nginx ก่อนที่แอปจะบอกเหตุผลเป็นภาษาที่อ่านออก"
+  fi
 fi
 
 # ── 6. ไวยากรณ์ config ของ nginx ───────────────────────────────────────────

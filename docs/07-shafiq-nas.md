@@ -207,7 +207,7 @@ nginx ของ DSM แยก hostname ด้วย SNI ได้ จึงม�
 
 ```bash
 sudo mkdir -p /usr/local/etc/nginx/conf.d
-sudo tee /usr/local/etc/nginx/conf.d/wedding-upload-limits.conf > /dev/null <<'EOF'
+sudo tee /usr/local/etc/nginx/conf.d/www.wedding.conf > /dev/null <<'EOF'
 client_max_body_size 512m;
 proxy_read_timeout 900s;
 proxy_send_timeout 900s;
@@ -216,9 +216,12 @@ EOF
 sudo synosystemctl restart nginx
 ```
 
-> ⚠️ **ชื่อไฟล์ตั้งใจไม่ขึ้นต้นด้วย `www.`** — แอปแชตกับเทอร์มินัลบางตัวเห็นข้อความที่
-> ขึ้นต้นด้วย `www.` แล้วแปลงเป็นลิงก์อัตโนมัติ พอวางคำสั่งลงเชลล์ ชื่อไฟล์จะกลายเป็น
-> `[www.wedding.conf](https://www.wedding.conf)` แล้วลิมิตไม่มีผลโดยไม่มี error ให้เห็น
+> 📎 ชื่อไฟล์ขึ้นต้นด้วย `www.` ตามแบบแผนของ DSM (ไฟล์ระบบก็ใช้ prefix นี้ เช่น
+> `www.pkg-static.Calendar-*.conf`) prefix เป็นตัวกำหนดว่า config จะถูก include
+> เข้าไปใน context ไหน — อย่าเปลี่ยนเป็นชื่ออื่น
+>
+> เวลาแปะผลลัพธ์ `ls` เข้าแอปแชต ชื่อพวกนี้มักถูกแปลงเป็นลิงก์อัตโนมัติจนดูเหมือน
+> `[www.wedding.conf](https://www.wedding.conf)` — เป็นแค่การแสดงผล ไฟล์บนดิสก์ไม่ได้เพี้ยน
 
 **ยืนยันว่าได้ผลจริง ไม่ใช่แค่ไม่มี error** (กฎข้อ 4 ของมาตรฐาน)
 
