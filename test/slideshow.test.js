@@ -174,3 +174,25 @@ test('the wall mode is available and ships everything it needs', async () => {
   const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
   assert.match(css, /\.wall__card\.is-hot/, 'the highlighted card needs its own styling');
 });
+
+test('the wall never stacks several cards into one slot', async () => {
+  // บั๊กจริงที่เจอหน้างาน: การสลับรูปถูกหน่วง 900ms ก่อนทำจริง แต่ลูปที่เลือก
+  // "ใบเก่าที่สุด" ทำงานทันที รูปใหม่ทุกใบในรอบเดียวกันจึงเลือกใบเดียวกันหมด
+  // แล้วสร้างการ์ดทับกันที่ช่องเดียว เห็นเป็นกองซ้อนค้างอยู่มุมจอทั้งงาน
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+
+  assert.match(js, /const reserved = new Set\(\)/,
+    'cards already queued for replacement must be reserved so they cannot be picked twice');
+  assert.match(js, /reserved\.has\(card\)/, 'and the picker must honour that reservation');
+
+  assert.match(js, /cards\.indexOf\(card\)/, 'replacement writes back to a known slot');
+  assert.match(js, /index === -1/, 'and gives up safely if the card already left the wall');
+
+  assert.match(js, /function sweepOrphans/,
+    'any card node left behind without an owner must be swept, or it blocks a slot all night');
+
+  // จอนี้ไม่มีใครดูแลทั้งงาน error หลุดมาครั้งเดียวแล้วลูปตายคือรูปแรกค้างจนจบงาน
+  const cycleBlock = js.slice(js.indexOf('function highlightNext'), js.indexOf('function cycle'));
+  assert.match(cycleBlock, /try \{/, 'the highlight loop must survive one bad slide');
+  assert.match(cycleBlock, /catch/, 'and schedule the next one anyway');
+});

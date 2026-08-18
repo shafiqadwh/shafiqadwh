@@ -459,6 +459,8 @@
 
     const slots = [];
     const cards = [];
+    // การ์ดที่ถูกจองไว้แล้วว่ากำลังจะถูกสลับ กันไม่ให้ถูกเลือกซ้ำ
+    const reserved = new Set();
     let hotIndex = -1;
     let placedSerial = 0;
 
@@ -495,6 +497,7 @@
 
     function place(card) {
       const slot = slots[card.slotIndex];
+      if (!slot) return;
       const hot = card.slotIndex === hotIndex;
 
       // ไฮไลท์ต้องใหญ่พอให้คนท้ายห้องเห็นหน้าชัด แต่ห้ามหลุดขอบจอ
@@ -644,6 +647,19 @@
 
     // ── เติมกำแพง และสลับของเก่าออกเมื่อมีของใหม่ ─────────────────────────
 
+    /**
+     * กวาดการ์ดที่หลุดออกจากบัญชีแต่ยังค้างอยู่ในหน้า
+     *
+     * ปกติไม่ควรมี แต่จอนี้เปิดทิ้งไว้เป็นสิบชั่วโมง ถ้าหลุดมาใบเดียวมันจะค้าง
+     * ทับรูปอื่นไปตลอดงานโดยไม่มีอะไรมาเก็บ ตรวจทุกรอบจึงคุ้มกว่าปล่อยเสี่ยง
+     */
+    function sweepOrphans() {
+      const owned = new Set(cards.map((card) => card.node));
+      wall.querySelectorAll('.wall__card').forEach((node) => {
+        if (!owned.has(node)) node.remove();
+      });
+    }
+
     function sync() {
       const available = entries();
       if (available.length === 0) return;
@@ -663,33 +679,83 @@
 
       // เต็มแล้วแต่มีของใหม่รอ — เอาเข้าไปแทนใบที่อยู่บนกำแพงมานานที่สุด
       // ข้ามใบที่กำลังเป็นไฮไลท์ ไม่งั้นรูปจะหายไปต่อหน้าคนที่กำลังดูอยู่
+      //
+      // ไม่สลับทีเดียวหมด — สลับได้ครั้งละไม่กี่ใบ ถ้าแขกส่งรูปมาพร้อมกันสิบใบ
+      // แล้วกำแพงพลิกทั้งจอในวินาทีเดียว จะดูวุ่นวายและอ่านไม่ทัน
+      let swapped = 0;
       for (const entry of waiting) {
-        let oldest = null;
-        for (const card of cards) {
-          if (card.slotIndex === hotIndex) continue;
-          if (!oldest || card.serial < oldest.serial) oldest = card;
-        }
+        if (swapped >= 3) break;
+        const oldest = pickOldest();
         if (!oldest) break;
-        replace(oldest, entry);
+        // หน่วงทีละใบ ให้ทยอยเปลี่ยนแทนที่จะเปลี่ยนพร้อมกัน
+        replace(oldest, entry, swapped * 700);
+        swapped += 1;
       }
+
+      sweepOrphans();
     }
 
-    function replace(card, entry) {
-      const slotIndex = card.slotIndex;
+    /**
+     * เลือกใบที่อยู่บนกำแพงมานานที่สุด โดยข้ามใบที่กำลังเป็นไฮไลท์
+     * และข้ามใบที่ถูกจองไว้แล้วว่ากำลังจะถูกสลับ
+     *
+     * การจองสำคัญมาก — การสลับจริงถูกหน่วงไว้ให้ภาพค่อย ๆ จางก่อน ถ้าไม่จอง
+     * รูปใหม่ทุกใบในรอบเดียวกันจะเลือก "ใบที่เก่าที่สุด" ใบเดียวกันหมด แล้วสร้าง
+     * การ์ดทับกันที่ช่องเดียว จนเห็นเป็นกองซ้อนอยู่มุมจอ
+     */
+    function pickOldest() {
+      let oldest = null;
+      for (const card of cards) {
+        if (card.slotIndex === hotIndex) continue;
+        if (reserved.has(card)) continue;
+        if (!oldest || card.serial < oldest.serial) oldest = card;
+      }
+      if (oldest) reserved.add(oldest);
+      return oldest;
+    }
+
+    function replace(card, entry, delay) {
+      const index = cards.indexOf(card);
+      if (index === -1) {
+        reserved.delete(card);
+        return;
+      }
+
       card.node.classList.add('is-entering');
 
       setTimeout(() => {
-        card.node.remove();
-        const fresh = buildCard(entry, slots[slotIndex]);
-        fresh.slotIndex = slotIndex;
-        cards[cards.indexOf(card)] = fresh;
+        const fresh = buildCard(entry, slots[card.slotIndex]);
+        fresh.slotIndex = card.slotIndex;
+        // เขียนทับตำแหน่งเดิมในอาร์เรย์ ไม่ใช่หา index ใหม่ตอนนี้ — ระหว่างที่รอ
+        // อาจมีการสลับใบอื่นไปแล้ว การหาใหม่จะได้ -1 แล้วการ์ดจะหลุดออกจากบัญชี
+        cards[index] = fresh;
+        releaseCard(card);
+        reserved.delete(card);
         settle(fresh);
-      }, 900);
+      }, 900 + (delay || 0));
+    }
+
+    /** ปล่อยหน่วยความจำของการ์ดที่ถูกถอดออก แล้วเอา node ออกจากหน้า */
+    function releaseCard(card) {
+      stopVideo(card);
+      card.node.querySelectorAll('img').forEach((img) => img.removeAttribute('src'));
+      card.node.remove();
     }
 
     // ── วนไฮไลท์ ─────────────────────────────────────────────────────────
 
     function highlightNext() {
+      // จอนี้ถูกเปิดทิ้งไว้ทั้งงานโดยไม่มีใครดูแล ถ้า error หลุดออกมาสักครั้ง
+      // แล้วไม่มีใครรับ ลูปจะหยุดถาวรและรูปแรกจะค้างอยู่บนจอจนจบงาน
+      try {
+        cycle();
+      } catch (error) {
+        console.error('[wall] highlight failed, carrying on:', error);
+        setTimeout(highlightNext, SECONDS * 1000);
+      }
+    }
+
+    function cycle() {
       if (cards.length === 0) {
         setTimeout(highlightNext, 2000);
         return;
