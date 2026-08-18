@@ -4,6 +4,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { assertConfig, config } from './config.js';
 import { assetVersion } from './lib/assets.js';
+import { deviceMiddleware } from './lib/device.js';
 import { catalogue, languageMiddleware } from './i18n.js';
 import { ensureDirs } from './lib/media.js';
 import { resumeQueue } from './lib/queue.js';
@@ -23,6 +24,7 @@ export function createApp() {
   app.disable('x-powered-by');
 
   app.use(cookieParser());
+  app.use(deviceMiddleware);
   app.use(languageMiddleware);
 
   app.use((req, res, next) => {

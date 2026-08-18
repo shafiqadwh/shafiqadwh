@@ -102,8 +102,13 @@ export const config = {
     videoSeconds: num('MAX_VIDEO_SECONDS', 180),
     filesPerRequest: num('MAX_FILES_PER_UPLOAD', 20),
     totalStorageGb: num('MAX_TOTAL_STORAGE_GB', 0), // 0 = no cap beyond the disk itself
-    uploadsPerHourPerIp: num('UPLOADS_PER_HOUR_PER_IP', 200),
-    messagesPerHourPerIp: num('MESSAGES_PER_HOUR_PER_IP', 30),
+    // โควตาต่อ "เครื่อง" ของแขกหนึ่งคน — เลขที่คนปกติไม่มีทางชน
+    uploadsPerHourPerDevice: num('UPLOADS_PER_HOUR_PER_DEVICE', 80),
+    messagesPerHourPerDevice: num('MESSAGES_PER_HOUR_PER_DEVICE', 12),
+    // เพดานรวมต่อไอพี เป็นชั้นกันการยิงถล่มเท่านั้น ต้องสูงพอไม่ให้ไปโดนแขกปกติ
+    // ที่ออกเน็ตผ่านไอพีเดียวกันเป็นร้อยเครื่อง (WiFi งาน หรือ CGNAT ของค่ายมือถือ)
+    uploadsPerHourPerIp: num('UPLOADS_PER_HOUR_PER_IP', 4000),
+    messagesPerHourPerIp: num('MESSAGES_PER_HOUR_PER_IP', 800),
   },
 
   uploads: {

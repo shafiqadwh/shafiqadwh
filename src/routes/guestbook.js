@@ -3,15 +3,24 @@ import { config } from '../config.js';
 import { getFlag } from '../db.js';
 import { insertMessage, listMessages } from '../repo.js';
 import { createLimiter } from '../lib/ratelimit.js';
+import { byDevice, byIp } from '../lib/device.js';
 import { ingestFile, singleAttachment } from './upload.js';
 import { uploadsOpen } from './gallery.js';
 
 export const guestbookRouter = express.Router();
 
 const messageLimiter = createLimiter({
-  name: 'message',
+  name: 'message-device',
+  limit: config.limits.messagesPerHourPerDevice,
+  windowMs: 60 * 60 * 1000,
+  key: byDevice,
+});
+
+const messageCeiling = createLimiter({
+  name: 'message-ip',
   limit: config.limits.messagesPerHourPerIp,
   windowMs: 60 * 60 * 1000,
+  key: byIp,
 });
 
 function toPublicMessage(row) {
@@ -39,7 +48,7 @@ guestbookRouter.get('/api/messages', (req, res) => {
   res.json({ messages: listMessages({ limit: Number(req.query.limit) || 100 }).map(toPublicMessage) });
 });
 
-guestbookRouter.post('/api/messages', messageLimiter, (req, res) => {
+guestbookRouter.post('/api/messages', messageCeiling, messageLimiter, (req, res) => {
   singleAttachment(req, res, async (uploadError) => {
     if (uploadError) {
       const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';

@@ -54,6 +54,22 @@ galleryRouter.get('/api/updates', (req, res) => {
   res.json({ newer: newerCount(req.query.since ?? 0), uploadsOpen: uploadsOpen() });
 });
 
+/**
+ * ไฟล์นี้ให้คนนอกดึงได้ไหม
+ *
+ * เดิมกันแค่ของที่ถูก "ซ่อน" ทำให้ของที่ยัง "รอตรวจ" ถูกดึงได้จากภายนอก
+ * ทั้งที่เจ้าภาพยังไม่อนุมัติ และอาจกำลังจะปฏิเสธมันอยู่ — เลข id เรียงกัน
+ * เดาต่อไปทีละหมายเลขได้ไม่ยาก ทดสอบแล้วได้ HTTP 200 จริงทั้ง /media /thumb
+ * และ /download ทั้งที่ไม่ได้ล็อกอิน
+ *
+ * เจ้าภาพยังต้องเห็นของที่รอตรวจในหน้าแอดมิน จึงอนุญาตเฉพาะคนที่ล็อกอินแล้ว
+ */
+function mayServe(row, res) {
+  if (!row) return false;
+  if (row.status === 'visible') return true;
+  return res.locals.isAdmin === true;
+}
+
 function sendMedia(res, root, filename, { download = false, downloadName = null } = {}) {
   return new Promise((resolve, reject) => {
     res.sendFile(
@@ -74,7 +90,7 @@ function sendMedia(res, root, filename, { download = false, downloadName = null 
 
 galleryRouter.get('/thumb/:id', async (req, res, next) => {
   const row = getItem(Number(req.params.id));
-  if (!row || row.status === 'hidden' || !row.thumb_name) return next();
+  if (!mayServe(row, res) || !row.thumb_name) return next();
   try {
     await sendMedia(res, config.paths.derived, row.thumb_name);
   } catch (error) {
@@ -90,7 +106,7 @@ galleryRouter.get('/thumb/:id', async (req, res, next) => {
  */
 galleryRouter.get('/display/:id', async (req, res, next) => {
   const row = getItem(Number(req.params.id));
-  if (!row || row.status === 'hidden') return next();
+  if (!mayServe(row, res)) return next();
   if (row.kind !== 'image') return res.redirect(302, `/media/${row.id}`);
 
   try {
@@ -104,7 +120,7 @@ galleryRouter.get('/display/:id', async (req, res, next) => {
 
 galleryRouter.get('/media/:id', async (req, res, next) => {
   const row = getItem(Number(req.params.id));
-  if (!row || row.status === 'hidden') return next();
+  if (!mayServe(row, res)) return next();
 
   // Prefer the web-friendly copy (converted HEIC or H.264 video) when we made one.
   const usePlayback = Boolean(row.playback_name);
@@ -120,7 +136,7 @@ galleryRouter.get('/media/:id', async (req, res, next) => {
 
 galleryRouter.get('/download/:id', async (req, res, next) => {
   const row = getItem(Number(req.params.id));
-  if (!row || row.status === 'hidden') return next();
+  if (!mayServe(row, res)) return next();
 
   const ext = path.extname(row.stored_name);
   const base = path.parse(safeOriginalName(row.original_name)).name || `item-${row.id}`;

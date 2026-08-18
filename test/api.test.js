@@ -159,7 +159,15 @@ test('a wrong admin password does not open the panel', async () => {
     redirect: 'manual',
   });
   assert.equal(response.status, 401);
-  assert.equal(response.headers.getSetCookie().length, 0);
+
+  // เดิมตรวจว่า "ไม่มี cookie ใด ๆ เลย" ซึ่งกว้างเกินสิ่งที่ต้องการรับประกันจริง
+  // ตอนนี้ทุก request ได้ cookie รหัสประจำเครื่องไปด้วย (ใช้นับโควตารายเครื่อง
+  // แทนการนับตามไอพี) สิ่งที่ต้องไม่เกิดคือ "ได้ session ของแอดมิน" ต่างหาก
+  const issued = response.headers.getSetCookie();
+  assert.ok(
+    issued.every((value) => !value.startsWith('admin_session=')),
+    `a failed login must not hand out an admin session, got: ${issued.join(' | ')}`,
+  );
 });
 
 test('the hosts can download everything as one ZIP', async () => {

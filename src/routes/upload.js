@@ -7,6 +7,7 @@ import { insertItem, stats } from '../repo.js';
 import { processImage, processVideo, randomName, safeOriginalName, sniffType } from '../lib/media.js';
 import { enqueueConversion } from '../lib/queue.js';
 import { createLimiter } from '../lib/ratelimit.js';
+import { byDevice, byIp } from '../lib/device.js';
 import { uploadsOpen } from './gallery.js';
 
 export const uploadRouter = express.Router();
@@ -27,10 +28,20 @@ const upload = multer({
   },
 });
 
+// สองชั้น: ชั้นแรกคุมเครื่องของแขกทีละคน ชั้นที่สองเป็นเพดานรวมกันการยิงถล่ม
+// เดิมมีแต่ชั้นไอพี ซึ่งพังในงานจริงเพราะแขกทั้งงานใช้ไอพีเดียวกัน
 const uploadLimiter = createLimiter({
-  name: 'upload',
+  name: 'upload-device',
+  limit: config.limits.uploadsPerHourPerDevice,
+  windowMs: 60 * 60 * 1000,
+  key: byDevice,
+});
+
+const uploadCeiling = createLimiter({
+  name: 'upload-ip',
   limit: config.limits.uploadsPerHourPerIp,
   windowMs: 60 * 60 * 1000,
+  key: byIp,
 });
 
 async function readMagic(filePath) {
@@ -108,7 +119,7 @@ export async function ingestFile(file, { uploader, t, status }) {
   }
 }
 
-uploadRouter.post('/api/upload', uploadLimiter, (req, res) => {
+uploadRouter.post('/api/upload', uploadCeiling, uploadLimiter, (req, res) => {
   if (!uploadsOpen()) {
     return res.status(403).json({ error: req.t('errors.upload_closed') });
   }
