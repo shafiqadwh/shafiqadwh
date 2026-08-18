@@ -85,9 +85,9 @@
     "menu_title": "Pilih gaya tayangan",
     "menu_hint": "Tekan kembali bila-bila masa untuk memilih semula",
     "mode_cinema": "Gaya klasik",
-    "mode_cinema_hint": "Satu gambar penuh skrin pada satu masa, berselang dengan ucapan dan kod QR. Sesuai untuk majlis akad.",
+    "mode_cinema_hint": "Satu gambar, penuh skrin · sesuai untuk majlis akad",
     "mode_wall": "Dinding gambar",
-    "mode_wall_hint": "Semua gambar bertaburan di skrin seperti di atas meja, satu demi satu diterangkan. Sesuai untuk jamuan.",
+    "mode_wall_hint": "Semua gambar bertaburan, satu diterangkan · sesuai untuk jamuan",
     "menu_open": "Buka"
   },
   "admin": {

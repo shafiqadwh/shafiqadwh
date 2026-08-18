@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { assertConfig, config } from './config.js';
+import { assetVersion } from './lib/assets.js';
 import { catalogue, languageMiddleware } from './i18n.js';
 import { ensureDirs } from './lib/media.js';
 import { resumeQueue } from './lib/queue.js';
@@ -29,6 +30,9 @@ export function createApp() {
     res.locals.limits = config.limits;
     res.locals.isAdmin = isAdmin(req);
     res.locals.currentPath = req.path;
+    // ต่อท้ายที่อยู่ไฟล์ static ทุกอัน เปลี่ยนทุกครั้งที่เนื้อไฟล์เปลี่ยน
+    // เครื่องที่เคยแคชไว้จะเห็นเป็นคนละที่อยู่แล้วโหลดใหม่เอง
+    res.locals.assetVersion = assetVersion;
     // Everything the browser-side scripts need, in the guest's language.
     res.locals.clientStrings = catalogue(req.lang);
     res.locals.clientConfig = {

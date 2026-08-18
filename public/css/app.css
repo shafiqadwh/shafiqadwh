@@ -1566,7 +1566,9 @@ a:focus-visible {
 .mode__preview {
   display: block;
   position: relative;
-  aspect-ratio: 16 / 9;
+  /* ความสูงคงที่ ไม่ใช้ aspect-ratio ซึ่งเพิ่งมีใน Chrome 88 — WebView ของ
+     กล่องทีวีหลายรุ่นเก่ากว่านั้น พอไม่รู้จักก็จะได้กล่องสูงศูนย์ ตัวอย่างหายไปทั้งอัน */
+  height: clamp(110px, 13vw, 210px);
   border-radius: 10px;
   overflow: hidden;
   background: #0c0907;

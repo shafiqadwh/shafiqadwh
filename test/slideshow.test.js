@@ -243,3 +243,38 @@ test('on the wall the QR is a card of its own, never the highlight', async () =>
   assert.match(rule[1], /opacity:\s*0\.9[0-9]?/,
     'it must stay bright enough to scan, not dim like the other cards');
 });
+
+test('static files carry a version so a fixed browser cannot keep serving the old one', async () => {
+  // เจอจริงบนทีวี: /static ตั้งแคชไว้ 7 วัน ทีวีจึงใช้ CSS กับ JS เวอร์ชันเก่าต่อไป
+  // แม้ deploy โค้ดใหม่แล้ว ผลคือหน้าเมนูขึ้นมาไม่มีสไตล์เลย และเลือกโหมดไหน
+  // ก็ได้สไลด์โชว์แบบเดิม เพราะ JS ที่แคชไว้ยังไม่รู้จักโหมดใหม่
+  const pages = await Promise.all([
+    (await fetch(`${app.baseUrl}/slideshow/menu?lang=th`)).text(),
+    (await fetch(`${app.baseUrl}/slideshow?mode=wall`)).text(),
+    (await fetch(`${app.baseUrl}/?lang=th`)).text(),
+  ]);
+
+  const versions = new Set();
+  for (const html of pages) {
+    const refs = [...html.matchAll(/\/static\/(?:css|js)\/[\w.-]+\?v=([a-f0-9]+)/g)];
+    assert.ok(refs.length > 0, 'every page must version the assets it loads');
+    for (const [, version] of refs) versions.add(version);
+
+    // ต้องไม่มีที่อยู่ไฟล์ที่ลืมใส่เวอร์ชันหลงเหลืออยู่
+    //
+    // ห้ามใช้ negative lookahead กับ [\w.-]+ ตรงนี้ — regex จะถอยหลังไปจับ
+    // ชื่อไฟล์สั้นลงจนพอดีเงื่อนไข (app.css กลายเป็น app.cs) แล้วรายงานผิด
+    // ให้จับชื่อไฟล์เต็ม ๆ ก่อน แล้วค่อยดูตัวอักษรถัดไปว่าเป็น ? หรือเปล่า
+    for (const match of html.matchAll(/\/static\/(?:css|js)\/[\w.-]+/g)) {
+      const nextChar = html[match.index + match[0].length];
+      assert.equal(nextChar, '?', `unversioned asset URL found: ${match[0]}`);
+    }
+  }
+
+  assert.equal(versions.size, 1, 'all pages should agree on one version per build');
+
+  // ไฟล์ที่ขอมาพร้อมเวอร์ชันต้องเสิร์ฟได้จริง ไม่ใช่ 404
+  const version = [...versions][0];
+  const css = await fetch(`${app.baseUrl}/static/css/app.css?v=${version}`);
+  assert.equal(css.status, 200);
+});

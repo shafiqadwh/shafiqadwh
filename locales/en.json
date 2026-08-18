@@ -85,9 +85,9 @@
     "menu_title": "Choose a slideshow style",
     "menu_hint": "Press back at any time to choose again",
     "mode_cinema": "Classic",
-    "mode_cinema_hint": "One photo at a time, full screen, with guest-book cards and the QR slide. Good for the ceremony.",
+    "mode_cinema_hint": "One photo, full screen · good for the ceremony",
     "mode_wall": "Photo wall",
-    "mode_wall_hint": "Every photo scattered across the screen like prints on a table, one lighting up at a time. Good for the reception.",
+    "mode_wall_hint": "Every photo scattered, one lighting up · good for the reception",
     "menu_open": "Open"
   },
   "admin": {
