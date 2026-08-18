@@ -279,6 +279,24 @@ curl https://wedding.shafiq-lap.com/healthz
 
 ---
 
+## แก้ค่าใน .env
+
+**อย่าพิมพ์ `NAME=value` ลงเชลล์ตรง ๆ** — มัน "ดูเหมือนได้ผล" เพราะไม่มี error
+แต่ไม่ได้แก้ไฟล์อะไรเลย มันตั้งตัวแปรของเชลล์ที่หายไปทันทีที่ปิดหน้าต่าง
+
+```bash
+cd /volume1/docker/wedding-share
+sudo ./scripts/set-config.sh MAX_VIDEO_SECONDS=60 MAX_TOTAL_STORAGE_GB=100
+sudo docker compose up -d
+sudo ./scripts/set-config.sh --show
+```
+
+สคริปต์ปฏิเสธชื่อค่าที่ไม่มีใน `.env.example` จึงพิมพ์ผิดแล้วรู้ทันที ไม่ใช่ไป
+เจอตอนงานว่าค่าที่ตั้งไม่มีผล และ `--show` ปิดรหัสผ่านไว้ เผื่อถ่ายจอส่งให้คนอื่นดู
+
+> `restart` ไม่โหลด `.env` ใหม่ ต้อง `up -d` เท่านั้น
+> ส่วนการแก้โค้ดอย่างเดียวใช้ `restart` ได้ เพราะโค้ด bind-mount ไว้
+
 ## เปลี่ยนรหัสผ่านแอดมิน
 
 ```bash
