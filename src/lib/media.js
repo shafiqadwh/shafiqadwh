@@ -5,8 +5,17 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { config } from '../config.js';
+import { createGate } from './gate.js';
 
 const run = promisify(execFile);
+
+// ffmpeg/ffprobe เป็นโปรเซสแยก แขกหลายคนกดส่งพร้อมกัน = ffmpeg หลายตัวรุมเครื่อง
+// จำกัดจำนวนที่ทำพร้อมกัน ให้คนมาทีหลังต่อคิวสั้น ๆ แทนที่จะช้าพร้อมกันทั้งงาน
+// การแปลงวิดีโอเบื้องหลังมีคิวของตัวเองอยู่แล้ว (lib/queue.js) ตัวนี้คุมเฉพาะ
+// งานที่แขกยืนรออยู่ — อ่านข้อมูลวิดีโอกับดึงภาพปก
+const mediaGate = createGate(config.media.concurrency);
+
+export const mediaQueueDepth = () => mediaGate.depth;
 
 /**
  * ffmpeg comes from one of three places, in order of preference:
@@ -102,6 +111,36 @@ export async function ensureDirs() {
     fs.mkdir(config.paths.derived, { recursive: true }),
     fs.mkdir(config.paths.tmp, { recursive: true }),
   ]);
+
+  await warnIfTmpIsOnAnotherDevice();
+}
+
+/**
+ * ถ้า tmp กับ uploads อยู่คนละ mount point ทุกไฟล์ที่แขกอัพโหลดจะถูก copy
+ * ทั้งก้อนแทนที่จะ rename เฉย ๆ — วิดีโอ 200 MB คือการอ่านและเขียนดิสก์เพิ่ม
+ * อีก 400 MB ต่อคลิป โดยแขกยืนรออยู่
+ *
+ * ไม่ใช่ข้อผิดพลาดถึงขั้นหยุดทำงาน (moveFile รับมือได้) แต่ต้องบอกออกมาให้เห็น
+ * ไม่งั้นจะไม่มีใครรู้ว่าช้าเพราะอะไร
+ */
+async function warnIfTmpIsOnAnotherDevice() {
+  try {
+    const [tmpStat, uploadsStat] = await Promise.all([
+      fs.stat(config.paths.tmp),
+      fs.stat(config.paths.uploads),
+    ]);
+
+    if (tmpStat.dev !== uploadsStat.dev) {
+      console.warn(
+        '[media] tmp และ uploads อยู่คนละ mount point — ทุกไฟล์จะถูก copy ทั้งก้อน\n' +
+          '        แทนที่จะ rename ทำให้อัพโหลดช้าลงอย่างเห็นได้ชัด\n' +
+          '        แก้ที่ docker-compose.yml: mount /volume1/wedding:/app/data ครั้งเดียว\n' +
+          '        แทนการแยก uploads/derived/db/tmp เป็นสี่บรรทัด',
+      );
+    }
+  } catch {
+    // ตรวจไม่ได้ก็ไม่เป็นไร ไม่ควรทำให้แอปบูตไม่ขึ้นเพราะเรื่องนี้
+  }
 }
 
 /**
@@ -160,13 +199,13 @@ export async function processImage(tmpPath, sniffed) {
 }
 
 export async function probeVideo(filePath) {
-  const { stdout } = await run(FFPROBE, [
+  const { stdout } = await mediaGate.run(() => run(FFPROBE, [
     '-v', 'error',
     '-print_format', 'json',
     '-show_format',
     '-show_streams',
     filePath,
-  ], { maxBuffer: 4 * 1024 * 1024 });
+  ], { maxBuffer: 4 * 1024 * 1024 }));
 
   const probed = JSON.parse(stdout);
   const video = (probed.streams ?? []).find((s) => s.codec_type === 'video');
@@ -187,7 +226,7 @@ export async function probeVideo(filePath) {
 async function extractPoster(videoPath, outputPath, duration) {
   // A frame a second in is far more likely to be a real picture than frame zero.
   const seek = duration > 2 ? '1' : '0';
-  await run(FFMPEG, [
+  await mediaGate.run(() => run(FFMPEG, [
     '-y',
     '-ss', seek,
     '-i', videoPath,
@@ -195,7 +234,7 @@ async function extractPoster(videoPath, outputPath, duration) {
     '-vf', `scale='min(${config.media.thumbnailSize},iw)':-2`,
     '-q:v', '4',
     outputPath,
-  ], { maxBuffer: 4 * 1024 * 1024 });
+  ], { maxBuffer: 4 * 1024 * 1024 }));
 }
 
 /**

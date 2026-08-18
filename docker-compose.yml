@@ -32,10 +32,13 @@ services:
       # ── ข้อมูลจริง: bind mount ไปโฟลเดอร์บน DSM ─────────────────────────
       # เปิดดูผ่าน File Station / SMB ได้ ให้ Synology Photos ไล่ index ได้
       # และ Clean + Build ใน Container Manager ไม่แตะต้องไฟล์เหล่านี้
-      - /volume1/wedding/uploads:/app/data/uploads
-      - /volume1/wedding/derived:/app/data/derived
-      - /volume1/wedding/db:/app/data/db
-      - /volume1/wedding/tmp:/app/data/tmp
+      #
+      # ⚠ ต้อง mount โฟลเดอร์แม่ครั้งเดียว ห้ามแยกเป็น uploads/derived/db/tmp
+      # สี่บรรทัด แม้จะอยู่บนวอลุ่มเดียวกันก็ตาม เพราะ Docker นับแต่ละ bind mount
+      # เป็นคนละ mount point ทำให้ rename() ข้ามกันไม่ได้ (EXDEV) โค้ดจึงต้อง
+      # ตกไปใช้วิธี copy ทั้งไฟล์ = อ่าน+เขียนวิดีโอทั้งก้อนซ้ำอีกรอบทุกครั้ง
+      # ที่แขกอัพโหลด mount รวมแบบนี้ rename() ทำงานได้ ย้ายไฟล์จบในพริบตา
+      - /volume1/wedding:/app/data
       # ── โค้ด: bind mount แบบอ่านอย่างเดียว ──────────────────────────────
       # แก้โค้ดแล้ว Restart พอ ไม่ต้อง rebuild image (node_modules อยู่ใน image)
       - ./src:/app/src:ro

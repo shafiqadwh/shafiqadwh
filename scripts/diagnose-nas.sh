@@ -87,6 +87,34 @@ else
   bad "ไม่มีอะไร listen ที่พอร์ต $PORT"
 fi
 
+# ── 3.5 ไฟล์อัพโหลดถูก copy ทั้งก้อนหรือแค่ rename ───────────────────────────
+step "3.5 ทางเดินของไฟล์ตอนอัพโหลด"
+
+# ถ้า tmp กับ uploads เป็นคนละ mount point ในคอนเทนเนอร์ rename() จะล้ม (EXDEV)
+# โค้ดต้องตกไปใช้ copy ทั้งไฟล์ — วิดีโอ 200 MB คือดิสก์ทำงานเพิ่ม 400 MB ต่อคลิป
+# โดยแขกยืนรออยู่ ตรวจด้วยเลข device ของ inode ไม่ใช่ด้วยชื่อ path
+MOUNT_CHECK="$(docker exec wedding-share node -e '
+  const fs = require("fs");
+  const a = fs.statSync("/app/data/tmp").dev;
+  const b = fs.statSync("/app/data/uploads").dev;
+  console.log(a === b ? "same" : "split");
+' 2>/dev/null)"
+
+case "$MOUNT_CHECK" in
+  same)
+    ok "tmp กับ uploads อยู่ mount เดียวกัน — ย้ายไฟล์ด้วย rename (เร็ว)"
+    ;;
+  split)
+    bad "tmp กับ uploads คนละ mount — ทุกไฟล์ถูก copy ทั้งก้อน อัพโหลดช้ากว่าที่ควร"
+    info "แก้ที่ docker-compose.yml ให้ mount โฟลเดอร์แม่ครั้งเดียว:"
+    info "    - /volume1/wedding:/app/data"
+    info "  แทนการแยก uploads/derived/db/tmp เป็นสี่บรรทัด แล้ว sudo docker compose up -d"
+    ;;
+  *)
+    info "ตรวจไม่ได้ (คอนเทนเนอร์ไม่ได้รันอยู่?)"
+    ;;
+esac
+
 # ── 4. nginx ของ DSM ยังขึ้นอยู่ไหม ─────────────────────────────────────────
 step "4. nginx ของ DSM"
 

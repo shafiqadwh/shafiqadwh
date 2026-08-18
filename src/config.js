@@ -99,6 +99,9 @@ export const config = {
     thumbnailSize: num('THUMBNAIL_SIZE', 720),
     convertVideos: bool('CONVERT_VIDEOS', true),
     ffmpegThreads: num('FFMPEG_THREADS', 2),
+    // จำนวนงาน ffmpeg ที่ทำพร้อมกันได้ตอนแขกยืนรอ (อ่านข้อมูล + ดึงภาพปก)
+    // มากกว่านี้ไม่ได้เร็วขึ้น เพราะคอขวดคือดิสก์กับ CPU ของ NAS
+    concurrency: num('MEDIA_CONCURRENCY', 2),
     ffmpegPath: str('FFMPEG_PATH', ''),
     ffprobePath: str('FFPROBE_PATH', ''),
   },
