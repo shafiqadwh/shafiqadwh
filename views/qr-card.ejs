@@ -43,7 +43,7 @@
       </div>
 
       <footer class="qr-card__footer">
-        <% if (event.venue) { %><p class="qr-card__venue"><%= event.venue %><% if (event.time) { %> · <%= event.time %><% } %></p><% } %>
+        <% if (showVenue && event.venue) { %><p class="qr-card__venue"><%= event.venue %><% if (event.time) { %> · <%= event.time %><% } %></p><% } %>
         <p class="qr-card__url"><%= shareUrl.replace(/^https?:\/\//, '') %></p>
       </footer>
     </article>

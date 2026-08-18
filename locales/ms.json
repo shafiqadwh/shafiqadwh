@@ -133,7 +133,9 @@
     "zip_all_hint": "Fail sangat besar, elok muat turun dari komputer",
     "status_hidden": "Disembunyikan",
     "status_pending": "Menunggu semakan",
-    "empty_items": "Belum ada gambar atau video"
+    "empty_items": "Belum ada gambar atau video",
+    "qr_plain": "Kad QR tanpa lokasi",
+    "qr_plain_hint": "Sesuai untuk majlis beberapa hari di tempat berlainan"
   },
   "qr": {
     "title": "Imbas untuk kongsi gambar majlis",

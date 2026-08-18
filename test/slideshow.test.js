@@ -6,6 +6,10 @@ import { login, startTestServer, useTempDataDir } from './helpers/app.js';
 import { makeJpeg } from './helpers/fixtures.js';
 
 const dataDir = useTempDataDir('slideshow');
+// การ์ด QR พิมพ์บรรทัดสถานที่เฉพาะเมื่อมีค่านี้ ต้องตั้งก่อนบูตเซิร์ฟเวอร์
+// ไม่งั้นการ์ดทั้งสองแบบจะเหมือนกันหมด แล้วเทสต์ผ่านโดยไม่ได้ทดสอบอะไรเลย
+process.env.EVENT_VENUE = 'Hasanah Restaurant, Yala';
+process.env.EVENT_TIME = '11.00 - 16.00';
 
 let app;
 let cookie;
@@ -277,4 +281,25 @@ test('static files carry a version so a fixed browser cannot keep serving the ol
   const version = [...versions][0];
   const css = await fetch(`${app.baseUrl}/static/css/app.css?v=${version}`);
   assert.equal(css.status, 200);
+});
+
+test('the printed QR card can leave the venue off for the days held elsewhere', async () => {
+  // งานนี้จัดสามวันคนละที่ การ์ดชุดเดียวที่พิมพ์ชื่อร้านกับเวลาไว้ตายตัว
+  // จะบอกข้อมูลผิดให้แขกในวันที่จัดที่บ้าน
+  const withVenue = await (await fetch(`${app.baseUrl}/admin/qr`, { headers: { Cookie: cookie } })).text();
+  const without = await (await fetch(`${app.baseUrl}/admin/qr?venue=0`, { headers: { Cookie: cookie } })).text();
+
+  assert.match(withVenue, /qr-card__url/, 'both variants still carry the web address');
+  assert.match(without, /qr-card__url/);
+
+  // ทั้งสองแบบต้องมี QR และคำอธิบายครบสามภาษาเหมือนกัน ต่างกันแค่บรรทัดสถานที่
+  for (const html of [withVenue, without]) {
+    assert.match(html, /flag-th/);
+    assert.match(html, /flag-ms/);
+    assert.match(html, /flag-en/);
+  }
+
+  const venueLines = (html) => (html.match(/qr-card__venue/g) || []).length;
+  assert.ok(venueLines(withVenue) > 0, 'the reception card names the restaurant');
+  assert.equal(venueLines(without), 0, 'the everyday card must not name a place it is not held at');
 });

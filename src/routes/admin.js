@@ -176,11 +176,18 @@ adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
     };
   });
 
+  // งานนี้จัดหลายวันคนละที่ (บ้าน 2 วัน ร้าน 1 วัน) การ์ดชุดเดียวที่พิมพ์
+  // ชื่อร้านกับเวลาไว้ตายตัว จะบอกข้อมูลผิดให้แขกในวันที่จัดที่บ้าน
+  //   /admin/qr           การ์ดเต็ม มีชื่อสถานที่และเวลา — สำหรับวันงานเลี้ยง
+  //   /admin/qr?venue=0   ตัดบรรทัดสถานที่ออก — ใช้ได้ทุกวันทุกที่
+  const showVenue = req.query.venue !== '0';
+
   res.render('qr-card', {
     page: 'admin',
     shareUrl: url,
     qrImage: await qrDataUrl(url, { width: 900 }),
     cards,
+    showVenue,
   });
 });
 
