@@ -179,6 +179,89 @@ test('the wall mode is available and ships everything it needs', async () => {
   assert.match(css, /\.wall__card\.is-hot/, 'the highlighted card needs its own styling');
 });
 
+test('on the wall a video actually plays instead of sitting there as a still', async () => {
+  // บั๊กจริงหน้างาน: playIfVideo() ใส่ <video> เข้าไปใน .card__media ได้จริง
+  // แต่ภาพปกยังอยู่ และทั้งคู่เป็น display:block สูง 100% เท่ากันใน flow ปกติ
+  // วิดีโอจึงไปต่อคิว "ใต้" ภาพปก แล้วโดน overflow:hidden ตัดหายทั้งตัว
+  // วิดีโอเล่นอยู่จริงแต่เล่นนอกกรอบที่ตาเห็น การ์ดเลยเป็นภาพนิ่งตลอดงาน
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+
+  // ".card__media video" โผล่ในหลาย rule (มีอันที่ใช้ร่วมกับ img ด้วย)
+  // ที่ต้องมีคือ "อย่างน้อยหนึ่งอัน" ที่ยกวิดีโอขึ้นมาทับ
+  const rules = [...css.matchAll(/\.card__media video \{([^}]*)\}/g)].map((match) => match[1]);
+  const lifted = rules.find((body) => /position:\s*absolute/.test(body));
+  assert.ok(lifted, 'the wall video must be lifted out of the flow, on top of the poster');
+  assert.match(lifted, /top:\s*0/, 'anchored with explicit offsets');
+  assert.match(lifted, /left:\s*0/, 'both of them');
+
+  // WebView ของกล่องทีวีรุ่นเก่าไม่รู้จัก inset แล้วทิ้งทั้ง declaration
+  // ซึ่งเคยทำให้รูปล้นจอมาแล้วรอบหนึ่ง — ห้ามใช้ย่อในบล็อกกำแพง
+  assert.doesNotMatch(lifted, /\binset\b/, 'old TV WebViews drop inset entirely');
+
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+  const play = js.slice(js.indexOf('function playIfVideo'), js.indexOf('function stopVideo'));
+
+  assert.match(play, /video\.play\(\)/,
+    'the autoplay attribute is ignored by TV WebViews when the element is inserted later');
+  assert.match(play, /\.catch\(/, 'and a rejected play() must not spam the console all night');
+  assert.match(play, /setAttribute\('playsinline'/,
+    'old WebViews read the attribute, not the property — without it the video goes fullscreen');
+  assert.match(play, /addEventListener\('error'/,
+    'a video that cannot be decoded must fall back to its poster, not to a black frame');
+
+  // ป้ายสามเหลี่ยม "นี่คือวิดีโอ" ต้องหายตอนมันเล่นอยู่จริง
+  assert.match(play, /classList\.add\('is-playing'\)/, 'a playing card marks itself');
+  const stop = js.slice(js.indexOf('function stopVideo'), js.indexOf('// ── เริ่มทำงาน'));
+  assert.match(stop, /classList\.remove\('is-playing'\)/, 'and clears the mark when it stops');
+  assert.match(css, /\.wall__card\.is-playing \.card__play\s*\{[^}]*display:\s*none/,
+    'the play badge must not sit on top of moving video');
+});
+
+test('the wall always keeps room for guest wishes', async () => {
+  // บั๊กจริง: entries() คืนรูปมาก่อนคำอวยพรทั้งหมด แล้ว sync() เติมช่องตามลำดับนั้น
+  // กำแพงมี 15 ช่อง งานไหนมีรูปเกิน 15 ใบ (คือทุกงาน) การ์ดคำอวยพรจึงไม่เคยได้ช่อง
+  // และคิวรูปของงานพันคนก็ไม่มีวันหมด — คนที่เขียนคำอวยพรมาไม่ได้ขึ้นจอเลยทั้งงาน
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+  const sync = js.slice(js.indexOf('function noteQuota'), js.indexOf('function pickOldest'));
+
+  assert.match(sync, /function noteQuota/, 'the wall must reserve a share of its slots for wishes');
+  assert.match(sync, /waitingNotes/, 'wishes queue separately from photos');
+  assert.match(sync, /waitingMedia/, 'so a long photo backlog cannot bury them');
+  assert.match(sync, /swapped === 0/,
+    'and every refresh must spend its first swap on a waiting wish, however long the photo queue is');
+
+  // เลือกใบที่จะถูกเบียดออกตามชนิด ไม่งั้นรูปจะค่อย ๆ กินโควตาคำอวยพรจนหมด
+  assert.match(sync, /pickOldest\(/, 'the eviction must be able to say what kind it wants to drop');
+  const pick = js.slice(js.indexOf('function pickOldest'), js.indexOf('function replace'));
+  assert.match(pick, /function pickOldest\(prefer\)/, 'the picker takes that preference');
+  assert.match(pick, /fallback/, 'and still evicts something when that kind is not on the wall');
+  assert.match(pick, /card === qrCard/, 'the QR card is still never evicted');
+  assert.match(pick, /reserved\.has\(card\)/, 'and reservations still hold — that fixed the stacking bug');
+});
+
+test('a wish that came with a photo still shows its words', async () => {
+  // โหมดโรงหนังเอาข้อความทาบบนรูปให้อยู่แล้ว แต่บนกำแพงของเดิม `continue` ทิ้ง
+  // ข้อความไปเฉย ๆ รูปขึ้นจอแต่คำอวยพรหายไปทั้งงาน
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+  const entries = js.slice(js.indexOf('function entries'), js.indexOf('function sweepOrphans'));
+
+  assert.match(entries, /wishFor/, 'wishes must be joined onto the photo they were attached to');
+  assert.match(entries, /wishFor\.set\(message\.media\.id/, 'keyed by the item the guest attached');
+  assert.match(entries, /body: wish \? wish\.body : null/, 'the words ride along with the photo entry');
+
+  const build = js.slice(js.indexOf('function buildCard'), js.indexOf('function playBadge'));
+  assert.match(build, /card__wish/, 'and the card renders them');
+
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+  const wish = css.match(/\.card__wish \{([^}]*)\}/);
+  assert.ok(wish, 'the caption needs styling of its own');
+  assert.match(wish[1], /position:\s*absolute/,
+    'it is laid over the photo so the card height never changes — a taller card would overflow its slot');
+  assert.match(wish[1], /opacity:\s*0/, 'hidden while the card is dimmed, where nobody could read it anyway');
+  assert.match(css, /\.wall__card\.is-hot \.card__wish\s*\{[^}]*opacity:\s*1/,
+    'and revealed exactly when the card is lifted up as the highlight');
+});
+
 test('the wall never stacks several cards into one slot', async () => {
   // บั๊กจริงที่เจอหน้างาน: การสลับรูปถูกหน่วง 900ms ก่อนทำจริง แต่ลูปที่เลือก
   // "ใบเก่าที่สุด" ทำงานทันที รูปใหม่ทุกใบในรอบเดียวกันจึงเลือกใบเดียวกันหมด

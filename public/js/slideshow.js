@@ -616,6 +616,16 @@
         media.appendChild(img);
 
         if (entry.kind === 'video') media.appendChild(playBadge());
+
+        // คำอวยพรที่แขกแนบรูปมาด้วย ข้อความไปอยู่บนรูปใบนั้นเลย ไม่แยกเป็นการ์ดใหม่
+        // ซ่อนไว้ด้วย opacity จนกว่าใบนี้จะถูกยกเป็นไฮไลท์ ตอนหรี่อยู่ตัวหนังสือ
+        // เล็กเกินกว่าจะอ่านออก มีแต่จะไปบังรูป
+        if (entry.body) {
+          const wish = el('p', 'card__wish',
+            entry.body.slice(0, 110) + (entry.body.length > 110 ? '…' : ''));
+          wish.style.fontSize = `${Math.max(8, width * (entry.body.length > 60 ? 0.05 : 0.068))}px`;
+          media.appendChild(wish);
+        }
       }
 
       card.appendChild(media);
@@ -655,21 +665,33 @@
     // ที่มีข้อความกำกับ ส่วนที่ไม่แนบก็เป็นกระดาษโน้ต
 
     function entries() {
-      const list = deck.items.map((item) => ({
-        key: `i${item.id}`,
-        kind: item.kind,
-        thumbUrl: item.thumbUrl,
-        displayUrl: item.displayUrl,
-        mediaUrl: item.mediaUrl,
-        width: item.width,
-        height: item.height,
-        duration: item.duration,
-        name: item.uploader,
-        note: false,
-      }));
+      // คำอวยพรที่แนบรูปมา ของเดิมข้ามทิ้งไปเฉย ๆ (รูปขึ้นจอ แต่ข้อความหายไปเลย)
+      // ตอนนี้เอาข้อความไปทาบบนรูปใบนั้นแทน — ยังเป็นการ์ดใบเดียวเหมือนเดิม
+      // ไม่เพิ่มของบนกำแพง แต่คนที่เขียนมาได้เห็นข้อความตัวเองขึ้นจอ
+      const wishFor = new Map();
+      for (const message of deck.messages) {
+        if (message.media) wishFor.set(message.media.id, message);
+      }
+
+      const list = deck.items.map((item) => {
+        const wish = wishFor.get(item.id);
+        return {
+          key: `i${item.id}`,
+          kind: item.kind,
+          thumbUrl: item.thumbUrl,
+          displayUrl: item.displayUrl,
+          mediaUrl: item.mediaUrl,
+          width: item.width,
+          height: item.height,
+          duration: item.duration,
+          name: (wish && wish.author) || item.uploader,
+          body: wish ? wish.body : null,
+          note: false,
+        };
+      });
 
       for (const message of deck.messages) {
-        if (message.media) continue; // รูปที่แนบมาอยู่ในรายการรูปแล้ว ไม่ต้องซ้ำ
+        if (message.media) continue; // ข้อความไปอยู่บนรูปใบนั้นแล้ว ไม่ต้องซ้ำ
         list.push({ key: `m${message.id}`, note: true, body: message.body, name: message.author });
       }
 
@@ -717,6 +739,25 @@
       return card;
     }
 
+    /**
+     * กำแพงต้องกันช่องไว้ให้คำอวยพรเสมอ ไม่ใช่ให้ต่อคิวท้ายรูป
+     *
+     * ของเดิม entries() คืนรูปมาก่อนคำอวยพรทั้งหมด แล้วเติมช่องตามลำดับนั้น
+     * กำแพงมี 15 ช่อง งานไหนมีรูปเกิน 15 ใบ (คือทุกงาน) การ์ดคำอวยพรจึงไม่มีวัน
+     * ได้ช่องเลยแม้แต่ใบเดียว และรอบสลับก็หยิบจากหัวคิวเดิมซึ่งเป็นรูปล้วน
+     * งานที่แขกอัพรูปตลอดเวลาคิวรูปไม่มีวันหมด แขกที่อุตส่าห์เขียนคำอวยพรมา
+     * จึงไม่ได้ขึ้นจอเลยทั้งงาน โดยไม่มีใครรู้ว่ามันหายไปไหน
+     */
+    function noteQuota() {
+      // คิดตอนเรียกใช้ ไม่ใช่ตอนโหลด — ตอนนี้ slots ยังว่างอยู่ (buildSlots() ถูก
+      // เรียกท้ายสุด) และจำนวนช่องยังเปลี่ยนได้อีกเมื่อจอถูกหมุนหรือเปลี่ยนความละเอียด
+      return Math.max(2, Math.round(slots.length * 0.2));
+    }
+
+    function noteCount() {
+      return cards.filter((card) => card.entry.note).length;
+    }
+
     function sync() {
       const available = entries();
       if (available.length === 0) return;
@@ -727,11 +768,22 @@
       }
 
       const onWall = new Set(cards.map((card) => card.entry.key));
-      const waiting = available.filter((entry) => !onWall.has(entry.key));
+      const waitingMedia = [];
+      const waitingNotes = [];
+      for (const entry of available) {
+        if (onWall.has(entry.key)) continue;
+        (entry.note ? waitingNotes : waitingMedia).push(entry);
+      }
 
-      // ยังมีช่องว่างอยู่ — เติมให้เต็มก่อน
-      while (cards.length < slots.length && available.length > 0) {
-        const entry = waiting.shift() ?? available[cards.length % available.length];
+      // ยังมีช่องว่างอยู่ — เติมให้เต็มก่อน โดยยกโควตาให้คำอวยพรก่อนรูป
+      while (cards.length < slots.length) {
+        let entry = null;
+        if (noteCount() < noteQuota() && waitingNotes.length > 0) entry = waitingNotes.shift();
+        else if (waitingMedia.length > 0) entry = waitingMedia.shift();
+        else if (waitingNotes.length > 0) entry = waitingNotes.shift();
+        else entry = available[cards.length % available.length];
+        if (!entry) break;
+
         const slotIndex = freeSlot();
         if (slotIndex === -1) break;
         addCard(entry, slotIndex);
@@ -742,11 +794,21 @@
       //
       // ไม่สลับทีเดียวหมด — สลับได้ครั้งละไม่กี่ใบ ถ้าแขกส่งรูปมาพร้อมกันสิบใบ
       // แล้วกำแพงพลิกทั้งจอในวินาทีเดียว จะดูวุ่นวายและอ่านไม่ทัน
+      //
+      // และกันไว้ใบแรกของทุกรอบให้คำอวยพรถ้ามีรออยู่ ไม่ว่าคิวรูปจะยาวแค่ไหน
+      // คนที่เขียนมาจึงได้ขึ้นจอแน่นอน ช้าสุดคือรอบละหนึ่งใบทุก 15 วินาที
       let swapped = 0;
-      for (const entry of waiting) {
-        if (swapped >= 3) break;
-        const oldest = pickOldest();
+      while (swapped < 3 && (waitingMedia.length > 0 || waitingNotes.length > 0)) {
+        const takeNote = waitingNotes.length > 0
+          && (swapped === 0 || noteCount() < noteQuota() || waitingMedia.length === 0);
+        const entry = takeNote ? waitingNotes.shift() : waitingMedia.shift();
+        if (!entry) break;
+
+        // คำอวยพรเข้าตอนที่โควตายังไม่เต็ม ให้ไปเบียดรูปออก ไม่ใช่เบียดกันเอง
+        // ส่วนรูปห้ามไปเบียดคำอวยพรออกเด็ดขาด ไม่งั้นโควตาจะค่อย ๆ ถูกกินจนหมด
+        const oldest = pickOldest(entry.note && noteCount() >= noteQuota() ? 'note' : 'media');
         if (!oldest) break;
+
         // หน่วงทีละใบ ให้ทยอยเปลี่ยนแทนที่จะเปลี่ยนพร้อมกัน
         replace(oldest, entry, swapped * 700);
         swapped += 1;
@@ -763,14 +825,20 @@
      * รูปใหม่ทุกใบในรอบเดียวกันจะเลือก "ใบที่เก่าที่สุด" ใบเดียวกันหมด แล้วสร้าง
      * การ์ดทับกันที่ช่องเดียว จนเห็นเป็นกองซ้อนอยู่มุมจอ
      */
-    function pickOldest() {
-      let oldest = null;
+    function pickOldest(prefer) {
+      let best = null;      // ใบเก่าสุดในชนิดที่ขอ
+      let fallback = null;  // ใบเก่าสุดโดยไม่สนชนิด เผื่อชนิดที่ขอไม่มีให้เลือก
       for (const card of cards) {
         if (card === qrCard) continue; // QR อยู่ประจำ ไม่ถูกรูปใหม่เบียดออก
         if (card.slotIndex === hotIndex) continue;
         if (reserved.has(card)) continue;
-        if (!oldest || card.serial < oldest.serial) oldest = card;
+
+        if (!fallback || card.serial < fallback.serial) fallback = card;
+        if (prefer && (card.entry.note ? 'note' : 'media') !== prefer) continue;
+        if (!best || card.serial < best.serial) best = card;
       }
+
+      const oldest = best || fallback;
       if (oldest) reserved.add(oldest);
       return oldest;
     }
@@ -857,8 +925,8 @@
       if (next) {
         place(next);
         hold = playIfVideo(next) ?? hold;
-        // คำอวยพรต้องมีเวลาอ่าน เหมือนโหมดโรงหนัง
-        if (next.entry.note) hold = Math.max(hold, readingTime({ body: next.entry.body }) * 1000);
+        // คำอวยพรต้องมีเวลาอ่าน เหมือนโหมดโรงหนัง — รวมถึงข้อความที่ทาบอยู่บนรูป
+        if (next.entry.body) hold = Math.max(hold, readingTime({ body: next.entry.body }) * 1000);
       }
 
       setTimeout(highlightNext, hold);
@@ -898,6 +966,10 @@
     }
 
     // วิดีโอเล่นเฉพาะตอนเป็นไฮไลท์ ถ้าเล่นทุกใบพร้อมกันกล่องทีวีตายแน่
+    //
+    // วิดีโอถูกวางทับภาพปกด้วย position:absolute ใน CSS ไม่ใช่ต่อท้ายมัน
+    // (ของเดิมต่อท้ายแล้วโดน overflow:hidden ตัดทิ้ง จอเลยเห็นแต่ภาพนิ่ง)
+    // ข้อดีของการทับคือขาไม่ต้องกู้อะไรเลย — ถอด <video> ออก ภาพปกก็โผล่กลับมาเอง
     function playIfVideo(card) {
       if (card.entry.kind !== 'video') return null;
 
@@ -908,12 +980,30 @@
       video.muted = settings.muted !== false;
       video.playsInline = true;
       video.loop = true;
+      video.preload = 'auto';
+      // WebView ของกล่องทีวีรุ่นเก่าอ่านแค่ attribute ไม่ได้ดู property
+      // ถ้าไม่มี playsinline มันจะเด้งไปเล่นเต็มจอ และถ้าไม่มี muted จะไม่ยอม autoplay
+      video.setAttribute('playsinline', '');
+      if (video.muted) video.setAttribute('muted', '');
+
+      // ไฟล์เสีย เน็ตหลุด หรือ codec ที่กล่องถอดไม่ออก — เอาป้ายเล่นกลับมา
+      // แล้วปล่อยให้ภาพปกที่อยู่ข้างล่างทำหน้าที่ต่อ ดีกว่าปล่อยให้เป็นกรอบดำ
+      video.addEventListener('error', () => card.node.classList.remove('is-playing'));
+
       media.appendChild(video);
+      card.node.classList.add('is-playing');
+
+      // attribute autoplay ถูกเมินบ่อยเมื่อ element ถูกแทรกหลังหน้าโหลดเสร็จแล้ว
+      // จึงต้องสั่งเล่นเองด้วย และกิน error ทิ้ง ไม่งั้น promise ที่ไม่มีคนรับจะ
+      // โผล่ขึ้น console รัว ๆ ตลอดงาน
+      const started = video.play();
+      if (started && typeof started.catch === 'function') started.catch(() => {});
 
       return Math.min(card.entry.duration || VIDEO_MAX, VIDEO_MAX) * 1000;
     }
 
     function stopVideo(card) {
+      card.node.classList.remove('is-playing');
       card.node.querySelectorAll('video').forEach((video) => {
         video.pause();
         video.removeAttribute('src');

@@ -1627,7 +1627,24 @@ a:focus-visible {
   object-fit: cover;
 }
 
-/* ป้ายบอกว่าเป็นวิดีโอ อยู่มุมรูปเล็ก ๆ */
+/* วิดีโอต้องวาง "ทับ" ภาพปก ไม่ใช่ต่อท้ายมัน
+
+   ของเดิมทั้ง img และ video เป็น display:block สูง 100% เท่ากันและอยู่ใน flow
+   ปกติทั้งคู่ วิดีโอที่ถูกใส่เข้ามาทีหลังจึงไปต่อคิวอยู่ "ใต้" ภาพปก แล้วโดน
+   overflow:hidden ของ .card__media ตัดหายไปทั้งตัว — วิดีโอเล่นอยู่จริง แต่เล่น
+   อยู่นอกกรอบที่ตาเห็น การ์ดเลยดูเป็นภาพนิ่งตลอดงาน
+
+   เขียน top/left แยกบรรทัด ห้ามใช้ inset — WebView ของกล่องทีวีรุ่นเก่าไม่รู้จัก
+   แล้วทิ้งทั้ง declaration ซึ่งเคยทำให้รูปล้นจอมาแล้วรอบหนึ่ง */
+.card__media video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* ป้ายบอกว่าเป็นวิดีโอ อยู่มุมรูปเล็ก ๆ — หายไปตอนวิดีโอเล่นจริง
+   เพราะถ้าค้างอยู่จะกลายเป็นสามเหลี่ยมทับภาพที่กำลังขยับ */
 .card__play {
   position: absolute;
   right: 5%;
@@ -1635,6 +1652,37 @@ a:focus-visible {
   width: 13%;
   max-width: 34px;
   opacity: 0.9;
+  z-index: 2;
+}
+
+.wall__card.is-playing .card__play {
+  display: none;
+}
+
+/* คำอวยพรที่แนบรูปมาด้วย — ทาบข้อความบนรูปใบนั้น โผล่เฉพาะตอนถูกยกเป็นไฮไลท์
+   ซึ่งเป็นจังหวะเดียวที่คนอ่านออกจริง
+
+   วางทับแทนที่จะต่อบรรทัดใต้กรอบ เพราะแบบนี้ความสูงการ์ดไม่เปลี่ยน จึงไม่มีทาง
+   ล้นช่องไปทับใบข้างเคียง ซึ่งเป็นบั๊กที่โปรเจกต์นี้เจอมาแล้วสองรอบ */
+.card__wish {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 8% 8% 7%;
+  background-image: linear-gradient(to top, rgba(8, 6, 4, 0.88), rgba(8, 6, 4, 0));
+  color: #fbf4e8;
+  font-family: var(--font-display);
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.55s ease;
+}
+
+.wall__card.is-hot .card__wish {
+  opacity: 1;
 }
 
 /* ชื่อคนส่ง เขียนบนขอบล่างของกรอบเหมือนเขียนด้วยมือบนรูปจริง */
