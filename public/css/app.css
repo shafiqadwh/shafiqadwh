@@ -1826,6 +1826,123 @@ a:focus-visible {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
 }
 
+/* ── หนังงานแต่ง ในหน้าแอดมิน ─────────────────────────────────────────────
+   งานที่กินเวลาเป็นสิบ ๆ นาที ต้องบอกให้เห็นตลอดว่าไปถึงไหนแล้ว ไม่งั้นเจ้าของ
+   จะไม่รู้ว่ามันทำงานอยู่หรือค้าง แล้วกดซ้ำจนสั่งซ้อนกัน */
+
+.section-hint {
+  margin: -6px 0 14px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.film__status {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--blush);
+}
+
+.film__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(44, 37, 33, 0.12);
+  overflow: hidden;
+}
+
+.film__bar-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+
+.film__line {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.film__note {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.film__result {
+  margin-bottom: 18px;
+}
+
+/* หนังยาวเป็นชั่วโมงและไฟล์หลาย GB — preload="none" ใน HTML กันไม่ให้มือถือ
+   เริ่มโหลดทันทีที่เปิดหน้าแอดมิน ตัวเล่นจะโหลดก็ต่อเมื่อกดเล่นจริง */
+.film__video {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  border-radius: var(--radius);
+  background: #14100c;
+}
+
+.film__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.film__field {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.film__field input {
+  width: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.film__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.film__music {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.film__music-name {
+  flex: 1 1 160px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.film__music .film__note {
+  flex-basis: 100%;
+}
+
+.film [disabled] {
+  opacity: 0.55;
+}
+
 /* ── หน้าเลือกรูปแบบสไลด์โชว์ ──────────────────────────────────────────────
    ใช้ทั้งบนคอมของเจ้าภาพและบนทีวีที่มีแต่รีโมต ปุ่มจึงต้องใหญ่ อ่านออกจากไกล
    และต้องเห็นชัดว่าตอนนี้โฟกัสอยู่ที่อันไหน */

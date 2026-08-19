@@ -86,6 +86,7 @@ export const config = {
   },
 
   paths: {
+    root: rootDir,
     data: dataDir,
     uploads: path.join(dataDir, 'uploads'),
     derived: path.join(dataDir, 'derived'),
@@ -94,6 +95,9 @@ export const config = {
     locales: path.join(rootDir, 'locales'),
     views: path.join(rootDir, 'views'),
     public: path.join(rootDir, 'public'),
+    // หนังงานแต่งที่ export แล้ว กับเพลงคลอที่แอดมินอัพโหลดผ่านหน้าเว็บ
+    export: path.join(dataDir, 'export'),
+    music: path.join(dataDir, 'music'),
   },
 
   limits: {

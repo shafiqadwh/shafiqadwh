@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import express from 'express';
+import multer from 'multer';
 import { config } from '../config.js';
 import { db, getFlag, pruneExpiredSessions, setFlag } from '../db.js';
 import { catalogue, translator } from '../i18n.js';
@@ -16,7 +17,8 @@ import {
   setMessageStatus,
   stats,
 } from '../repo.js';
-import { formatBytes } from '../lib/media.js';
+import { formatBytes, randomName } from '../lib/media.js';
+import { existingFilm, jobStatus, startJob } from '../lib/film-job.js';
 import { queueLength } from '../lib/queue.js';
 import { qrDataUrl, qrPngBuffer, shareUrl } from '../lib/qr.js';
 import { streamArchive } from '../lib/zip.js';
@@ -56,13 +58,20 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ error: req.t('admin.wrong_password') });
 }
 
-adminRouter.get('/admin', (req, res) => {
+adminRouter.get('/admin', async (req, res) => {
   if (!isAdmin(req)) {
     return res.render('admin-login', { page: 'admin', error: null });
   }
 
   const summary = stats();
-  res.render('admin', {
+  // สถานะหนังใส่มาตั้งแต่ตอนเรนเดอร์หน้า เจ้าของที่เปิดหน้ามาแล้วเห็นเลยว่ามีหนัง
+  // อยู่ไหม โดยไม่ต้องรอ JavaScript ยิง poll รอบแรก
+  const film = await jobStatus();
+  return res.render('admin', {
+    film: {
+      ...film,
+      size: film.film ? formatBytes(film.film.bytes) : null,
+    },
     page: 'admin',
     stats: { ...summary, storage: formatBytes(summary.bytes) },
     queue: queueLength(),
@@ -196,6 +205,156 @@ adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
     cards,
     showVenue,
   });
+});
+
+// ── หนังงานแต่ง: สั่งทำ ดูสถานะ เล่น และดาวน์โหลด จากหน้าเว็บ ────────────────
+
+const MUSIC_MB = 30;
+
+const musicUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, config.paths.tmp),
+    filename: (req, file, cb) => cb(null, randomName('part')),
+  }),
+  limits: { fileSize: MUSIC_MB * 1024 * 1024, files: 1 },
+});
+
+/**
+ * เพลงคลอที่แอดมินอัพโหลดไว้ — มีได้ไฟล์เดียว อัพใหม่ทับของเดิม
+ *
+ * เก็บใน data/music/ ไม่ใช่ใน uploads/ เพราะไฟล์ใน uploads คือของที่แขกส่งมา
+ * ซึ่งจะถูกเอาไปทำสไลด์โชว์ ทำ ZIP และเข้าหนัง เพลงไม่ควรหลุดไปอยู่ในนั้น
+ */
+async function currentMusic() {
+  try {
+    const names = await fs.readdir(config.paths.music);
+    const first = names.find((name) => !name.startsWith('.'));
+    if (!first) return null;
+    const filePath = path.join(config.paths.music, first);
+    const stat = await fs.stat(filePath);
+    return { name: first, path: filePath, bytes: stat.size };
+  } catch {
+    return null;
+  }
+}
+
+adminRouter.get('/admin/film/status', requireAdmin, async (req, res) => {
+  const status = await jobStatus();
+  const music = await currentMusic();
+  res.json({
+    ...status,
+    film: status.film && {
+      bytes: status.film.bytes,
+      size: formatBytes(status.film.bytes),
+      madeAt: status.film.madeAt,
+    },
+    music: music && { name: music.name, size: formatBytes(music.bytes) },
+  });
+});
+
+adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
+  const music = await currentMusic();
+
+  // ตัวเลขจากฟอร์มต้องผ่านการตรวจก่อน ไม่ใช่ส่งตรงเข้า ffmpeg — ค่าติดลบหรือ
+  // ค่าที่ไม่ใช่ตัวเลขจะทำให้ตัวกรองของ ffmpeg พังกลางทางแบบอ่าน error ไม่รู้เรื่อง
+  const clamp = (raw, fallback, low, high) => {
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return fallback;
+    return Math.min(Math.max(Math.round(value), low), high);
+  };
+
+  try {
+    const status = await startJob({
+      seconds: clamp(req.body.seconds, 6, 2, 20),
+      maxVideoSeconds: clamp(req.body.maxVideoSeconds, 30, 5, 120),
+      motion: req.body.motion === 'on',
+      music: req.body.music === 'on' && music ? music.path : null,
+    });
+    res.json({ ok: true, state: status.state });
+  } catch (error) {
+    res.status(error.code === 'BUSY' || error.code === 'LOCKED' ? 409 : 500)
+      .json({ error: error.message });
+  }
+});
+
+adminRouter.post('/admin/film/music', requireAdmin, (req, res) => {
+  musicUpload.single('music')(req, res, async (uploadError) => {
+    if (uploadError || !req.file) {
+      return res.status(400).json({ error: req.t('errors.too_large_request') });
+    }
+
+    // รับเฉพาะไฟล์เสียงที่ ffmpeg อ่านออกแน่ ๆ และตัดสินจากนามสกุลที่เราตั้งเอง
+    // ไม่ใช่ชื่อไฟล์ที่ผู้ใช้ส่งมา — ชื่อจากผู้ใช้พาไปที่อื่นในดิสก์ได้
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'].includes(ext)) {
+      await fs.rm(req.file.path, { force: true });
+      return res.status(400).json({ error: req.t('errors.unsupported_type', { name: req.file.originalname }) });
+    }
+
+    await fs.mkdir(config.paths.music, { recursive: true });
+    const existing = await currentMusic();
+    if (existing) await fs.rm(existing.path, { force: true });
+
+    const target = path.join(config.paths.music, `song${ext}`);
+    await fs.rename(req.file.path, target).catch(async () => {
+      // tmp กับ music อยู่คนละ mount point ได้ ก็ตกไปใช้การคัดลอกแทน
+      await fs.copyFile(req.file.path, target);
+      await fs.rm(req.file.path, { force: true });
+    });
+
+    const stat = await fs.stat(target);
+    return res.json({ ok: true, name: path.basename(target), size: formatBytes(stat.size) });
+  });
+});
+
+adminRouter.post('/admin/film/music/delete', requireAdmin, async (req, res) => {
+  const music = await currentMusic();
+  if (music) await fs.rm(music.path, { force: true });
+  res.json({ ok: true });
+});
+
+/**
+ * ส่งหนังให้เบราว์เซอร์ — ต้องรองรับ Range ไม่งั้นกดเล่นแล้วเลื่อนหาช่วงกลางไม่ได้
+ *
+ * res.sendFile รองรับ Range ให้อยู่แล้ว จึงใช้ตัวนั้นแทนการ pipe เอง
+ */
+function sendFilm(res, filmPath, { download }) {
+  return new Promise((resolve, reject) => {
+    res.sendFile(path.basename(filmPath), {
+      root: path.dirname(filmPath),
+      dotfiles: 'deny',
+      acceptRanges: true,
+      // หนังถูกทำใหม่ทับที่เดิมได้ ห้ามให้เบราว์เซอร์แคชยาว ไม่งั้นจะเล่นของเก่า
+      maxAge: 0,
+      cacheControl: false,
+      headers: {
+        'Cache-Control': 'no-cache',
+        ...(download
+          ? { 'Content-Disposition': `attachment; filename="wedding-film.mp4"` }
+          : {}),
+      },
+    }, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+adminRouter.get('/admin/film/video', requireAdmin, async (req, res, next) => {
+  const film = await existingFilm();
+  if (!film) return next();
+  try {
+    await sendFilm(res, film.path, { download: false });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get('/admin/film/download', requireAdmin, async (req, res, next) => {
+  const film = await existingFilm();
+  if (!film) return next();
+  try {
+    await sendFilm(res, film.path, { download: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 adminRouter.get('/admin/qr.png', requireAdmin, async (req, res) => {

@@ -160,6 +160,36 @@
     "not_found": "Page not found"
   },
   "film": {
-    "thanks": "Thank you for celebrating with us"
+    "thanks": "Thank you for celebrating with us",
+    "heading": "Wedding film",
+    "hint": "Join every photo and video from the day into a single video file. Run it after the party.",
+    "start": "Make the film",
+    "rebuild": "Make it again",
+    "running": "Making the film",
+    "done": "Ready",
+    "failed": "It did not finish",
+    "stopped": "The job stopped part-way",
+    "busy_elsewhere": "A film is already being made from somewhere else",
+    "phase_starting": "Starting",
+    "phase_scanning": "Checking for duplicates",
+    "phase_building": "Making the clips",
+    "phase_joining": "Joining the clips",
+    "phase_music": "Mixing the music",
+    "progress": "{done} of {total}",
+    "time_left": "About {minutes} minutes left",
+    "summary": "{photos} photos · {videos} videos · {wishes} wishes",
+    "play": "Play the film",
+    "download": "Download the file",
+    "made_at": "Made {when}",
+    "seconds": "Seconds per photo",
+    "video_seconds": "Trim videos to",
+    "motion": "Slow zoom",
+    "use_music": "Add background music",
+    "music": "Background music",
+    "music_hint": "An audio file you have the rights to · mp3 m4a wav, up to 30 MB",
+    "music_choose": "Choose a music file",
+    "music_none": "No music yet",
+    "music_remove": "Remove the music",
+    "takes_long": "This takes tens of minutes. You can close this page and come back later."
   }
 }

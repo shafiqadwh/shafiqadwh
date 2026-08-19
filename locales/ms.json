@@ -160,6 +160,36 @@
     "not_found": "Halaman tidak dijumpai"
   },
   "film": {
-    "thanks": "Terima kasih kerana meraikan bersama kami"
+    "thanks": "Terima kasih kerana meraikan bersama kami",
+    "heading": "Filem majlis",
+    "hint": "Gabungkan semua gambar dan video majlis menjadi satu fail video. Buat selepas majlis.",
+    "start": "Mula buat filem",
+    "rebuild": "Buat semula",
+    "running": "Sedang dibuat",
+    "done": "Sudah siap",
+    "failed": "Gagal dibuat",
+    "stopped": "Kerja terhenti di pertengahan",
+    "busy_elsewhere": "Satu kerja pembuatan filem sedang berjalan dari tempat lain",
+    "phase_starting": "Sedang bermula",
+    "phase_scanning": "Menyemak fail berulang",
+    "phase_building": "Membuat klip satu demi satu",
+    "phase_joining": "Mencantumkan klip",
+    "phase_music": "Mencampur muzik latar",
+    "progress": "{done} daripada {total}",
+    "time_left": "Lebih kurang {minutes} minit lagi",
+    "summary": "{photos} gambar · {videos} video · {wishes} ucapan",
+    "play": "Main filem",
+    "download": "Muat turun fail",
+    "made_at": "Dibuat pada {when}",
+    "seconds": "Berapa saat setiap gambar",
+    "video_seconds": "Potong video pada berapa saat",
+    "motion": "Zum perlahan",
+    "use_music": "Masukkan muzik latar",
+    "music": "Muzik latar",
+    "music_hint": "Fail audio yang anda ada haknya · mp3 m4a wav, maksimum 30 MB",
+    "music_choose": "Pilih fail muzik",
+    "music_none": "Belum ada muzik",
+    "music_remove": "Buang muzik",
+    "takes_long": "Kerja ini mengambil masa berpuluh minit. Anda boleh tutup halaman ini dan kembali kemudian."
   }
 }

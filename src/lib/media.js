@@ -110,6 +110,8 @@ export async function ensureDirs() {
     fs.mkdir(config.paths.uploads, { recursive: true }),
     fs.mkdir(config.paths.derived, { recursive: true }),
     fs.mkdir(config.paths.tmp, { recursive: true }),
+    fs.mkdir(config.paths.export, { recursive: true }),
+    fs.mkdir(config.paths.music, { recursive: true }),
   ]);
 
   await warnIfTmpIsOnAnotherDevice();
