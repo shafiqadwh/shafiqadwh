@@ -157,5 +157,8 @@
     "too_large_request": "That file is larger than the server accepts",
     "server_error": "Something went wrong on the server. Please try again.",
     "not_found": "Page not found"
+  },
+  "film": {
+    "thanks": "Thank you for celebrating with us"
   }
 }

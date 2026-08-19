@@ -1,0 +1,237 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { after, before, test } from 'node:test';
+import sharp from 'sharp';
+import { useTempDataDir } from './helpers/app.js';
+import { makeJpeg, makeMp4 } from './helpers/fixtures.js';
+
+const dataDir = useTempDataDir('film');
+process.env.COUPLE_NAMES = "Sofwan & 'Aishah Nadhirah";
+process.env.EVENT_MONOGRAM = 'S & N';
+process.env.EVENT_DATE = '29.08.2026';
+process.env.EVENT_VENUE = 'Hasanah Restaurant (ร้านอาหารฮาซานะห์) Sateng, Yala';
+
+const {
+  FRAME_WIDTH, FRAME_HEIGHT, escapeMarkup, trim,
+  photoFrame, textCard, openingCard, wishCard, captionLayer,
+} = await import('../src/lib/film.js');
+const { buildTimeline, dedupe } = await import('../src/lib/film-plan.js');
+const { stillClip, concatClips, alreadyDone } = await import('../src/lib/film-encode.js');
+const { FFMPEG, FFPROBE } = await import('../src/lib/media.js');
+
+const work = path.join(dataDir, 'work');
+before(() => fs.mkdir(work, { recursive: true }));
+after(() => fs.rm(work, { recursive: true, force: true }));
+
+async function duration(filePath) {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const { stdout } = await promisify(execFile)(FFPROBE, [
+    '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', filePath,
+  ]);
+  return Number(stdout.trim());
+}
+
+/**
+ * สัดส่วนพิกเซลที่เป็น "หมึก" คือจุดสว่างที่ทึบพอมองเห็น
+ *
+ * ต้องวัดจากความสว่าง ไม่ใช่จากค่า alpha — ลองมาแล้วสองแบบและผิดทั้งคู่:
+ * การ์ดข้อความทึบทั้งใบ วัด alpha ได้ 1.0 เท่ากันหมดไม่ว่าจะมีตัวหนังสือหรือไม่
+ * ส่วนชั้นคำบรรยายมีแถบไล่เฉดคลุมอยู่ วัด alpha ได้ 0.18 แม้จะไม่มีตัวอักษรเลย
+ * เทสต์ที่ดูเหมือนตรวจตัวหนังสือจึงผ่านทั้งที่ไม่ได้ตรวจอะไร
+ *
+ * ตัวหนังสือในหนังเป็นสีครีมกับสีทองบนพื้นมืดเสมอ การนับจุดสว่างจึงตรงกับสิ่งที่
+ * ตาคนเห็นจริง ๆ
+ */
+async function inkCoverage(buffer) {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let ink = 0;
+  for (let i = 0; i < data.length; i += info.channels) {
+    if (data[i + 3] < 128) continue;
+    const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    if (luma > 140) ink += 1;
+  }
+  return ink / (info.width * info.height);
+}
+
+test('guest text can never break the renderer, however it is punctuated', () => {
+  // Pango อ่านข้อความเป็น markup — เจอจริงตอนพัฒนา: ชื่อ "Sofwan & 'Aishah"
+  // ทำให้ sharp โยน invalid markup แล้วเฟรมนั้นหายไปทั้งใบ
+  assert.equal(escapeMarkup("Sofwan & 'Aishah"), "Sofwan &amp; 'Aishah");
+  assert.equal(escapeMarkup('<span foreground="red">แดง</span>'),
+    '&lt;span foreground="red"&gt;แดง&lt;/span&gt;');
+  assert.equal(escapeMarkup('บรรทัดเดียว'), 'บรรทัดเดียว');
+  assert.equal(escapeMarkup(null), '');
+});
+
+test('a very long wish is cut, a short one is left alone', () => {
+  assert.equal(trim('สั้น', 100), 'สั้น');
+  assert.equal(trim('  เว้น   วรรค   เยอะ  ', 100), 'เว้น วรรค เยอะ');
+  assert.match(trim('ก'.repeat(300), 50), /…$/);
+  assert.equal(trim('ก'.repeat(300), 50).length, 51);
+});
+
+test('Thai really renders — the reason the whole film is drawn with Pango', async () => {
+  // ffmpeg ของ Debian ที่อยู่ในอิมเมจไม่มี harfbuzz drawtext จึงวางวรรณยุกต์ไทยผิด
+  // เทสต์นี้กันไม่ให้ใครย้ายกลับไปใช้ drawtext แล้วได้หนังที่ตัวหนังสือเพี้ยนทั้งเรื่อง
+  const thai = await captionLayer({ name: 'ปี่ ญี่ปุ่น เกี๊ยะ ผู้ใหญ่ น้ำ' });
+  const blank = await captionLayer({ name: '' });
+
+  assert.ok(thai, 'a caption with a name must produce a layer');
+  assert.equal(blank, null, 'nothing to say means no layer at all');
+
+  // ข้อความยาวต้องมีหมึกมากกว่าข้อความสั้นอย่างชัดเจน ถ้าฟอนต์หายหรือเรนเดอร์ล้ม
+  // เงียบ ๆ สองค่านี้จะเท่ากัน (หรือเป็นศูนย์ทั้งคู่) เทสต์จึงจับได้
+  const long = await inkCoverage(thai);
+  const short = await inkCoverage(await captionLayer({ name: 'ป' }));
+  assert.ok(long > short * 3, `Thai must render glyph by glyph (${long} vs ${short})`);
+  assert.ok(short > 0, 'even one Thai character must leave ink');
+
+  // ชื่อที่แขกพิมพ์เป็นเคาะวรรคล้วน ต้องไม่ทำให้เฟรมพัง
+  assert.equal(await captionLayer({ name: '   ' }), null);
+
+  const meta = await sharp(thai).metadata();
+  assert.equal(meta.width, FRAME_WIDTH);
+  assert.equal(meta.height, FRAME_HEIGHT);
+});
+
+test('every frame comes out at exactly one size, whatever the source photo is', async () => {
+  const portrait = path.join(dataDir, 'portrait.jpg');
+  const landscape = path.join(dataDir, 'landscape.jpg');
+  await makeJpeg(portrait, { width: 900, height: 1600 });
+  await makeJpeg(landscape, { width: 2400, height: 1000 });
+
+  for (const source of [portrait, landscape]) {
+    const meta = await sharp(await photoFrame(source, { name: 'พี่หนึ่ง' })).metadata();
+    assert.equal(meta.width, FRAME_WIDTH, 'concat -c copy only works if every clip matches');
+    assert.equal(meta.height, FRAME_HEIGHT);
+  }
+
+  const card = await sharp(await openingCard()).metadata();
+  assert.equal(card.width, FRAME_WIDTH);
+  assert.equal(card.height, FRAME_HEIGHT);
+});
+
+test('the opening card carries the couple, and a wish card carries the wish', async () => {
+  const opening = await inkCoverage(await textCard({ eyebrow: 'S & N', headline: "Sofwan & 'Aishah" }));
+  const empty = await inkCoverage(await textCard({}));
+  assert.ok(opening > empty, 'a card with words must have more ink than an empty one');
+
+  assert.equal(empty, 0, 'a card with nothing on it has no ink at all');
+
+  const wish = await inkCoverage(await wishCard({
+    body: 'ขอให้บ่าวสาวมีความสุขตลอดไป', author: 'ผู้ใหญ่บ้าน',
+  }));
+  assert.ok(wish > 0.002, `the wish must be legible on the card (${wish})`);
+});
+
+test('duplicate uploads are dropped by what is inside the file, not by its size', async () => {
+  // เดิมเทียบด้วยขนาดไบต์บวกมิติ แล้วเทสต์จับได้ว่ารูปสีพื้นคนละสีถูกตัดทิ้ง
+  // เพราะบีบอัดออกมาได้ขนาดเท่ากันพอดี — รูปของแขกหายโดยไม่มีใครรู้
+  const uploads = path.join(dataDir, 'uploads');
+  await fs.mkdir(uploads, { recursive: true });
+
+  const one = path.join(uploads, 'one.jpg');
+  const two = path.join(uploads, 'two.jpg');
+  await makeJpeg(one, { width: 400, height: 400, colour: '#112233' });
+  await makeJpeg(two, { width: 400, height: 400, colour: '#332211' });
+  await fs.copyFile(one, path.join(uploads, 'copy.jpg'));
+
+  const items = [
+    { id: 1, kind: 'image', stored_name: 'one.jpg', playback_name: null },
+    { id: 2, kind: 'image', stored_name: 'two.jpg', playback_name: null },
+    { id: 3, kind: 'image', stored_name: 'copy.jpg', playback_name: null },
+  ];
+
+  const kept = await dedupe(items);
+  assert.deepEqual(kept.map((item) => item.id), [1, 2],
+    'the exact copy goes, the different picture stays');
+
+  const sizes = await Promise.all([one, two].map(async (file) => (await fs.stat(file)).size));
+  assert.equal(sizes[0], sizes[1],
+    'these two differ only in content — a size check would have thrown one away');
+});
+
+test('the story runs in upload order, with wishes spread through it', () => {
+  const items = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, kind: 'image', uploader: 'แขก' }));
+  const messages = [
+    { id: 1, author: 'ก', body: 'ยินดีด้วย', item_id: null },
+    { id: 2, author: 'ข', body: 'มีความสุขนะ', item_id: null },
+    { id: 3, author: 'ค', body: 'บนรูป', item_id: 5 },
+  ];
+
+  const timeline = buildTimeline({ items, messages }, { limit: 0 });
+
+  assert.equal(timeline.at(0).kind, 'opening');
+  assert.equal(timeline.at(-1).kind, 'closing');
+
+  const ids = timeline.filter((entry) => entry.item).map((entry) => entry.item.id);
+  assert.deepEqual(ids, [...ids].sort((a, b) => a - b), 'upload order is the story of the day');
+
+  const attached = timeline.find((entry) => entry.item?.id === 5);
+  assert.equal(attached.wish, 'บนรูป', 'a wish with a photo rides on that photo');
+  assert.equal(attached.name, 'ค', 'and is credited to whoever wrote it');
+
+  const wishCards = timeline.filter((entry) => entry.kind === 'wish');
+  assert.equal(wishCards.length, 2, 'wishes without a photo become cards of their own');
+  const positions = wishCards.map((card) => timeline.indexOf(card));
+  assert.ok(positions[1] - positions[0] > 2, 'and they are spread out, not stacked together');
+});
+
+test('every wish reaches the film even when there are more wishes than photos', () => {
+  const items = [{ id: 1, kind: 'image' }, { id: 2, kind: 'image' }];
+  const messages = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, body: `อวยพร ${i}`, item_id: null }));
+
+  const timeline = buildTimeline({ items, messages }, { limit: 0 });
+  assert.equal(timeline.filter((entry) => entry.kind === 'wish').length, 5);
+});
+
+test('clips are built to one shared recipe, so joining them needs no re-encode', async (t) => {
+  const frame = path.join(work, 'frame.png');
+  await fs.writeFile(frame, await openingCard());
+
+  const first = path.join(work, 'a.mp4');
+  const second = path.join(work, 'b.mp4');
+  await stillClip(frame, first, { seconds: 2 });
+  await stillClip(frame, second, { seconds: 3 });
+
+  assert.ok(Math.abs(await duration(first) - 2) < 0.2);
+  assert.ok(await alreadyDone(first), 'a finished clip reports itself done so a re-run skips it');
+
+  const joined = path.join(work, 'joined.mp4');
+  await concatClips([first, second], joined, work);
+
+  // ต่อกันแล้วต้องได้ความยาวรวม ถ้าพารามิเตอร์ของสองคลิปไม่ตรงกัน
+  // concat แบบ copy จะได้ไฟล์ที่ความยาวเพี้ยนหรือภาพค้าง
+  assert.ok(Math.abs(await duration(joined) - 5) < 0.3, 'the joined film is as long as its parts');
+
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const { stdout } = await promisify(execFile)(FFPROBE, [
+    '-v', 'error', '-show_entries', 'stream=codec_name,width,height,channels',
+    '-of', 'csv=p=0', joined,
+  ]);
+  assert.match(stdout, /h264,1920,1080/, 'video stays 1080p H.264');
+  assert.match(stdout, /aac,2/, 'and every clip carries stereo audio, silent or not');
+});
+
+test('a clip half-written by an interrupted run is never mistaken for a finished one', async () => {
+  const stub = path.join(work, 'truncated.mp4');
+  await fs.writeFile(stub, Buffer.alloc(10));
+  assert.equal(await alreadyDone(stub), false);
+  assert.equal(await alreadyDone(path.join(work, 'missing.mp4')), false);
+});
+
+test('the film never contains the QR code', async () => {
+  // ข้อกำหนดจากเจ้าของ: หนังที่ export หลังงานต้องไม่มี QR
+  // กันด้วยการออกแบบ — โมดูลที่ประกอบเฟรมไม่รู้จัก QR เลย ไม่มีทางหลุดเข้ามาได้
+  const film = await fs.readFile(new URL('../src/lib/film.js', import.meta.url), 'utf8');
+  const plan = await fs.readFile(new URL('../src/lib/film-plan.js', import.meta.url), 'utf8');
+  const script = await fs.readFile(new URL('../scripts/export-film.js', import.meta.url), 'utf8');
+
+  for (const [name, source] of [['film', film], ['plan', plan], ['script', script]]) {
+    assert.doesNotMatch(source, /qrDataUrl|qrImage|shareUrl/,
+      `${name} must not be able to draw the QR into the keepsake film`);
+  }
+});

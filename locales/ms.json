@@ -157,5 +157,8 @@
     "too_large_request": "Fail terlalu besar untuk diterima pelayan",
     "server_error": "Ralat pelayan. Sila cuba lagi.",
     "not_found": "Halaman tidak dijumpai"
+  },
+  "film": {
+    "thanks": "Terima kasih kerana meraikan bersama kami"
   }
 }
