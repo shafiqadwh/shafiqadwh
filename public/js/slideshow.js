@@ -462,6 +462,9 @@
 
     // ย้ายการ์ด QR ทุกกี่รอบไฮไลท์ — ถี่ไปคนสแกนไม่ทัน ห่างไปก็บังมุมเดิมนาน
     const QR_MOVE_EVERY = 5;
+    // การ์ดชื่องานย้ายคนละจังหวะกับ QR ตั้งใจให้เป็นเลขที่ไม่หารกันลงตัว
+    // ทั้งสองใบจะได้ไม่ขยับพร้อมกันจนกำแพงดูวุ่น
+    const TITLE_MOVE_EVERY = 7;
 
     const slots = [];
     const cards = [];
@@ -469,8 +472,14 @@
     const reserved = new Set();
     let hotIndex = -1;
     let placedSerial = 0;
+
+    // การ์ดประจำกำแพง — QR กับการ์ดชื่องาน มีช่องของตัวเอง ไม่ถูกรูปใหม่เบียดออก
+    // และไม่ถูกยกขึ้นมาเป็นไฮไลท์ เพราะถ้าขยายจะไปบังรูปแขกที่อยู่รอบ ๆ
+    const fixed = [];
     let qrCard = null;
+    let titleCard = null;
     let stepsSinceQrMoved = 0;
+    let stepsSinceTitleMoved = 0;
 
     // ── ตำแหน่งของแต่ละใบ ────────────────────────────────────────────────
     //
@@ -518,8 +527,21 @@
         )
         : 1;
 
-      const halfW = (card.node.offsetWidth * scale) / 2;
-      const halfH = (card.node.offsetHeight * scale) / 2;
+      /*
+       * ขนาดที่ใช้กันไม่ให้หลุดจอ ต้องเป็นขนาด "หลังหมุน" ไม่ใช่ขนาดกล่องดิบ
+       *
+       * การ์ดถูกหมุนเอียงได้ถึง ±8.5 องศา กล่องที่ครอบใบที่เอียงแล้วจะสูงและกว้าง
+       * กว่ากล่องเดิมเสมอ ของเดิมคิดจากกล่องดิบ มุมล่างของใบแถวล่างจึงยื่นพ้นจอ
+       * ออกไป วัดจริงได้ 3px ในใบรูปธรรมดา และถึง 26px ในใบที่สูงกว่าอย่างการ์ด
+       * ชื่องาน — เห็นเป็นขอบกรอบโพลารอยด์โดนตัดหายไปดื้อ ๆ
+       */
+      const radians = Math.abs(hot ? 0 : slot.rotate) * (Math.PI / 180);
+      const sin = Math.sin(radians);
+      const cos = Math.cos(radians);
+      const boxW = card.node.offsetWidth * scale;
+      const boxH = card.node.offsetHeight * scale;
+      const halfW = (boxW * cos + boxH * sin) / 2;
+      const halfH = (boxW * sin + boxH * cos) / 2;
 
       // ดึงเข้ามาในจอเท่าที่จำเป็น ใบที่อยู่ริมจอจะได้ไม่โดนตัดตอนขยาย
       const margin = 12;
@@ -579,12 +601,16 @@
     }
 
     function buildCard(entry, slot) {
-      const node = el('div', `wall__card is-entering is-placing${entry.qr ? ' wall__card--qr' : ''}`);
-      const card = el('div', `card${entry.note ? ' card--note' : ''}${entry.qr ? ' card--qr' : ''}`);
+      // ของประจำกำแพงไม่หรี่ตามใบอื่น — QR ต้องอ่านได้ตลอดเพื่อให้สแกนได้
+      // และการ์ดชื่องานก็ควรอ่านออกตลอดเช่นกัน
+      const permanent = entry.qr || entry.title ? ' wall__card--fixed' : '';
+      const node = el('div', `wall__card is-entering is-placing${permanent}`);
+      const card = el('div', `card${entry.note ? ' card--note' : ''}`
+        + `${entry.qr ? ' card--qr' : ''}${entry.title ? ' card--title' : ''}`);
 
       // กรอบรูปใช้สัดส่วนของรูปจริง แนวตั้งกับแนวนอนจึงหน้าตาไม่เหมือนกัน
       // เหมือนกองรูปจริงที่ปนกันอยู่ ไม่ใช่ตารางที่ทุกใบเท่ากันเป๊ะ
-      const ratio = entry.qr ? 1 : entry.note
+      const ratio = entry.qr ? 1 : (entry.note || entry.title)
         ? 1.15
         : clamp(entry.width && entry.height ? entry.height / entry.width : 1.2, 0.68, 1.5);
       const width = cardWidthFor(slot, ratio);
@@ -598,6 +624,27 @@
         img.src = settings.qrImage;
         img.alt = 'QR';
         media.appendChild(img);
+      } else if (entry.title) {
+        // การ์ดชื่อบ่าวสาว — โหมดโรงหนังมีการ์ดนี้เต็มจอเป็นระยะ แต่กำแพงไม่มีเวที
+        // ให้ฉาย (stage ถูกถอดออกไปแล้ว) จึงทำเป็นโพลารอยด์ใบหนึ่งวางอยู่บนกำแพง
+        // ไม่ขัดจังหวะการดูรูป แต่คนที่เพิ่งเดินเข้ามาก็รู้ว่านี่งานของใคร
+        media.style.height = `${Math.round(width * ratio)}px`;
+
+        const box = el('div', 'card__title');
+        if (event.monogram) box.appendChild(el('div', 'card__monogram', event.monogram));
+
+        const art = el('div', 'card__flourish');
+        art.appendChild(flourish());
+        box.appendChild(art);
+
+        box.appendChild(el('div', 'card__couple', event.coupleNames || event.title || ''));
+        if (event.venue) box.appendChild(el('div', 'card__venue', event.venue));
+
+        media.appendChild(box);
+        // ส่ง media ไม่ใช่ node — ตอนนี้ node ยังว่างอยู่ (card กับ media ถูกใส่เข้าไป
+        // ทีหลังท้ายฟังก์ชัน) ถ้าส่ง node ไป querySelector จะคืน null เงียบ ๆ
+        // แล้วตัวอักษรจะค้างที่ขนาดเริ่มต้นโดยไม่มีอะไรฟ้อง
+        scaleTitle(media, width);
       } else if (entry.note) {
         // คำอวยพรที่ไม่ได้แนบรูป ขึ้นเป็นกระดาษโน้ต ยาวเกินก็ตัดท้ายด้วย …
         const text = el('p', 'card__note-text', entry.body.slice(0, 150) + (entry.body.length > 150 ? '…' : ''));
@@ -632,7 +679,9 @@
 
       const name = el('span', 'card__name', entry.qr
         ? t('slideshow.scan_title')
-        : entry.name || t('slideshow.anonymous'));
+        : entry.title
+          ? (event.date || '')
+          : entry.name || t('slideshow.anonymous'));
       name.style.fontSize = `${Math.max(8, width * 0.075)}px`;
       card.appendChild(name);
 
@@ -640,6 +689,24 @@
       wall.appendChild(node);
 
       return { node, entry, media, ratio, slotIndex: 0, serial: placedSerial += 1 };
+    }
+
+    /**
+     * ตัวอักษรบนการ์ดชื่องานคิดจากความกว้างการ์ด ไม่ใช่ค่าคงที่
+     *
+     * ต้องเรียกซ้ำตอนย้ายช่องด้วย เพราะแต่ละช่องให้ความกว้างไม่เท่ากัน
+     * (slot.shrink ต่างกันทีละใบ) ถ้าไม่คิดใหม่ ตัวหนังสือจะล้นกรอบตอนย้ายไปช่องเล็ก
+     */
+    function scaleTitle(node, width) {
+      const sizes = [
+        ['.card__monogram', 0.2, 12],
+        ['.card__couple', 0.1, 9],
+        ['.card__venue', 0.052, 7],
+      ];
+      for (const [selector, factor, floor] of sizes) {
+        const target = node.querySelector(selector);
+        if (target) target.style.fontSize = `${Math.max(floor, width * factor)}px`;
+      }
     }
 
     function playBadge() {
@@ -713,6 +780,17 @@
       });
     }
 
+    /** ช่องว่างที่อยู่ห่างจากช่องที่ระบุอย่างน้อยสองก้าว — ถ้าไม่มีก็เอาช่องว่างใดก็ได้ */
+    function spacedSlot(avoid) {
+      const used = new Set(cards.map((card) => card.slotIndex));
+      const free = slots.map((_, index) => index).filter((index) => !used.has(index));
+      if (free.length === 0) return -1;
+
+      const far = free.filter((index) => avoid.every((other) => slotDistance(index, other) >= 2));
+      const pool = far.length > 0 ? far : free;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
     /** ช่องแรกที่ยังไม่มีการ์ดอยู่ */
     function freeSlot() {
       const used = new Set(cards.map((card) => card.slotIndex));
@@ -727,8 +805,10 @@
       const slot = slots[card.slotIndex];
       if (!slot) return;
       const width = cardWidthFor(slot, card.ratio);
+      const fullHeight = card.entry.note || card.entry.qr || card.entry.title;
       card.node.style.width = `${Math.round(width)}px`;
-      card.media.style.height = `${Math.round(width * (card.entry.note || card.entry.qr ? card.ratio : 0.9 * card.ratio))}px`;
+      card.media.style.height = `${Math.round(width * (fullHeight ? card.ratio : 0.9 * card.ratio))}px`;
+      if (card.entry.title) scaleTitle(card.node, width);
     }
 
     function addCard(entry, slotIndex) {
@@ -762,9 +842,19 @@
       const available = entries();
       if (available.length === 0) return;
 
-      // การ์ด QR ได้ช่องของตัวเองหนึ่งช่อง วางที่ไหนก็ได้ตั้งแต่แรก
+      // การ์ดประจำได้ช่องของตัวเอง ต้องสร้างตอนกำแพงยังว่างเท่านั้น เพราะ addCard
+      // ไม่ได้ตรวจว่าช่องนั้นมีใครอยู่ ถ้าสร้างทีหลังจะได้การ์ดสองใบซ้อนช่องเดียว
       if (!qrCard && slots.length > 0) {
-        qrCard = addCard({ key: 'qr', qr: true }, Math.floor(Math.random() * slots.length));
+        const qrSlot = Math.floor(Math.random() * slots.length);
+        qrCard = addCard({ key: 'qr', qr: true }, qrSlot);
+        fixed.push(qrCard);
+
+        // การ์ดชื่องานวางห่างจาก QR อย่างน้อยสองก้าว ไม่งั้นของประจำสองใบจะไปกอง
+        // อยู่มุมเดียวกัน เหลือกำแพงอีกฝั่งเป็นรูปแขกล้วน ดูไม่สมดุล
+        if (event.coupleNames || event.title) {
+          titleCard = addCard({ key: 'title', title: true }, spacedSlot([qrSlot]));
+          fixed.push(titleCard);
+        }
       }
 
       const onWall = new Set(cards.map((card) => card.entry.key));
@@ -829,7 +919,7 @@
       let best = null;      // ใบเก่าสุดในชนิดที่ขอ
       let fallback = null;  // ใบเก่าสุดโดยไม่สนชนิด เผื่อชนิดที่ขอไม่มีให้เลือก
       for (const card of cards) {
-        if (card === qrCard) continue; // QR อยู่ประจำ ไม่ถูกรูปใหม่เบียดออก
+        if (fixed.includes(card)) continue; // ของประจำ ไม่ถูกรูปใหม่เบียดออก
         if (card.slotIndex === hotIndex) continue;
         if (reserved.has(card)) continue;
 
@@ -892,27 +982,36 @@
 
       const previous = cards.find((card) => card.slotIndex === hotIndex);
 
-      // ข้ามการ์ด QR — มันมีไว้ให้สแกน ไม่ใช่ของที่ต้องขยายขึ้นมาดู
-      // และถ้าขยาย จะไปบังรูปแขกที่อยู่รอบ ๆ ซึ่งเป็นสิ่งที่เราพยายามเลี่ยงอยู่
+      // ข้ามการ์ดประจำทั้งหมด — QR มีไว้ให้สแกน ส่วนการ์ดชื่องานมีไว้ให้อ่านผ่าน ๆ
+      // ทั้งคู่ไม่ใช่ของที่ต้องขยายขึ้นมาดู และถ้าขยายจะไปบังรูปแขกที่อยู่รอบ ๆ
       let guard = 0;
       do {
         hotIndex = (hotIndex + 1) % slots.length;
         guard += 1;
-      } while (guard <= slots.length && qrCard && hotIndex === qrCard.slotIndex);
+      } while (guard <= slots.length && fixed.some((card) => card.slotIndex === hotIndex));
 
       const next = cards.find((card) => card.slotIndex === hotIndex);
 
-      // ย้ายการ์ด QR ไปช่องอื่นเป็นระยะ ไม่ให้บังมุมเดิมตลอดงาน
+      // ย้ายการ์ดประจำไปช่องอื่นเป็นระยะ ไม่ให้บังมุมเดิมตลอดงาน
       stepsSinceQrMoved += 1;
       if (stepsSinceQrMoved >= QR_MOVE_EVERY) {
         stepsSinceQrMoved = 0;
-        moveQrSomewhereElse();
+        moveFixedSomewhereElse(qrCard);
+      }
+
+      stepsSinceTitleMoved += 1;
+      if (stepsSinceTitleMoved >= TITLE_MOVE_EVERY) {
+        stepsSinceTitleMoved = 0;
+        moveFixedSomewhereElse(titleCard);
       }
 
       // และถ้าใบที่กำลังจะขยายอยู่ติดกับ QR ให้ QR หลบไปก่อน
       // ไม่งั้นจะถูกทับจนสแกนไม่ได้ ซึ่งทำให้การมี QR บนจอไม่มีความหมาย
+      //
+      // การ์ดชื่องานไม่ต้องหลบ ถูกใบใหญ่บังบ้างก็แค่ดูเหมือนรูปที่วางซ้อนกันจริง ๆ
+      // และการให้ของประจำสองใบวิ่งหลบพร้อมกันทุกรอบจะทำให้กำแพงดูวุ่นเกินไป
       if (qrCard && slotDistance(qrCard.slotIndex, hotIndex) < 2) {
-        moveQrSomewhereElse(hotIndex);
+        moveFixedSomewhereElse(qrCard, hotIndex);
         stepsSinceQrMoved = 0;
       }
 
@@ -933,16 +1032,18 @@
     }
 
     /**
-     * สลับช่องของการ์ด QR กับการ์ดอีกใบแบบสุ่ม
+     * สลับช่องของการ์ดประจำใบหนึ่งกับการ์ดรูปอีกใบแบบสุ่ม
      *
      * สลับกันสองใบ ไม่ใช่ย้ายไปเฉย ๆ เพราะถ้าย้ายไปทับช่องที่มีคนอยู่ จะได้
      * การ์ดสองใบซ้อนกันช่องเดียว ซึ่งเป็นบั๊กเดียวกับที่เพิ่งแก้ไป
      */
-    function moveQrSomewhereElse(awayFrom) {
-      if (!qrCard || cards.length < 2) return;
+    function moveFixedSomewhereElse(mover, awayFrom) {
+      if (!mover || cards.length < 2) return;
 
+      // คู่สลับต้องเป็นการ์ดรูปเท่านั้น ถ้าปล่อยให้ของประจำสลับกันเอง ระยะห่าง
+      // ที่ตั้งใจกันไว้ตอนวางครั้งแรกจะพังทันทีที่สลับกันครั้งเดียว
       let candidates = cards.filter((card) =>
-        card !== qrCard && card.slotIndex !== hotIndex && !reserved.has(card));
+        !fixed.includes(card) && card.slotIndex !== hotIndex && !reserved.has(card));
 
       if (typeof awayFrom === 'number') {
         // ต้องไกลจากใบที่กำลังขยายอย่างน้อยสองก้าว ถ้าจอเล็กจนไม่มีช่องไหน
@@ -951,17 +1052,25 @@
         candidates = far.length > 0 ? far : candidates;
       }
 
+      // และต้องไม่ไปลงช่องที่ติดกับการ์ดประจำใบอื่น ไม่งั้นสองใบจะมากองมุมเดียวกัน
+      const others = fixed.filter((card) => card !== mover);
+      if (others.length > 0) {
+        const spaced = candidates.filter((card) =>
+          others.every((other) => slotDistance(card.slotIndex, other.slotIndex) >= 2));
+        candidates = spaced.length > 0 ? spaced : candidates;
+      }
+
       if (candidates.length === 0) return;
 
       const partner = candidates[Math.floor(Math.random() * candidates.length)];
-      const slotIndex = qrCard.slotIndex;
-      qrCard.slotIndex = partner.slotIndex;
+      const slotIndex = mover.slotIndex;
+      mover.slotIndex = partner.slotIndex;
       partner.slotIndex = slotIndex;
 
       // ขนาดการ์ดผูกกับช่อง ย้ายช่องแล้วต้องคิดความกว้างใหม่ ไม่งั้นจะล้นช่องใหม่
-      resize(qrCard);
+      resize(mover);
       resize(partner);
-      place(qrCard);
+      place(mover);
       place(partner);
     }
 

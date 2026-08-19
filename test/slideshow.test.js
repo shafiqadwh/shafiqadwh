@@ -235,7 +235,7 @@ test('the wall always keeps room for guest wishes', async () => {
   const pick = js.slice(js.indexOf('function pickOldest'), js.indexOf('function replace'));
   assert.match(pick, /function pickOldest\(prefer\)/, 'the picker takes that preference');
   assert.match(pick, /fallback/, 'and still evicts something when that kind is not on the wall');
-  assert.match(pick, /card === qrCard/, 'the QR card is still never evicted');
+  assert.match(pick, /fixed\.includes\(card\)/, 'the pinned cards are still never evicted');
   assert.match(pick, /reserved\.has\(card\)/, 'and reservations still hold — that fixed the stacking bug');
 });
 
@@ -318,17 +318,40 @@ test('on the wall the QR is a card of its own, never the highlight', async () =>
 
   assert.match(js, /qrBadge\.remove\(\)/, 'the corner badge must go away in wall mode');
   assert.match(js, /qr: true/, 'the wall builds a QR card instead');
-  assert.match(js, /card === qrCard/, 'new photos must never push the QR off the wall');
-  assert.match(js, /hotIndex === qrCard\.slotIndex/, 'the highlight must step over the QR slot');
-  assert.match(js, /function moveQrSomewhereElse/, 'and the QR must not sit in one corner all night');
+  assert.match(js, /fixed\.includes\(card\)/, 'new photos must never push the QR off the wall');
+  assert.match(js, /fixed\.some\(\(card\) => card\.slotIndex === hotIndex\)/,
+    'the highlight must step over every pinned slot');
+  assert.match(js, /function moveFixedSomewhereElse/, 'and the QR must not sit in one corner all night');
   assert.match(js, /slotDistance\(qrCard\.slotIndex, hotIndex\)/,
     'it also has to dodge whichever card is about to grow next to it');
 
   const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
-  const rule = css.match(/\.wall__card--qr \{([^}]*)\}/);
+  const rule = css.match(/\.wall__card--fixed \{([^}]*)\}/);
   assert.ok(rule, 'the QR card needs its own styling');
   assert.match(rule[1], /opacity:\s*0\.9[0-9]?/,
     'it must stay bright enough to scan, not dim like the other cards');
+});
+
+test('the wall carries a card naming the couple, since it has no title slide', async () => {
+  // โหมดกำแพงถอดเวทีหลักทิ้ง (stage.remove()) การ์ดชื่องานเต็มจอของโหมดโรงหนัง
+  // จึงไม่มีทางขึ้นเลย คนที่เพิ่งเดินเข้างานมาเห็นแต่กองรูป ไม่รู้ว่างานของใคร
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+
+  assert.match(js, /key: 'title', title: true/, 'the wall builds a title card of its own');
+  assert.match(js, /event\.coupleNames \|\| event\.title/, 'carrying the names from the event config');
+
+  // ของประจำสองใบต้องไม่ไปกองมุมเดียวกัน ทั้งตอนวางครั้งแรกและตอนย้าย
+  assert.match(js, /function spacedSlot/, 'the pinned cards must start at least two steps apart');
+  assert.match(js, /!fixed\.includes\(card\)/,
+    'and a pinned card may only swap places with a photo, never with the other pinned card');
+
+  // ตัวอักษรคิดจากความกว้างการ์ด และต้องคิดใหม่ตอนย้ายช่อง ไม่งั้นล้นกรอบ
+  assert.match(js, /function scaleTitle/, 'its text is sized from the card width');
+  const resize = js.slice(js.indexOf('function resize(card)'), js.indexOf('function addCard'));
+  assert.match(resize, /scaleTitle/, 'and resized again whenever the card changes slot');
+
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.card--title \.card__media/, 'the title card needs its own look');
 });
 
 test('static files carry a version so a fixed browser cannot keep serving the old one', async () => {

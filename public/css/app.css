@@ -1698,9 +1698,9 @@ a:focus-visible {
   text-overflow: ellipsis;
 }
 
-/* การ์ด QR — มีไว้ให้สแกน จึงต้องสว่างพออ่านได้เสมอ ไม่หรี่ตามใบอื่น
+/* ของประจำกำแพง (QR + การ์ดชื่องาน) — สว่างพออ่านได้เสมอ ไม่หรี่ตามใบอื่น
    และไม่ถูกยกขึ้นมาเป็นไฮไลท์ เพราะถ้าขยายจะไปบังรูปแขกรอบ ๆ */
-.wall__card--qr {
+.wall__card--fixed {
   opacity: 0.95;
   z-index: 5;
 }
@@ -1720,6 +1720,58 @@ a:focus-visible {
 
 .card--qr .card__name {
   color: #6b5a44;
+}
+
+/* การ์ดชื่องาน — โหมดโรงหนังมีการ์ดนี้เต็มจอเป็นระยะ แต่กำแพงไม่มีเวทีให้ฉาย
+   จึงทำเป็นโพลารอยด์ใบหนึ่งที่วางอยู่บนกำแพงตลอด ไม่ขัดจังหวะการดูรูป */
+.card--title .card__media {
+  display: grid;
+  place-items: center;
+  padding: 8%;
+  background-image: radial-gradient(ellipse at 50% 40%, #2a1e14 0%, #14100c 78%);
+}
+
+.card__title {
+  width: 100%;
+  text-align: center;
+  color: #f4e3c4;
+}
+
+.card__monogram {
+  font-family: var(--font-display);
+  line-height: 1;
+  letter-spacing: 0.12em;
+  color: #f0d9a8;
+}
+
+.card__flourish {
+  margin: 7% auto 6%;
+  width: 74%;
+  color: #c9a86a;
+}
+
+.card__flourish svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: currentColor;
+}
+
+.card__couple {
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: #fbf4e8;
+}
+
+.card__venue {
+  margin-top: 5%;
+  line-height: 1.35;
+  color: #c6b393;
+}
+
+.card--title .card__name {
+  color: #6b5a44;
+  letter-spacing: 0.08em;
 }
 
 /* การ์ดคำอวยพรที่ไม่ได้แนบรูป — เป็นกระดาษโน้ตแทนที่จะเป็นรูป */
