@@ -23,10 +23,38 @@ export const FRAME_WIDTH = 1920;
 export const FRAME_HEIGHT = 1080;
 
 // ฟอนต์เดินทางมากับโปรเจกต์ ไม่ใช่ของที่ติดตั้งในระบบ เพราะอิมเมจ node:slim
-// ไม่มีฟอนต์ไทยเลยสักตัว และ NAS ตัวนี้ต่อเน็ตออกจากในคอนเทนเนอร์ไม่ได้
+// ไม่มีฟอนต์ไทยหรืออาหรับเลยสักตัว และ NAS ตัวนี้ต่อเน็ตออกจากในคอนเทนเนอร์ไม่ได้
 const FONT_DIR = new URL('../../assets/fonts/', import.meta.url);
-const FONT_REGULAR = path.join(FONT_DIR.pathname, 'NotoSerifThai-Regular.ttf');
-const FONT_BOLD = path.join(FONT_DIR.pathname, 'NotoSerifThai-SemiBold.ttf');
+
+/**
+ * เลือกฟอนต์จาก "ตัวอักษรที่อยู่ในข้อความจริง" ไม่ใช่จากภาษาที่ตั้งไว้
+ *
+ * ครูสอนภาษาอาหรับเขียนคำอวยพรเป็นภาษาอาหรับได้ แม้ภาษาหลักของงานจะเป็นไทย
+ * ข้อความในหนังเรื่องเดียวกันจึงมีได้ทั้งสองอักษร ต้องดูเป็นข้อความ ๆ ไป
+ *
+ * ไม่พึ่ง fallback ของ fontconfig เพราะมันขึ้นกับว่าเครื่องนั้นมีฟอนต์อะไรติดตั้งไว้
+ * เครื่องพัฒนามี แต่คอนเทนเนอร์บน NAS อาจไม่มี แล้วคำอวยพรจะกลายเป็นกล่องว่าง
+ * โดยไม่มี error ให้เห็น — รู้ตอนเปิดหนังดูหลังงานก็สายไปแล้ว
+ */
+const FONTS = {
+  latin: {
+    regular: path.join(FONT_DIR.pathname, 'NotoSerifThai-Regular.ttf'),
+    bold: path.join(FONT_DIR.pathname, 'NotoSerifThai-SemiBold.ttf'),
+    family: 'Noto Serif Thai',
+  },
+  arabic: {
+    regular: path.join(FONT_DIR.pathname, 'NotoNaskhArabic-Regular.ttf'),
+    bold: path.join(FONT_DIR.pathname, 'NotoNaskhArabic-SemiBold.ttf'),
+    family: 'Noto Naskh Arabic',
+  },
+};
+
+// ช่วงอักษรอาหรับพื้นฐาน บวกส่วนขยายที่ใช้จริงในข้อความทั่วไป
+const ARABIC = /[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]/;
+
+export function fontFor(text) {
+  return ARABIC.test(String(text ?? '')) ? FONTS.arabic : FONTS.latin;
+}
 
 const INK = {
   cream: '#f7ecd9',
@@ -70,12 +98,13 @@ async function ink(text, {
   if (lineHeight) attrs.push(`line_height="${lineHeight}"`);
 
   const markup = `<span ${attrs.join(' ')}>${text}</span>`;
+  const face = fontFor(text);
 
   return sharp({
     text: {
       text: markup,
-      fontfile: bold ? FONT_BOLD : FONT_REGULAR,
-      font: `${bold ? 'Noto Serif Thai SemiBold' : 'Noto Serif Thai'} ${size}`,
+      fontfile: bold ? face.bold : face.regular,
+      font: `${face.family}${bold ? ' SemiBold' : ''} ${size}`,
       width,
       align,
       rgba: true,

@@ -166,7 +166,7 @@ export const config = {
 
   i18n: {
     default: str('DEFAULT_LANGUAGE', 'th'),
-    available: ['th', 'ms', 'en'],
+    available: ['th', 'ms', 'en', 'ar'],
   },
 
   trustProxy: bool('TRUST_PROXY', true),

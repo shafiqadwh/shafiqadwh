@@ -4,7 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import { config } from '../config.js';
 import { db, getFlag, pruneExpiredSessions, setFlag } from '../db.js';
-import { translator } from '../i18n.js';
+import { catalogue, translator } from '../i18n.js';
 import {
   deleteItemRow,
   deleteMessageRow,
@@ -163,12 +163,19 @@ adminRouter.get('/admin/zip', requireAdmin, (req, res) => {
 
 adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
   const url = shareUrl(req);
-  // The printed card carries all three languages at once — guests do not get to
+  // The printed card carries every language at once — guests do not get to
   // pick a language before they have scanned anything.
   const cards = config.i18n.available.map((code) => {
     const translate = translator(code);
     return {
       code,
+      // แต่ละบล็อกบอกทิศทางของตัวเอง ภาษาอาหรับบนการ์ดที่พิมพ์จึงเรียงขวาไปซ้าย
+      // ได้ถูกต้อง แม้หน้าที่ครอบมันอยู่จะเป็นภาษาไทย
+      dir: catalogue(code).lang.dir ?? 'ltr',
+      // ภาษาที่ไม่มีธงประจำ (อาหรับ) ใช้ตัวอักษรแทน ไม่ใช่ <use> ที่ชี้ไปยัง
+      // sprite ที่ไม่มีอยู่ ซึ่งพิมพ์ออกมาเป็นกล่องสี่เหลี่ยมว่าง ๆ
+      flag: catalogue(code).lang.dir !== 'rtl',
+      short: catalogue(code).lang.short,
       title: translate('qr.title'),
       step1: translate('qr.step1'),
       step2: translate('qr.step2'),

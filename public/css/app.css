@@ -12,8 +12,13 @@
   --danger: #a3453b;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(44, 37, 33, 0.06), 0 8px 24px rgba(44, 37, 33, 0.06);
-  --font: system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", "Noto Sans", Thonburi, sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", Georgia, "Noto Serif Thai", serif;
+  /* ฟอนต์อาหรับต้องอยู่ในชุดด้วย ไม่งั้นเครื่องที่ไม่มีฟอนต์เริ่มต้นที่รองรับ
+     จะขึ้นเป็นกล่องสี่เหลี่ยม — Geeza Pro คือของ iOS, Noto ของแอนดรอยด์,
+     Segoe UI/Traditional Arabic ของวินโดวส์ */
+  --font: system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", "Noto Sans",
+    "Noto Sans Arabic", "Geeza Pro", "Segoe UI Historic", Thonburi, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Georgia, "Noto Serif Thai",
+    "Noto Naskh Arabic", "Geeza Pro", "Traditional Arabic", serif;
 }
 
 *,
@@ -123,6 +128,18 @@ video {
   border-radius: 2px;
   /* เส้นขอบบางกันธงที่มีพื้นขาว (ไทย/มาเลเซีย) กลืนกับพื้นหลัง */
   box-shadow: 0 0 0 1px rgba(36, 31, 26, 0.18);
+}
+
+/* ปุ่มของภาษาที่ไม่มีธง (อาหรับ) — ตัวอักษรเดี่ยวที่กินความสูงเท่ากับธงบวกรหัส
+   ของปุ่มอื่น ทั้งแถวจึงยังสูงเท่ากันและกดโดนง่ายเท่ากันบนมือถือ */
+.lang__glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 500;
 }
 
 .lang__option.is-active {
@@ -2028,21 +2045,25 @@ a:focus-visible {
 }
 
 /* กรอบทรงโค้งด้านบน ล้อกับซุ้มดอกไม้บนการ์ดเชิญ */
+/* ขนาดของ QR กับช่องไฟถูกบีบลงเมื่อการ์ดต้องรับสี่ภาษา — ก่อนหน้านี้พอดีกับสาม
+   ภาษา พอเพิ่มอาหรับเข้าไป บรรทัดที่อยู่ล่างสุด (ที่อยู่เว็บ) ถูกดันจนโดน
+   overflow:hidden ตัดหายไปจากกระดาษที่พิมพ์ออกมา
+   QR ที่ 46 มม. ยังสแกนติดสบายจากระยะโต๊ะอาหาร */
 .qr-card__arch {
   border: 0.5mm solid var(--accent);
-  border-radius: 32mm 32mm 4mm 4mm;
-  padding: 7mm 6mm 6mm;
+  border-radius: 30mm 30mm 4mm 4mm;
+  padding: 5mm 5mm 4mm;
   background: #fff;
 }
 
 .qr-card__code {
-  width: 52mm;
-  height: 52mm;
+  width: 46mm;
+  height: 46mm;
 }
 
 .qr-card__blocks {
   display: grid;
-  gap: 3mm;
+  gap: 2.4mm;
   align-content: center;
 }
 
@@ -2052,7 +2073,7 @@ a:focus-visible {
 
 .qr-card__block h2 {
   font-family: var(--font-display);
-  font-size: 12pt;
+  font-size: 11pt;
   margin: 0 0 0.8mm;
   font-weight: 600;
   display: flex;
@@ -2069,9 +2090,17 @@ a:focus-visible {
   flex: none;
 }
 
+/* ตัวอักษรแทนธง สำหรับภาษาที่ไม่ผูกกับประเทศเดียวอย่างอาหรับ */
+.qr-card__glyph {
+  flex: none;
+  width: 7mm;
+  font-size: 13pt;
+  line-height: 1;
+}
+
 .qr-card__block p {
   margin: 0;
-  font-size: 9pt;
+  font-size: 8.5pt;
   color: var(--ink-soft);
   line-height: 1.5;
 }

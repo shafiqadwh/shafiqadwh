@@ -13,7 +13,7 @@ process.env.EVENT_DATE = '29.08.2026';
 process.env.EVENT_VENUE = 'Hasanah Restaurant (ร้านอาหารฮาซานะห์) Sateng, Yala';
 
 const {
-  FRAME_WIDTH, FRAME_HEIGHT, escapeMarkup, trim,
+  FRAME_WIDTH, FRAME_HEIGHT, escapeMarkup, trim, fontFor,
   photoFrame, textCard, openingCard, wishCard, captionLayer,
 } = await import('../src/lib/film.js');
 const { buildTimeline, dedupe } = await import('../src/lib/film-plan.js');
@@ -94,6 +94,25 @@ test('Thai really renders — the reason the whole film is drawn with Pango', as
   const meta = await sharp(thai).metadata();
   assert.equal(meta.width, FRAME_WIDTH);
   assert.equal(meta.height, FRAME_HEIGHT);
+});
+
+test('an Arabic wish is drawn with an Arabic font that travels with the project', async () => {
+  // ครูสอนภาษาอาหรับที่โรงเรียนมาร่วมงาน และเขียนคำอวยพรเป็นภาษาอาหรับได้
+  // ถ้าปล่อยให้ fontconfig หา fallback เอง เครื่องพัฒนาจะเรนเดอร์ได้แต่คอนเทนเนอร์
+  // บน NAS อาจไม่มีฟอนต์อาหรับเลย แล้วคำอวยพรจะกลายเป็นกล่องว่างโดยไม่มี error
+  assert.equal(fontFor('ขอให้มีความสุข').family, 'Noto Serif Thai');
+  assert.equal(fontFor('Sofwan').family, 'Noto Serif Thai');
+  assert.equal(fontFor('بارك الله لكما').family, 'Noto Naskh Arabic');
+  assert.equal(fontFor('Ahmad أحمد').family, 'Noto Naskh Arabic', 'mixed text follows the Arabic');
+
+  for (const face of [fontFor('ก'), fontFor('ب')]) {
+    for (const file of [face.regular, face.bold]) {
+      await fs.access(file); // ฟอนต์ต้องอยู่ในโปรเจกต์จริง ไม่ใช่หวังว่าเครื่องจะมี
+    }
+  }
+
+  const card = await wishCard({ body: 'بارك الله لكما وجمع بينكما في خير', author: 'أستاذ العربية' });
+  assert.ok(await inkCoverage(card) > 0.002, 'the Arabic wish must actually appear on the card');
 });
 
 test('every frame comes out at exactly one size, whatever the source photo is', async () => {

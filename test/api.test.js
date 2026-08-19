@@ -184,14 +184,35 @@ test('the hosts can download everything as one ZIP', async () => {
   assert.ok(asText.includes('guestbook.txt'), 'the written wishes should travel with the photos');
 });
 
-test('the printable QR card carries all three languages at once', async () => {
+test('the printable QR card carries every language at once', async () => {
   const response = await fetch(`${app.baseUrl}/admin/qr`, { headers: { cookie } });
   const html = await response.text();
 
   assert.ok(html.includes('สแกนเพื่อแชร์รูปในงาน'), 'Thai heading');
   assert.ok(html.includes('Imbas untuk kongsi gambar majlis'), 'Malay heading');
   assert.ok(html.includes('Scan to share your photos'), 'English heading');
+  assert.ok(html.includes('امسحوا الرمز لمشاركة صوركم'), 'Arabic heading');
   assert.ok(html.includes('data:image/png;base64'), 'the QR image is embedded, not fetched');
+
+  // บล็อกอาหรับต้องเรียงขวาไปซ้ายของตัวเอง แม้หน้าที่ครอบอยู่จะเป็นภาษาไทย
+  assert.match(html, /lang="ar" dir="rtl"/, 'the Arabic block runs right to left on paper');
+
+  // ธงที่ไม่มีอยู่จริงจะพิมพ์ออกมาเป็นกล่องสี่เหลี่ยมว่าง ๆ บนกระดาษ
+  assert.doesNotMatch(html, /#flag-ar/, 'Arabic has no flag of its own — it uses a letter');
+});
+
+test('a guest page tells the browser which way its language runs', async () => {
+  const thai = await (await fetch(`${app.baseUrl}/?lang=th`)).text();
+  const arabic = await (await fetch(`${app.baseUrl}/?lang=ar`)).text();
+
+  assert.match(thai, /<html lang="th" dir="ltr">/);
+  assert.match(arabic, /<html lang="ar" dir="rtl">/);
+
+  // หน้าที่มี <html> ของตัวเอง ไม่ได้ผ่าน partial เดียวกัน จึงเคยหลุดไม่มี dir
+  for (const path of ['/slideshow?lang=ar', '/slideshow/menu?lang=ar']) {
+    const html = await (await fetch(`${app.baseUrl}${path}`)).text();
+    assert.match(html, /dir="rtl"/, `${path} must carry the direction too`);
+  }
 });
 
 test('hosts can hide a photo and guests stop seeing it', async () => {

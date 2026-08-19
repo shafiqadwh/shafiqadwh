@@ -682,7 +682,13 @@
         : entry.title
           ? (event.date || '')
           : entry.name || t('slideshow.anonymous'));
-      name.style.fontSize = `${Math.max(8, width * 0.075)}px`;
+      // ป้ายชื่อเป็นบรรทัดเดียว ยาวเกินการ์ดจะถูกตัดท้ายด้วย … ซึ่งอ่านไม่รู้เรื่อง
+      // ข้อความที่พอดีในภาษาหนึ่งยาวเกินในอีกภาษาหนึ่งได้ — ไทย "สแกนเพื่อแชร์รูปของคุณ"
+      // พอดี แต่อาหรับ "امسحوا الرمز لمشاركة صوركم" ล้นจนเหลือครึ่งประโยค
+      // ย่อขนาดตัวอักษรตามความยาวจริงแทน ได้ทั้งประโยคและไม่ต้องแตะความสูงการ์ด
+      const label = name.textContent || '';
+      const squeeze = label.length > 20 ? Math.max(0.66, 20 / label.length) : 1;
+      name.style.fontSize = `${Math.max(8, width * 0.075 * squeeze)}px`;
       card.appendChild(name);
 
       node.appendChild(card);

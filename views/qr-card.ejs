@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="<%= htmlLang %>">
+<html lang="<%= htmlLang %>" dir="<%= htmlDir %>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -32,9 +32,13 @@
 
       <div class="qr-card__blocks">
         <% cards.forEach(function (card) { %>
-          <section class="qr-card__block" lang="<%= card.code %>">
+          <section class="qr-card__block" lang="<%= card.code %>" dir="<%= card.dir %>">
             <h2>
-              <svg class="qr-card__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= card.code %>"/></svg>
+              <% if (card.flag) { %>
+                <svg class="qr-card__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= card.code %>"/></svg>
+              <% } else { %>
+                <span class="qr-card__glyph" aria-hidden="true"><%= card.short %></span>
+              <% } %>
               <%= card.title %>
             </h2>
             <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
