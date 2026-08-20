@@ -244,7 +244,8 @@ else
   bad "ไม่ตรงกัน — DNS ตอบ $PUBLIC_DNS แต่ไอพีบ้านตอนนี้คือ $WAN_IP"
   info "นี่คือสาเหตุที่ในบ้านเข้าได้ (AdGuard rewrite ชี้ 192.168.2.2 ตรง ๆ)"
   info "แต่จาก 4G/5G เข้าไม่ได้ — ระเบียนวิ่งไปหาไอพีของคนอื่นไปแล้ว"
-  info "แก้: Cloudflare → DNS → แก้ระเบียน A ของ $HOSTNAME_TO_TEST เป็น $WAN_IP (เมฆเทา)"
+  info "แก้ให้อัตโนมัติ: sudo ./scripts/cloudflare-ddns.sh"
+  info "หรือแก้เอง: Cloudflare → DNS → ระเบียน A ของ $HOSTNAME_TO_TEST เป็น $WAN_IP (เมฆเทา)"
   info "แล้วรอ TTL หมดอายุ ค่อยตรวจซ้ำด้วยสคริปต์นี้"
 fi
 
