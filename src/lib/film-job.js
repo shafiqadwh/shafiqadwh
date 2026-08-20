@@ -44,16 +44,81 @@ function update(patch) {
   return current;
 }
 
-/** ไฟล์หนังที่ทำเสร็จแล้ว มีอยู่จริงไหม และใหญ่แค่ไหน */
-export async function existingFilm() {
-  const filmPath = path.join(config.paths.export, 'wedding-film.mp4');
+/**
+ * หนังทุกเรื่องที่เคยสร้างไว้ เรียงจากใหม่ไปเก่า
+ *
+ * เดิมเก็บไฟล์เดียวชื่อตายตัวแล้วทับทุกครั้งที่สร้างใหม่ — เจ้าของบอกว่าอยาก
+ * ลองหลายแบบแล้วเทียบกัน ตอนนี้แต่ละครั้งจึงได้ไฟล์ของตัวเอง พร้อมไฟล์ข้อมูล
+ * ข้าง ๆ ที่บอกว่าใช้รูปแบบไหนและมีอะไรอยู่ในนั้นบ้าง
+ *
+ * รายการอ่านจากโฟลเดอร์จริง ไม่ใช่จากทะเบียนที่เก็บแยก ถ้าใครลบไฟล์ทิ้งเองจาก
+ * File Station รายการก็หายตามไปเอง ไม่มีรายการผีค้างให้กดแล้วเจอ 404
+ */
+export async function listFilms() {
+  let names;
   try {
-    const stat = await fs.stat(filmPath);
-    if (stat.size < 1024) return null;
-    return { path: filmPath, bytes: stat.size, madeAt: stat.mtime.toISOString() };
+    names = await fs.readdir(config.paths.films);
   } catch {
-    return null;
+    return [];
   }
+
+  const films = [];
+  for (const name of names) {
+    if (!name.endsWith('.mp4')) continue;
+    const filePath = path.join(config.paths.films, name);
+
+    let stat;
+    try {
+      stat = await fs.stat(filePath);
+    } catch {
+      continue;
+    }
+    if (stat.size < 1024) continue;
+
+    let meta = {};
+    try {
+      meta = JSON.parse(await fs.readFile(`${filePath}.json`, 'utf8'));
+    } catch {
+      // ไม่มีไฟล์ข้อมูลก็ยังแสดงได้ แค่บอกรายละเอียดได้น้อยกว่า
+    }
+
+    films.push({
+      id: name,
+      bytes: stat.size,
+      madeAt: meta.madeAt ?? stat.mtime.toISOString(),
+      style: meta.style ?? (name.includes('-wall') ? 'wall' : 'cinema'),
+      counts: meta.counts ?? null,
+      seconds: meta.seconds ?? null,
+      music: meta.music ?? false,
+    });
+  }
+
+  return films.sort((a, b) => b.madeAt.localeCompare(a.madeAt));
+}
+
+/**
+ * เส้นทางของหนังเรื่องหนึ่งจากชื่อที่หน้าเว็บส่งมา
+ *
+ * ชื่อมาจากผู้ใช้ จึงต้องกันการเดินออกนอกโฟลเดอร์ — "../../.env" เป็นชื่อไฟล์
+ * ที่ส่งมาได้ และถ้าเอาไปต่อ path ตรง ๆ จะอ่านหรือลบไฟล์นอกโฟลเดอร์ได้
+ */
+export function filmPath(id) {
+  const name = path.basename(String(id ?? ''));
+  if (!name.endsWith('.mp4') || name !== id) return null;
+  return path.join(config.paths.films, name);
+}
+
+export async function deleteFilm(id) {
+  const target = filmPath(id);
+  if (!target) return false;
+  try {
+    await fs.stat(target);
+  } catch {
+    return false;
+  }
+  await fs.rm(target, { force: true });
+  await fs.rm(`${target}.json`, { force: true });
+  return true;
 }
 
 /**
@@ -65,19 +130,19 @@ export async function existingFilm() {
  */
 export async function jobStatus() {
   const stored = current ?? (await readPersisted());
-  const film = await existingFilm();
+  const films = await listFilms();
   const owner = await lockOwner();
 
   if (stored?.state === 'running' && !owner) {
     const stopped = { ...stored, state: 'stopped', error: 'งานหยุดกลางทาง (เซิร์ฟเวอร์รีสตาร์ท) — กดเริ่มใหม่ได้ ระบบจะทำต่อจากเดิม' };
     current = stopped;
     void persist(stopped);
-    return { ...stopped, film, busyElsewhere: false };
+    return { ...stopped, films, busyElsewhere: false };
   }
 
   return {
     ...(stored ?? { state: 'idle' }),
-    film,
+    films,
     // งานที่สั่งจาก ssh ก็ถือล็อกเหมือนกัน ปุ่มในเว็บต้องรู้และไม่ให้กดซ้อน
     busyElsewhere: Boolean(owner) && owner.source !== 'web' && stored?.state !== 'running',
   };
@@ -130,7 +195,17 @@ export async function startJob(options = {}) {
       secondsLeft: progress.secondsLeft ?? null,
     });
   })
-    .then((result) => {
+    .then(async (result) => {
+      // ไฟล์ข้อมูลข้าง ๆ หนัง บอกว่าเรื่องนี้ใช้รูปแบบไหนและมีอะไรอยู่ข้างใน
+      // เก็บไว้ตอนนี้เลย เพราะข้อมูลพวกนี้อ่านย้อนหลังจากตัวไฟล์ mp4 ไม่ได้
+      await fs.writeFile(`${result.out}.json`, JSON.stringify({
+        madeAt: new Date().toISOString(),
+        style: result.style,
+        counts: result.counts,
+        seconds: options.seconds ?? null,
+        music: Boolean(options.music),
+      })).catch(() => {});
+
       update({
         state: 'done',
         phase: 'done',

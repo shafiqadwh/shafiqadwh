@@ -149,6 +149,51 @@ export async function videoClip(sourcePath, outPath, { seconds = 30, captionPath
   return limit;
 }
 
+/**
+ * วิดีโอของแขกในโหมดกำแพง — เล่นอยู่ "ในกรอบโพลารอยด์" ที่ถูกยกเป็นไฮไลท์
+ *
+ * เฟรมกำแพงถูกเจาะรูโปร่งใสไว้ตรงช่องรูปของใบไฮไลท์ วิดีโอถูกวางไว้ข้างหลัง
+ * แล้วเอาเฟรมทับลงไป ภาพจึงทะลุขึ้นมาเฉพาะในกรอบ ส่วนกองรูปรอบ ๆ ยังนิ่งอยู่
+ *
+ * ทำแบบนี้แทนการเล่นวิดีโอเต็มจอ เพราะเจ้าของเลือกโหมดกำแพงไว้ หนังทั้งเรื่อง
+ * จึงควรหน้าตาเป็นชุดเดียวกัน และเสียงของวิดีโอยังอยู่ครบเหมือนเดิม
+ */
+export async function wallVideoClip(sourcePath, outPath, { framePath, window, seconds = 30 } = {}) {
+  const probed = await probeVideo(sourcePath);
+  const limit = Math.min(probed.duration || seconds, seconds);
+  const hasAudio = Boolean(probed.audioCodec);
+
+  const chain = [
+    `color=c=${BACKDROP}:s=${FRAME_WIDTH}x${FRAME_HEIGHT}:d=${limit.toFixed(2)}[bg]`,
+    `[0:v]scale=${window.width}:${window.height}:force_original_aspect_ratio=increase,`
+      + `crop=${window.width}:${window.height}[clip]`,
+    `[bg][clip]overlay=${window.left}:${window.top}[under]`,
+    // เฟรมกำแพงเป็นอินพุตที่ 2 เสมอ เพราะทั้งสองกรณีใส่อินพุตเสียงไว้หนึ่งตัวเท่ากัน
+    // (มีเสียงอยู่แล้วก็ยังใส่ anullsrc ไว้ ให้ลำดับอินพุตคงที่ ไม่ต้องมานั่งนับใหม่)
+    `[under][2:v]overlay=0:0,fps=${FPS},${fades(limit)},format=yuv420p[v]`,
+  ];
+
+  const inputs = ['-i', sourcePath];
+  if (!hasAudio) inputs.push(...SILENCE);
+  else inputs.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
+  inputs.push('-i', framePath);
+
+  await atomically(outPath, (partial) => ffmpeg([
+    '-y',
+    ...inputs,
+    '-t', String(limit.toFixed(2)),
+    '-filter_complex', chain.join(';'),
+    '-map', '[v]',
+    '-map', hasAudio ? '0:a:0' : '1:a:0',
+    ...VIDEO_ARGS,
+    ...AUDIO_ARGS,
+    '-threads', String(config.media.ffmpegThreads),
+    partial,
+  ]));
+
+  return limit;
+}
+
 /** ต่อคลิปทั้งหมดเข้าด้วยกันโดยไม่เข้ารหัสซ้ำ */
 export async function concatClips(clipPaths, outPath, workDir) {
   const listPath = path.join(workDir, 'parts.txt');

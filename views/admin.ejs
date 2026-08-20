@@ -75,24 +75,19 @@
     <p class="film__note" id="film-detail"></p>
   </div>
 
-  <% if (film.film) { %>
-    <div class="film__result" id="film-result">
-      <video class="film__video" id="film-video" controls preload="none"
-             src="/admin/film/video" playsinline></video>
-      <p class="film__note" id="film-made">
-        <%= t('film.made_at', { when: new Date(film.film.madeAt).toLocaleString() }) %> · <%= film.size %>
-      </p>
-      <a class="button button--small" href="/admin/film/download" download><%= t('film.download') %></a>
-    </div>
-  <% } else { %>
-    <div class="film__result" id="film-result" hidden>
-      <video class="film__video" id="film-video" controls preload="none" playsinline></video>
-      <p class="film__note" id="film-made"></p>
-      <a class="button button--small" id="film-download" href="/admin/film/download" download><%= t('film.download') %></a>
-    </div>
-  <% } %>
-
   <form class="film__form" id="film-form">
+    <div class="film__styles">
+      <span class="film__legend"><%= t('film.style') %></span>
+      <label class="film__style">
+        <input type="radio" name="style" value="cinema" checked>
+        <span><%= t('film.style_cinema') %></span>
+      </label>
+      <label class="film__style">
+        <input type="radio" name="style" value="wall">
+        <span><%= t('film.style_wall') %></span>
+      </label>
+    </div>
+
     <div class="film__options">
       <label class="film__field">
         <span><%= t('film.seconds') %></span>
@@ -124,11 +119,29 @@
       <p class="film__note"><%= t('film.music_hint') %></p>
     </div>
 
-    <button type="submit" class="button" id="film-start">
-      <%= film.film ? t('film.rebuild') : t('film.start') %>
-    </button>
+    <button type="submit" class="button" id="film-start"><%= t('film.start') %></button>
     <p class="film__note"><%= t('film.takes_long') %></p>
   </form>
+
+  <%# แกลเลอรีหนังที่เคยสร้าง — เรนเดอร์จากเซิร์ฟเวอร์ก่อน แล้ว JavaScript อัปเดตต่อ %>
+  <h3 class="film__subtitle"><%= t('film.gallery') %> <span class="section-count" id="film-count"><%= film.films.length %></span></h3>
+  <p class="film__note" id="film-empty" <%= film.films.length ? 'hidden' : '' %>><%= t('film.gallery_empty') %></p>
+  <ul class="film__list" id="film-list">
+    <% film.films.forEach(function (one) { %>
+      <li class="film__item" data-id="<%= one.id %>">
+        <video class="film__video" controls preload="none" playsinline
+               src="/admin/film/<%= encodeURIComponent(one.id) %>/video"></video>
+        <div class="film__meta">
+          <span class="film__tag"><%= t(one.style === 'wall' ? 'film.style_wall' : 'film.style_cinema') %></span>
+          <span class="film__note"><%= new Date(one.madeAt).toLocaleString() %> · <%= one.size %><%= one.music ? ' · ' + t('film.with_music') : '' %></span>
+        </div>
+        <div class="film__actions">
+          <a class="button button--tiny" href="/admin/film/<%= encodeURIComponent(one.id) %>/download" download><%= t('film.download') %></a>
+          <button type="button" class="button button--tiny button--danger film__delete"><%= t('film.delete') %></button>
+        </div>
+      </li>
+    <% }); %>
+  </ul>
 </section>
 
 <section class="card">

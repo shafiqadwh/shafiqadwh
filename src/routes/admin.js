@@ -18,7 +18,8 @@ import {
   stats,
 } from '../repo.js';
 import { formatBytes, randomName } from '../lib/media.js';
-import { existingFilm, jobStatus, startJob } from '../lib/film-job.js';
+import { deleteFilm, filmPath, jobStatus, listFilms, startJob } from '../lib/film-job.js';
+import { STYLES } from '../lib/film-run.js';
 import { queueLength } from '../lib/queue.js';
 import { qrDataUrl, qrPngBuffer, shareUrl } from '../lib/qr.js';
 import { streamArchive } from '../lib/zip.js';
@@ -70,7 +71,7 @@ adminRouter.get('/admin', async (req, res) => {
   return res.render('admin', {
     film: {
       ...film,
-      size: film.film ? formatBytes(film.film.bytes) : null,
+      films: film.films.map((one) => ({ ...one, size: formatBytes(one.bytes) })),
     },
     page: 'admin',
     stats: { ...summary, storage: formatBytes(summary.bytes) },
@@ -243,11 +244,7 @@ adminRouter.get('/admin/film/status', requireAdmin, async (req, res) => {
   const music = await currentMusic();
   res.json({
     ...status,
-    film: status.film && {
-      bytes: status.film.bytes,
-      size: formatBytes(status.film.bytes),
-      madeAt: status.film.madeAt,
-    },
+    films: status.films.map((film) => ({ ...film, size: formatBytes(film.bytes) })),
     music: music && { name: music.name, size: formatBytes(music.bytes) },
   });
 });
@@ -265,6 +262,8 @@ adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extende
 
   try {
     const status = await startJob({
+      // รูปแบบต้องอยู่ในรายการที่รู้จักเท่านั้น ค่าที่ส่งมาเองจะตกไปเป็นค่าเริ่มต้น
+      style: STYLES.includes(req.body.style) ? req.body.style : 'cinema',
       seconds: clamp(req.body.seconds, 6, 2, 20),
       maxVideoSeconds: clamp(req.body.maxVideoSeconds, 30, 5, 120),
       motion: req.body.motion === 'on',
@@ -330,31 +329,39 @@ function sendFilm(res, filmPath, { download }) {
       headers: {
         'Cache-Control': 'no-cache',
         ...(download
-          ? { 'Content-Disposition': `attachment; filename="wedding-film.mp4"` }
+          ? { 'Content-Disposition': `attachment; filename="${path.basename(filmPath)}"` }
           : {}),
       },
     }, (error) => (error ? reject(error) : resolve()));
   });
 }
 
-adminRouter.get('/admin/film/video', requireAdmin, async (req, res, next) => {
-  const film = await existingFilm();
-  if (!film) return next();
-  try {
-    await sendFilm(res, film.path, { download: false });
-  } catch (error) {
-    next(error);
-  }
-});
+async function serveFilm(req, res, next, download) {
+  const target = filmPath(req.params.id);
+  if (!target) return next();
 
-adminRouter.get('/admin/film/download', requireAdmin, async (req, res, next) => {
-  const film = await existingFilm();
-  if (!film) return next();
   try {
-    await sendFilm(res, film.path, { download: true });
-  } catch (error) {
-    next(error);
+    await fs.stat(target);
+  } catch {
+    return next();
   }
+
+  try {
+    return await sendFilm(res, target, { download });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+adminRouter.get('/admin/film/:id/video', requireAdmin, (req, res, next) =>
+  serveFilm(req, res, next, false));
+
+adminRouter.get('/admin/film/:id/download', requireAdmin, (req, res, next) =>
+  serveFilm(req, res, next, true));
+
+adminRouter.post('/admin/film/:id/delete', requireAdmin, async (req, res) => {
+  const removed = await deleteFilm(req.params.id);
+  res.status(removed ? 200 : 404).json({ ok: removed });
 });
 
 adminRouter.get('/admin/qr.png', requireAdmin, async (req, res) => {

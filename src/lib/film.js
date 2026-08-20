@@ -56,7 +56,7 @@ export function fontFor(text) {
   return ARABIC.test(String(text ?? '')) ? FONTS.arabic : FONTS.latin;
 }
 
-const INK = {
+export const INK = {
   cream: '#f7ecd9',
   gold: '#e6c88a',
   dim: '#c3ae8d',
@@ -84,7 +84,7 @@ export function trim(value, limit) {
 }
 
 /** เรนเดอร์ข้อความหนึ่งก้อนเป็นภาพโปร่งใส คืนทั้งบัฟเฟอร์และขนาดที่ได้จริง */
-async function ink(text, {
+export async function ink(text, {
   size,
   colour = INK.cream,
   width = FRAME_WIDTH - 320,
@@ -135,7 +135,7 @@ function centred(layers, { data, info }, top) {
  * สร้างครั้งเดียวแล้วใช้ซ้ำทุกเฟรม ไม่งั้นหนัง 800 เฟรมต้องสุ่มจุดสองล้านจุดใหม่ทุกใบ
  */
 let grainCache = null;
-async function grain() {
+export async function grain() {
   if (grainCache) return grainCache;
   const pixels = Buffer.allocUnsafe(FRAME_WIDTH * FRAME_HEIGHT);
   for (let i = 0; i < pixels.length; i += 1) pixels[i] = 121 + Math.floor(Math.random() * 14);

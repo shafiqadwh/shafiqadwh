@@ -190,6 +190,15 @@
     "music_choose": "Pilih fail muzik",
     "music_none": "Belum ada muzik",
     "music_remove": "Buang muzik",
-    "takes_long": "Kerja ini mengambil masa berpuluh minit. Anda boleh tutup halaman ini dan kembali kemudian."
+    "takes_long": "Kerja ini mengambil masa berpuluh minit. Anda boleh tutup halaman ini dan kembali kemudian.",
+    "style": "Gaya filem",
+    "style_cinema": "Panggung — satu gambar penuh skrin",
+    "style_wall": "Dinding gambar — polaroid bertaburan",
+    "gallery": "Filem yang telah dibuat",
+    "gallery_empty": "Belum ada filem dibuat",
+    "delete": "Padam",
+    "confirm_delete": "Padam filem ini secara kekal?",
+    "deleted": "Telah dipadam",
+    "with_music": "Ada muzik latar"
   }
 }

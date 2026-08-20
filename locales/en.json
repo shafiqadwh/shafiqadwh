@@ -190,6 +190,15 @@
     "music_choose": "Choose a music file",
     "music_none": "No music yet",
     "music_remove": "Remove the music",
-    "takes_long": "This takes tens of minutes. You can close this page and come back later."
+    "takes_long": "This takes tens of minutes. You can close this page and come back later.",
+    "style": "Film style",
+    "style_cinema": "Cinema — one photo, full screen",
+    "style_wall": "Photo wall — polaroids scattered",
+    "gallery": "Films you have made",
+    "gallery_empty": "No films made yet",
+    "delete": "Delete",
+    "confirm_delete": "Delete this film for good?",
+    "deleted": "Deleted",
+    "with_music": "With music"
   }
 }

@@ -17,6 +17,7 @@ const {
   photoFrame, textCard, openingCard, wishCard, captionLayer,
 } = await import('../src/lib/film.js');
 const { buildTimeline, dedupe } = await import('../src/lib/film-plan.js');
+const { wallFrame, SLOTS } = await import('../src/lib/film-wall.js');
 const { stillClip, concatClips, alreadyDone } = await import('../src/lib/film-encode.js');
 const { FFMPEG, FFPROBE } = await import('../src/lib/media.js');
 
@@ -240,6 +241,54 @@ test('a clip half-written by an interrupted run is never mistaken for a finished
   await fs.writeFile(stub, Buffer.alloc(10));
   assert.equal(await alreadyDone(stub), false);
   assert.equal(await alreadyDone(path.join(work, 'missing.mp4')), false);
+});
+
+test('the wall style lays a photo wall out at exactly one frame size', async () => {
+  const one = path.join(dataDir, 'wall-a.jpg');
+  const two = path.join(dataDir, 'wall-b.jpg');
+  await makeJpeg(one, { width: 900, height: 1200, colour: '#3d6b8a' });
+  await makeJpeg(two, { width: 1200, height: 900, colour: '#8a5f3b' });
+
+  const neighbours = Array.from({ length: SLOTS }, () => ({ photoPath: one, name: 'พี่หนึ่ง' }));
+  const built = await wallFrame({ neighbours, hot: { photoPath: two, name: 'أحمد' } });
+
+  const meta = await sharp(built.png).metadata();
+  assert.equal(meta.width, FRAME_WIDTH, 'wall frames join with cinema clips, so sizes must match');
+  assert.equal(meta.height, FRAME_HEIGHT);
+});
+
+test('a video in the wall style gets a real hole to play through', async () => {
+  // เจอจริงตอนพัฒนา: เจาะรูด้วยสี่เหลี่ยมโปร่งใส ซึ่ง dest-out ไม่ลบอะไรเลย
+  // แล้วรูที่เจาะในตัวการ์ดก็ยังถูกถมกลับด้วยพื้นกำแพงตอนประกอบชั้นสุดท้าย
+  // ผลคือได้การ์ดขาวเปล่า วิดีโอเล่นอยู่ข้างหลังแต่ไม่มีทางทะลุขึ้นมาให้เห็น
+  const photo = path.join(dataDir, 'wall-hole.jpg');
+  await makeJpeg(photo, { width: 900, height: 1200, colour: '#4a7a5f' });
+
+  const neighbours = Array.from({ length: 6 }, () => ({ photoPath: photo, name: 'แขก' }));
+  const built = await wallFrame({
+    neighbours,
+    hot: { photoPath: photo, name: 'คนถ่ายวิดีโอ' },
+    hotIsVideo: true,
+  });
+
+  const { data, info } = await sharp(built.png).ensureAlpha().raw()
+    .toBuffer({ resolveWithObject: true });
+  const alphaAt = (x, y) => data[(y * info.width + x) * info.channels + 3];
+
+  const { left, top, width, height } = built.window;
+  assert.ok(width > 100 && height > 100, 'the window must be big enough to see the video in');
+  assert.equal(alphaAt(left + Math.round(width / 2), top + Math.round(height / 2)), 0,
+    'the middle of the window must be see-through');
+  assert.equal(alphaAt(20, 20), 255, 'and the wall around it must stay solid');
+  assert.equal(alphaAt(left - 12, top + Math.round(height / 2)), 255,
+    'the polaroid border beside the window stays solid too');
+
+  // ภาพนิ่งต้องไม่มีรู ไม่งั้นจะเห็นพื้นดำทะลุตรงกลางการ์ด
+  const still = await wallFrame({ neighbours, hot: { photoPath: photo, name: 'แขก' } });
+  const solid = await sharp(still.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const middle = ((top + Math.round(height / 2)) * solid.info.width + left + Math.round(width / 2))
+    * solid.info.channels;
+  assert.equal(solid.data[middle + 3], 255, 'a photo card must have no hole punched in it');
 });
 
 test('the film never contains the QR code', async () => {

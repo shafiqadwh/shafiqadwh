@@ -17,7 +17,7 @@ export function readDeck() {
   const db = new Database(config.paths.db, { readonly: true, fileMustExist: true });
   try {
     const items = db.prepare(`
-      SELECT id, kind, stored_name, playback_name, bytes, width, height, duration, uploader
+      SELECT id, kind, stored_name, playback_name, thumb_name, bytes, width, height, duration, uploader
       FROM items
       WHERE status = 'visible'
       ORDER BY id ASC
@@ -82,6 +82,16 @@ export function hashFile(filePath) {
     stream.on('error', reject);
     stream.on('end', () => resolve(hash.digest('hex')));
   });
+}
+
+/**
+ * รูปย่อของ item นี้ ถ้ามี
+ *
+ * โหมดกำแพงวางรูปสิบกว่าใบต่อเฟรม ถ้าอ่านไฟล์เต็มทุกใบทุกเฟรม การประกอบหนัง
+ * จะช้าขึ้นหลายเท่าโดยที่ตาคนดูไม่เห็นความต่าง เพราะการ์ดกว้างไม่กี่ร้อยพิกเซล
+ */
+export function thumbFor(item) {
+  return item.thumb_name ? path.join(config.paths.derived, item.thumb_name) : null;
 }
 
 /** ไฟล์จริงของ item นี้ — ใช้ตัวที่แปลงแล้วถ้ามี เหมือนที่ /media ทำ */

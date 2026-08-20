@@ -97,6 +97,7 @@ export const config = {
     public: path.join(rootDir, 'public'),
     // หนังงานแต่งที่ export แล้ว กับเพลงคลอที่แอดมินอัพโหลดผ่านหน้าเว็บ
     export: path.join(dataDir, 'export'),
+    films: path.join(dataDir, 'export', 'films'),
     music: path.join(dataDir, 'music'),
   },
 

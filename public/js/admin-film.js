@@ -17,9 +17,9 @@
   const bar = document.getElementById('film-bar');
   const phaseLine = document.getElementById('film-phase');
   const detailLine = document.getElementById('film-detail');
-  const result = document.getElementById('film-result');
-  const video = document.getElementById('film-video');
-  const madeLine = document.getElementById('film-made');
+  const list = document.getElementById('film-list');
+  const emptyLine = document.getElementById('film-empty');
+  const countTag = document.getElementById('film-count');
   const musicName = document.getElementById('film-music-name');
   const musicFile = document.getElementById('film-music-file');
   const musicRemove = document.getElementById('film-music-remove');
@@ -78,15 +78,7 @@
       detailLine.textContent = '';
     }
 
-    // หนังพร้อมแล้ว — โชว์ตัวเล่นทันทีโดยไม่ต้องให้ผู้ใช้รีเฟรชหน้าเอง
-    if (status.film) {
-      result.hidden = false;
-      // ต่อท้ายด้วยเวลาที่ทำเสร็จ บังคับให้เบราว์เซอร์โหลดของใหม่หลังสร้างซ้ำ
-      const fresh = `/admin/film/video?v=${encodeURIComponent(status.film.madeAt)}`;
-      if (video.getAttribute('src') !== fresh) video.setAttribute('src', fresh);
-      madeLine.textContent = `${t('made_at', { when: new Date(status.film.madeAt).toLocaleString() })} · ${status.film.size}`;
-      startButton.textContent = t('rebuild');
-    }
+    paintGallery(status.films ?? []);
 
     if (status.music) {
       musicName.textContent = `${status.music.name} · ${status.music.size}`;
@@ -101,6 +93,86 @@
 
     schedule(running ? FAST_MS : SLOW_MS);
   }
+
+  /**
+   * วาดรายการหนังใหม่เฉพาะเมื่อรายชื่อเปลี่ยนจริง
+   *
+   * ถ้าวาดใหม่ทุกครั้งที่ poll ตัวเล่นวีดีโอจะถูกสร้างใหม่ทุกไม่กี่วินาที
+   * ใครที่กำลังดูหนังอยู่จะโดนดีดกลับไปเริ่มต้นใหม่ตลอดเวลา
+   */
+  let painted = '';
+  function paintGallery(films) {
+    const signature = films.map((film) => film.id).join('|');
+    if (signature === painted) return;
+    painted = signature;
+
+    countTag.textContent = String(films.length);
+    emptyLine.hidden = films.length > 0;
+    list.textContent = '';
+
+    for (const film of films) {
+      const item = document.createElement('li');
+      item.className = 'film__item';
+      item.dataset.id = film.id;
+
+      const player = document.createElement('video');
+      player.className = 'film__video';
+      player.controls = true;
+      player.preload = 'none';
+      player.playsInline = true;
+      player.src = `/admin/film/${encodeURIComponent(film.id)}/video`;
+
+      const meta = document.createElement('div');
+      meta.className = 'film__meta';
+      const tag = document.createElement('span');
+      tag.className = 'film__tag';
+      tag.textContent = t(film.style === 'wall' ? 'style_wall' : 'style_cinema');
+      const when = document.createElement('span');
+      when.className = 'film__note';
+      when.textContent = `${new Date(film.madeAt).toLocaleString()} · ${film.size}`
+        + (film.music ? ` · ${t('with_music')}` : '');
+      meta.append(tag, when);
+
+      const actions = document.createElement('div');
+      actions.className = 'film__actions';
+      const download = document.createElement('a');
+      download.className = 'button button--tiny';
+      download.href = `/admin/film/${encodeURIComponent(film.id)}/download`;
+      download.setAttribute('download', '');
+      download.textContent = t('download');
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'button button--tiny button--danger film__delete';
+      remove.textContent = t('delete');
+      actions.append(download, remove);
+
+      item.append(player, meta, actions);
+      list.append(item);
+    }
+  }
+
+  // ลบหนัง — ผูกไว้ที่รายการทั้งก้อน ปุ่มที่ถูกสร้างใหม่ทีหลังจึงใช้ได้ด้วย
+  list.addEventListener('click', async (event) => {
+    const button = event.target.closest('.film__delete');
+    if (!button) return;
+
+    const item = button.closest('.film__item');
+    if (!item || !window.confirm(t('confirm_delete'))) return;
+
+    button.disabled = true;
+    try {
+      const response = await fetch(`/admin/film/${encodeURIComponent(item.dataset.id)}/delete`, { method: 'POST' });
+      if (response.ok) {
+        item.remove();
+        painted = '';        // บังคับให้วาดใหม่รอบหน้า จะได้นับจำนวนถูก
+      } else {
+        button.disabled = false;
+      }
+    } catch {
+      button.disabled = false;
+    }
+    refresh();
+  });
 
   async function refresh() {
     try {

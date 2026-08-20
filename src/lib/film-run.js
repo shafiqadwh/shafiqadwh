@@ -4,9 +4,10 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { translator } from '../i18n.js';
 import { acquireLock } from './film-lock.js';
-import { readDeck, dedupe, buildTimeline, sourceFor } from './film-plan.js';
+import { readDeck, dedupe, buildTimeline, sourceFor, thumbFor } from './film-plan.js';
 import { photoFrame, openingCard, closingCard, wishCard, captionLayer } from './film.js';
-import { stillClip, videoClip, concatClips, mixMusic, alreadyDone } from './film-encode.js';
+import { SLOTS, wallFrame } from './film-wall.js';
+import { stillClip, videoClip, wallVideoClip, concatClips, mixMusic, alreadyDone } from './film-encode.js';
 
 /**
  * เดินงาน export หนังทั้งเรื่อง — ใช้ร่วมกันทั้งปุ่มในหน้าเว็บและสคริปต์ที่รันผ่าน ssh
@@ -18,6 +19,8 @@ import { stillClip, videoClip, concatClips, mixMusic, alreadyDone } from './film
  * ฝั่งเว็บเก็บลงไฟล์สถานะให้หน้าแอดมิน poll อ่าน
  */
 
+export const STYLES = ['cinema', 'wall'];
+
 export const DEFAULTS = {
   seconds: 6,
   maxVideoSeconds: 30,
@@ -25,12 +28,21 @@ export const DEFAULTS = {
   motion: false,
   keepDuplicates: false,
   limit: 0,
+  style: 'cinema',
 };
 
-export function defaultPaths() {
+/** ชื่อไฟล์ของหนังเรื่องหนึ่ง — มีเวลากับรูปแบบอยู่ในชื่อ เรียงตามเวลาได้จากชื่อเลย */
+export function filmName(style, when = new Date()) {
+  const stamp = when.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  return `film-${stamp}-${style}.mp4`;
+}
+
+export function pathsFor(style) {
   return {
-    out: path.join(config.paths.export, 'wedding-film.mp4'),
-    work: path.join(config.paths.export, 'parts'),
+    out: path.join(config.paths.films, filmName(style)),
+    // คลิปย่อยต้องแยกตามรูปแบบ ไม่งั้นคลิปของโหมดโรงหนังจะถูกเอาไปใช้ซ้ำ
+    // ในหนังโหมดกำแพง เพราะชื่อไฟล์ชนกันพอดี แล้วได้หนังที่ปนกันสองแบบ
+    work: path.join(config.paths.export, 'parts', style),
   };
 }
 
@@ -48,12 +60,34 @@ export function beNice() {
   }
 }
 
-async function buildClip(entry, index, options, t) {
+async function buildClip(entry, index, options, t, wall) {
   const stem = String(index).padStart(4, '0');
   const clipPath = path.join(options.work, `${stem}-${entry.key}.mp4`);
   if (await alreadyDone(clipPath)) return { clipPath, skipped: true };
 
   const framePath = path.join(options.work, `${stem}-${entry.key}.png`);
+
+  // ── โหมดกำแพง ────────────────────────────────────────────────────────────
+  //
+  // การ์ดเปิดกับการ์ดปิดยังเป็นการ์ดข้อความเต็มจอเหมือนเดิม เพราะเป็นจังหวะเปิด
+  // และปิดเรื่อง ส่วนคำอวยพรที่ไม่ได้แนบรูปก็ยังเป็นการ์ดข้อความ — กำแพงมีไว้โชว์รูป
+  if (options.style === 'wall' && (entry.kind === 'image' || entry.kind === 'video')) {
+    const built = await wall.frame(entry, entry.kind === 'video');
+    await fs.writeFile(framePath, built.png);
+
+    if (entry.kind === 'video') {
+      await wallVideoClip(sourceFor(entry.item), clipPath, {
+        framePath,
+        window: built.window,
+        seconds: options.maxVideoSeconds,
+      });
+    } else {
+      await stillClip(framePath, clipPath, { seconds: options.seconds, motion: false });
+    }
+
+    await fs.rm(framePath, { force: true });
+    return { clipPath };
+  }
 
   if (entry.kind === 'video') {
     // คำบรรยายของวิดีโอเป็นชั้นโปร่งใสที่ ffmpeg เอาไปวางทับ ไม่ใช่เฟรมเต็ม
@@ -89,6 +123,32 @@ async function buildClip(entry, index, options, t) {
   return { clipPath };
 }
 
+/**
+ * ตัวประกอบเฟรมกำแพง — จำรายการรูปทั้งหมดไว้ แล้วหยิบเพื่อนบ้านรอบ ๆ ใบไฮไลท์
+ *
+ * เพื่อนบ้านเลื่อนไปตามใบที่กำลังไฮไลท์ กำแพงจึงค่อย ๆ เปลี่ยนไปทั้งเรื่อง
+ * ไม่ใช่กองเดิมนิ่ง ๆ ตั้งแต่ต้นจนจบ แต่ก็ไม่กระโดดทั้งจอทุกเฟรมเพราะเลื่อนทีละใบ
+ */
+function makeWallPainter(timeline) {
+  const media = timeline.filter((entry) => entry.kind === 'image' || entry.kind === 'video');
+  const face = (entry) => ({
+    photoPath: thumbFor(entry.item) ?? sourceFor(entry.item),
+    name: entry.name,
+  });
+
+  return {
+    async frame(entry, isVideo) {
+      const at = media.indexOf(entry);
+      const neighbours = [];
+      for (let step = 1; neighbours.length < SLOTS && step <= media.length; step += 1) {
+        const pick = media[(at + step) % media.length];
+        if (pick !== entry) neighbours.push(face(pick));
+      }
+      return wallFrame({ neighbours, hot: face(entry), hotIsVideo: isVideo });
+    },
+  };
+}
+
 /** ตรวจว่าเรนเดอร์ตัวหนังสือได้จริงก่อน ไม่ใช่ไปพังตอนนาทีที่สี่สิบ */
 export async function preflight() {
   try {
@@ -100,7 +160,8 @@ export async function preflight() {
 }
 
 export async function runExport(input = {}, onProgress = () => {}) {
-  const options = { ...DEFAULTS, ...defaultPaths(), ...input };
+  const style = STYLES.includes(input.style) ? input.style : DEFAULTS.style;
+  const options = { ...DEFAULTS, ...pathsFor(style), ...input, style };
   const lock = await acquireLock(options.source ?? 'cli');
 
   try {
@@ -121,6 +182,9 @@ export async function runExport(input = {}, onProgress = () => {}) {
     const removed = before - deck.items.length;
 
     const timeline = buildTimeline(deck, options);
+
+    // กำแพงต้องรู้ว่ารอบ ๆ ใบไฮไลท์มีรูปอะไรบ้าง ใช้รูปย่อเพราะมีสิบกว่าใบต่อเฟรม
+    const wall = makeWallPainter(timeline);
     const counts = {
       photos: timeline.filter((entry) => entry.kind === 'image').length,
       videos: timeline.filter((entry) => entry.kind === 'video').length,
@@ -134,7 +198,7 @@ export async function runExport(input = {}, onProgress = () => {}) {
     const clips = [];
     const started = Date.now();
     for (const [index, entry] of timeline.entries()) {
-      const { clipPath } = await buildClip(entry, index, options, t);
+      const { clipPath } = await buildClip(entry, index, options, t, wall);
       clips.push(clipPath);
 
       const done = index + 1;
@@ -161,7 +225,7 @@ export async function runExport(input = {}, onProgress = () => {}) {
     }
 
     const { size } = await fs.stat(options.out);
-    return { out: options.out, work: options.work, bytes: size, counts };
+    return { out: options.out, work: options.work, bytes: size, counts, style: options.style };
   } finally {
     await lock.release();
   }
