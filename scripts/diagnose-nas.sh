@@ -214,6 +214,40 @@ if [ "$PROXY_CODE" = "200" ]; then
   esac
 fi
 
+# ── 9. DNS สาธารณะยังชี้มาที่ไอพีบ้านตอนนี้ไหม (ข้อนี้คือตัวที่ทำให้ 5G เข้าไม่ได้) ──
+step "9. DNS สาธารณะของ $HOSTNAME_TO_TEST เทียบกับไอพี WAN ตอนนี้"
+
+pick_ipv4() { grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1; }
+
+PUBLIC_DNS=""
+if command -v nslookup >/dev/null 2>&1; then
+  PUBLIC_DNS="$(nslookup "$HOSTNAME_TO_TEST" 1.1.1.1 2>/dev/null \
+    | awk '/^Name:/ {seen=1} seen && /Address/ {print}' | pick_ipv4)"
+fi
+[ -n "$PUBLIC_DNS" ] || PUBLIC_DNS="$(getent hosts "$HOSTNAME_TO_TEST" 2>/dev/null | pick_ipv4)"
+
+WAN_IP=""
+for URL in https://api.ipify.org https://ifconfig.me/ip https://1.1.1.1/cdn-cgi/trace; do
+  WAN_IP="$(curl -sS -m 8 --noproxy "*" "$URL" 2>/dev/null | pick_ipv4)"
+  [ -n "$WAN_IP" ] && break
+done
+
+if [ -z "$PUBLIC_DNS" ]; then
+  bad "ถาม DNS สาธารณะไม่ได้เลย — ยังสรุปข้อนี้ไม่ได้"
+  info "ลองเองจากมือถือ: nslookup $HOSTNAME_TO_TEST 1.1.1.1"
+elif [ -z "$WAN_IP" ]; then
+  bad "หาไอพี WAN ตอนนี้ไม่ได้ — DNS สาธารณะตอบ $PUBLIC_DNS แต่ไม่มีอะไรให้เทียบ"
+  info "ดูไอพีจริงที่ MikroTik: IP → Addresses (อินเทอร์เฟซ WAN)"
+elif [ "$PUBLIC_DNS" = "$WAN_IP" ]; then
+  ok "ตรงกันที่ $WAN_IP — แขกที่ใช้ 4G/5G จะวิ่งมาถูกบ้าน"
+else
+  bad "ไม่ตรงกัน — DNS ตอบ $PUBLIC_DNS แต่ไอพีบ้านตอนนี้คือ $WAN_IP"
+  info "นี่คือสาเหตุที่ในบ้านเข้าได้ (AdGuard rewrite ชี้ 192.168.2.2 ตรง ๆ)"
+  info "แต่จาก 4G/5G เข้าไม่ได้ — ระเบียนวิ่งไปหาไอพีของคนอื่นไปแล้ว"
+  info "แก้: Cloudflare → DNS → แก้ระเบียน A ของ $HOSTNAME_TO_TEST เป็น $WAN_IP (เมฆเทา)"
+  info "แล้วรอ TTL หมดอายุ ค่อยตรวจซ้ำด้วยสคริปต์นี้"
+fi
+
 # ── สรุป ────────────────────────────────────────────────────────────────────
 printf '\n═══════════════════════════════════════════════════════════\n'
 if [ "$FAILED" -eq 0 ]; then
