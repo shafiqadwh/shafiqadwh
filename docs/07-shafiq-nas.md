@@ -522,16 +522,61 @@ sudo ./scripts/cloudflare-ddns.sh
 
 **Control Panel → Task Scheduler → Create → Scheduled Task → User-defined script**
 
+จะมี 3 แท็บ ต้องกรอกให้ครบทั้งสาม
+
+**แท็บ General**
+
 | ช่อง | ค่า |
 |---|---|
 | Task | `cloudflare-ddns` |
-| User | `root` |
-| Schedule | ทุกวัน · **Repeat every 5 minutes** (First run 00:00, Last run 23:55) |
-| Run command | `/volume1/docker/wedding-share/scripts/cloudflare-ddns.sh --quiet` |
+| User | **`root`** ⚠️ ต้องเป็น root — ไฟล์ `.env` สิทธิ์ 600 ผู้ใช้ธรรมดาอ่านไม่ได้ แล้วงานจะล้มเงียบ ๆ |
+| Enabled | ติ๊กไว้ |
 
-ติ๊ก **"Send run details by email"** แบบ *only when the script terminates abnormally*
-โหมด `--quiet` เงียบสนิทตอนไม่มีอะไรเปลี่ยน จะส่งเมลก็ต่อเมื่อแก้ระเบียนจริงหรือมีปัญหา
-— ไม่ใช่เมลทุก 5 นาที
+**แท็บ Schedule**
+
+| ช่อง | ค่า |
+|---|---|
+| Date | **Run on the following date** → Repeat: **Daily** |
+| Time → First run time | `00:00` |
+| Time → **Frequency** | **Every 5 minutes** ← หัวใจของข้อนี้ อยู่ในดรอปดาวน์ ไม่ต้องเขียน cron เอง |
+| Time → Last run time | `23:55` |
+
+> ถ้าไม่เห็นช่อง Frequency แปลว่ายังเลือก **Daily** ไม่ครบ — ช่องนี้จะโผล่ก็ต่อเมื่อ
+> ตั้งเป็นทำซ้ำทุกวันแล้วเท่านั้น
+
+**แท็บ Task Settings**
+
+Run command → User-defined script — วางบรรทัดเดียวนี้
+
+```
+/volume1/docker/wedding-share/scripts/cloudflare-ddns.sh --quiet >> /volume1/docker/wedding-share/ddns.log 2>&1
+```
+
+ติ๊ก **Send run details by email** และติ๊กย่อย
+**"Send run details only when the script terminates abnormally"** ด้วย
+
+> ⚠️ เข้าใจให้ตรงกันว่าเมลจะมาเมื่อไหร่: สคริปต์ออกด้วยรหัส 0 ทั้งตอนที่แก้ระเบียนสำเร็จ
+> และตอนที่ไม่มีอะไรต้องแก้ — **เมลจะมาเฉพาะตอนมีปัญหาจริง** เช่น โทเคนหมดอายุ
+> เน็ตล่ม หรือเจอไอพี CG-NAT ส่วนตอนที่มันแก้ระเบียนให้เรียบร้อย **จะไม่มีเมล**
+> ให้ไปดูใน `ddns.log` แทน ซึ่งเป็นพฤติกรรมที่ต้องการ — ไม่งั้นได้เมลทุก 5 นาที
+
+**ดูว่าทำงานจริงไหม**
+
+กด **Run** ในหน้า Task Scheduler ทันทีหนึ่งครั้ง อย่ารอถึงรอบถัดไป แล้วเช็ก
+
+```bash
+cat /volume1/docker/wedding-share/ddns.log     # ว่างเปล่า = ปกติ ไม่มีอะไรต้องแก้
+sudo ./scripts/cloudflare-ddns.sh --check      # ต้องออกด้วยรหัส 0
+```
+
+`--quiet` เงียบสนิทตอนไม่มีอะไรเปลี่ยน **log ที่ว่างเปล่าคือผลลัพธ์ที่ถูกต้อง**
+วันไหนไอพีเปลี่ยน จะมีบรรทัดเดียวโผล่มาพร้อมวันเวลา
+
+```
+[2026-08-29 06:35]   ✓ wedding.shafiq-lap.com : 49.49.209.227 → 49.49.212.8
+```
+
+> อยากเห็นเดี๋ยวนั้นว่ามันทำงานถูก ให้รันมือแบบไม่ใส่ `--quiet` — จะเห็นครบทั้ง 6 ขั้น
 
 ### สิ่งที่สคริปต์ยอมและไม่ยอมทำ
 

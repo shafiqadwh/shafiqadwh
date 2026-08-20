@@ -281,3 +281,29 @@ test('--setup-from deletes the token file once it is stored', async () => {
       new RegExp(`CLOUDFLARE_API_TOKEN=${TOKEN}$`, 'm'));
   });
 });
+
+// --quiet มีไว้ให้ตัวตั้งเวลาต่อท้ายลงไฟล์ log บรรทัดที่หลุดออกมาจึงต้องบอกเวลาด้วย
+test('--quiet stamps the time on the lines it does print', async () => {
+  await withMock({ record: { ...RECORD } }, async ({ call }) => {
+    const run = await call(['--quiet', '--ip', '203.0.113.7']);
+    assert.equal(run.code, 0, run.stderr);
+    assert.match(run.stdout, /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\]/);
+    assert.match(run.stdout, /49\.49\.211\.220 → 203\.0\.113\.7/);
+  });
+});
+
+test('--quiet says nothing at all when the record is already right', async () => {
+  await withMock({ record: { ...RECORD, content: '203.0.113.7' } }, async ({ call }) => {
+    const run = await call(['--quiet', '--ip', '203.0.113.7']);
+    assert.equal(run.code, 0);
+    assert.equal(run.stdout + run.stderr, '', 'log ต้องว่าง ไม่งั้นได้เมลทุก 5 นาที');
+  });
+});
+
+test('a failure in --quiet still reaches the log, with a timestamp', async () => {
+  await withMock({ record: { ...RECORD } }, async ({ call }) => {
+    const run = await call(['--quiet', '--ip', '192.168.2.2']);
+    assert.equal(run.code, 1);
+    assert.match(run.stderr, /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\]/);
+  });
+});
