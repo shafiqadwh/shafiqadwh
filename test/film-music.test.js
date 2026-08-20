@@ -272,6 +272,27 @@ test('the fetch script verifies hashes instead of trusting the download', async 
   assert.match(script, /\.part/, 'ต้องโหลดลงชื่อชั่วคราวก่อนแล้วค่อยเปลี่ยนชื่อ');
 });
 
+test('the fetch script retries the transient failures archive.org actually returns', async () => {
+  const script = await fs.readFile(new URL('../scripts/fetch-music.sh', import.meta.url), 'utf8');
+
+  // ตรวจที่บรรทัดคำสั่งจริง ไม่ใช่ทั้งไฟล์ — ในไฟล์มีคำอธิบายว่าทำไมถึงไม่ใช้
+  // --retry-all-errors อยู่ด้วย การค้นทั้งไฟล์จะไปเจอคำอธิบายนั้นแทนของจริง
+  const line = script.split('\n').find((row) => row.includes('curl -fsSL'));
+  assert.ok(line, 'ไม่เจอบรรทัดที่เรียก curl');
+
+  // เจอจริงบน NAS: 7 ใน 22 เพลงล้มด้วย 500/502 ทั้งที่ยิงซ้ำแล้วไฟล์ยังอยู่ดี
+  // curl ลองใหม่เองได้ ไม่ต้องโยนภาระให้คนไปรันสคริปต์ซ้ำ
+  assert.match(line, /--retry \d/);
+  assert.match(line, /--retry-delay \d/);
+
+  // --retry-all-errors จะลองใหม่กับ 404 ด้วย ซึ่งลองกี่ครั้งก็ไม่หาย
+  // รอเปล่า ๆ แล้วยังกลบสาเหตุที่แท้จริง
+  assert.ok(!line.includes('--retry-all-errors'), 'ห้ามลองใหม่กับความผิดพลาดที่ลองแล้วไม่หาย');
+
+  // -m เป็นเพดานต่อการลองหนึ่งครั้ง ต้องคงไว้ ไม่งั้นโหนดที่ค้างจะแขวนสคริปต์ทิ้งไว้
+  assert.match(line, /-m 300/);
+});
+
 test.after(() => fs.rm(WORK, { recursive: true, force: true }));
 
 /* ---------- สคริปต์โหลดเพลงต้องชี้ไปโฟลเดอร์ที่แอปอ่านจริง ---------- */
