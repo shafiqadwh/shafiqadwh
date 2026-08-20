@@ -11,7 +11,7 @@
 | Router | MikroTik `192.168.2.1` |
 | LAN DNS | AdGuard Home บน NAS (`192.168.2.2:3001`) |
 | Public DNS | Cloudflare zone `shafiq-lap.com` — **DNS only (เมฆเทา)** |
-| Public IP | `49.49.211.220` (เดียวกับ `nas` / `api` / `ha`) |
+| Public IP | **เปลี่ยนเองเป็นระยะ** (3BB ไม่ให้ไอพีคงที่) เดียวกับ `nas` / `api` / `ha` · `scripts/cloudflare-ddns.sh` คอยตามให้ |
 | Certificate | wildcard `*.shafiq-lap.com` ที่มีอยู่แล้ว — **ไม่ต้องออกใหม่** |
 | โฮสต์ของงานนี้ | `wedding.shafiq-lap.com` |
 | พอร์ตบนโฮสต์ | `18090` ผูกกับ `127.0.0.1` เท่านั้น |
@@ -140,13 +140,13 @@ build แล้วรอจน `/healthz` ตอบ
 | # | ที่ไหน | ชื่อ | ค่า |
 |---|---|---|---|
 | 1 | AdGuard Home → Filters → DNS rewrites | `wedding.shafiq-lap.com` | `192.168.2.2` |
-| 2 | Cloudflare → DNS → Add record (A) | `wedding` | `49.49.211.220` · **DNS only (เมฆเทา)** |
+| 2 | Cloudflare → DNS → Add record (A) | `wedding` | ไอพีสาธารณะปัจจุบัน (ดูค่าเดียวกับ `nas` / `api` / `ha`) · **DNS only (เมฆเทา)** |
 
 ตรวจว่าได้ค่า **ต่างกัน**
 
 ```bash
 nslookup wedding.shafiq-lap.com 192.168.2.2   # ต้องได้ 192.168.2.2
-nslookup wedding.shafiq-lap.com 8.8.8.8       # ต้องได้ 49.49.211.220
+nslookup wedding.shafiq-lap.com 8.8.8.8       # ต้องได้ไอพีสาธารณะปัจจุบัน
 ```
 
 > บทเรียนจาก `jellyfin.shafiq-lap.com` ที่มีแต่ระเบียน LAN → ใช้ได้ในบ้าน
@@ -539,10 +539,17 @@ sudo ./scripts/cloudflare-ddns.sh
 | Date | **Run on the following date** → Repeat: **Daily** |
 | Time → First run time | `00:00` |
 | Time → **Frequency** | **Every 5 minutes** ← หัวใจของข้อนี้ อยู่ในดรอปดาวน์ ไม่ต้องเขียน cron เอง |
-| Time → Last run time | `23:55` |
+| Time → Last run time | **`23:55`** — ห้ามปล่อยไว้ที่ค่าที่ดรอปดาวน์เลือกมาให้ |
 
 > ถ้าไม่เห็นช่อง Frequency แปลว่ายังเลือก **Daily** ไม่ครบ — ช่องนี้จะโผล่ก็ต่อเมื่อ
 > ตั้งเป็นทำซ้ำทุกวันแล้วเท่านั้น
+
+> ⚠️ **กับดักของ Last run time** — ค่านี้คือ "เวลาสุดท้ายของวันที่ยอมให้รัน" ไม่ใช่
+> "รันครั้งสุดท้ายเมื่อไหร่" ตั้งไว้ `00:59` งานจะรันทุกนาที**เฉพาะชั่วโมงแรกของวัน**
+> แล้วเงียบไปจนถึงเที่ยงคืนถัดไป เคยเกิดขึ้นจริงมาแล้ว
+>
+> **ดูให้ออกจากคอลัมน์ `Next run time` ในตาราง** ถ้ามันขึ้นเป็น **วันพรุ่งนี้ 00:00**
+> ทั้งที่ตั้งให้รันทุกนาที แปลว่าติดกับดักนี้อยู่ ถ้าตั้งถูก มันจะขึ้นเป็นเวลาอีกไม่กี่นาทีข้างหน้าของวันนี้
 
 **แท็บ Task Settings**
 
