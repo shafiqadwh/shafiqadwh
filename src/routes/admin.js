@@ -20,6 +20,9 @@ import {
 } from '../repo.js';
 import { formatBytes, randomName } from '../lib/media.js';
 import { deleteFilm, filmPath, jobStatus, listFilms, startJob } from '../lib/film-job.js';
+import { deleteTrack, listLibrary, resolveTracks, totalSeconds } from '../lib/music.js';
+import { buildTimeline, planLength } from '../lib/film-plan.js';
+import { readDeck } from '../lib/film-plan.js';
 import {
   KINDS as PAPER_KINDS,
   deletePaper,
@@ -277,16 +280,25 @@ adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extende
     return Math.min(Math.max(Math.round(value), low), high);
   };
 
+  // ฟอร์มส่ง style มาได้หลายค่า express รวมเป็น array ให้เอง แต่ค่าเดียวยังเป็นสตริง
+  const asked = [req.body.style ?? []].flat();
+  const styles = asked.filter((style) => STYLES.includes(style));
+
+  // เพลงที่เลือกมาต้องผ่านการตรวจว่ามีไฟล์อยู่จริง ไม่ใช่ส่ง path จากฟอร์มเข้า ffmpeg
+  const tracks = await resolveTracks([req.body.track ?? []].flat());
+
   try {
     const status = await startJob({
-      // รูปแบบต้องอยู่ในรายการที่รู้จักเท่านั้น ค่าที่ส่งมาเองจะตกไปเป็นค่าเริ่มต้น
-      style: STYLES.includes(req.body.style) ? req.body.style : 'cinema',
-      seconds: clamp(req.body.seconds, 6, 2, 20),
+      styles: styles.length > 0 ? styles : ['cinema'],
+      // ว่างไว้ = ให้โปรแกรมคิดเองจากจำนวนรูป
+      seconds: req.body.seconds ? clamp(req.body.seconds, 6, 2, 20) : 'auto',
       maxVideoSeconds: clamp(req.body.maxVideoSeconds, 30, 5, 120),
       motion: req.body.motion === 'on',
-      music: req.body.music === 'on' && music ? music.path : null,
+      tracks,
+      // ไฟล์เพลงเดี่ยวแบบเดิมยังใช้ได้ ถ้าไม่ได้เลือกเพลงจากคลัง
+      music: tracks.length === 0 && req.body.music === 'on' && music ? music.path : null,
     });
-    res.json({ ok: true, state: status.state });
+    res.json({ ok: true, state: status.state, styles: status.styles, tracks: tracks.length });
   } catch (error) {
     res.status(error.code === 'BUSY' || error.code === 'LOCKED' ? 409 : 500)
       .json({ error: error.message });
@@ -307,11 +319,27 @@ adminRouter.post('/admin/film/music', requireAdmin, (req, res) => {
       return res.status(400).json({ error: req.t('errors.unsupported_type', { name: req.file.originalname }) });
     }
 
-    await fs.mkdir(config.paths.music, { recursive: true });
-    const existing = await currentMusic();
-    if (existing) await fs.rm(existing.path, { force: true });
+    // เพลงที่อัพเองเข้ากลุ่ม "ของฉัน" ในคลัง — เก็บได้หลายเพลง ไม่ทับของเดิม
+    const mine = path.join(config.paths.music, 'library', 'mine');
+    await fs.mkdir(mine, { recursive: true });
 
-    const target = path.join(config.paths.music, `song${ext}`);
+    // ชื่อไฟล์เอามาจากผู้ใช้ จึงตัดเหลือแค่ชื่อฐานและอักขระที่ปลอดภัย
+    // ส่วนนามสกุลใช้ตัวที่เราตรวจแล้วข้างบน ไม่ใช่ที่ผู้ใช้ส่งมา
+    const stem = path.basename(req.file.originalname, path.extname(req.file.originalname))
+      .replace(/[^\p{L}\p{N} ._-]/gu, '')
+      .trim()
+      .slice(0, 60) || 'song';
+
+    let target = path.join(mine, `${stem}${ext}`);
+    for (let n = 2; n < 100; n += 1) {
+      try {
+        await fs.access(target);
+        target = path.join(mine, `${stem} (${n})${ext}`);
+      } catch {
+        break;
+      }
+    }
+
     await fs.rename(req.file.path, target).catch(async () => {
       // tmp กับ music อยู่คนละ mount point ได้ ก็ตกไปใช้การคัดลอกแทน
       await fs.copyFile(req.file.path, target);
@@ -370,6 +398,30 @@ async function serveFilm(req, res, next, download) {
     return next(error);
   }
 }
+
+/**
+ * ตัวเลขที่คำนวณไว้ก่อนกดปุ่ม — กี่วินาทีต่อรูป หนังจะยาวเท่าไร ต้องใช้เพลงยาวรวมเท่าไร
+ * อ่านอย่างเดียว ไม่เริ่มเรนเดอร์อะไรทั้งนั้น
+ */
+adminRouter.get('/admin/film/plan', requireAdmin, async (req, res) => {
+  const deck = readDeck();
+  const timeline = buildTimeline(deck, { limit: 0 });
+  const plan = planLength(timeline, { seconds: 'auto' });
+  const picked = await totalSeconds([req.query.track ?? []].flat());
+
+  res.json({
+    ...plan,
+    videos: timeline.filter((entry) => entry.kind === 'video').length,
+    wishes: timeline.filter((entry) => entry.kind === 'wish').length,
+    pickedSeconds: picked,
+    library: await listLibrary(),
+  });
+});
+
+adminRouter.post('/admin/film/track/delete', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
+  const removed = await deleteTrack(req.body.id);
+  res.status(removed ? 200 : 404).json({ ok: removed });
+});
 
 adminRouter.get('/admin/film/:id/video', requireAdmin, (req, res, next) =>
   serveFilm(req, res, next, false));

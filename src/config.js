@@ -146,6 +146,10 @@ export const config = {
     videoEncoder: str('VIDEO_ENCODER', 'libx264'),
     encoderArgs: words('VIDEO_ENCODER_ARGS', '-preset veryfast -crf 24 -profile:v high'),
     decoderArgs: words('VIDEO_DECODER_ARGS', ''),
+    // หนังงานแต่งใช้ตัวเข้ารหัสตัวเดียวกับคิวแปลงวิดีโอ (VIDEO_ENCODER) แต่คนละ
+    // อาร์กิวเมนต์ — หนังคือของที่เก็บไว้ตลอดชีวิต จึงให้คุณภาพสูงกว่า (crf 20 ไม่ใช่ 24)
+    // ⚠️ เปลี่ยนเป็น nvenc ต้องเปลี่ยนคู่กันเสมอ เพราะ nvenc ไม่รู้จัก -crf ต้องใช้ -cq
+    filmEncoderArgs: words('FILM_ENCODER_ARGS', '-preset veryfast -crf 20 -profile:v high -level 4.1'),
     ffmpegPath: str('FFMPEG_PATH', ''),
     ffprobePath: str('FFPROBE_PATH', ''),
   },

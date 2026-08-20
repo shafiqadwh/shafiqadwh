@@ -200,7 +200,22 @@
     "delete": "حذف",
     "confirm_delete": "حذف هذا الفيلم نهائياً؟",
     "deleted": "تم الحذف",
-    "with_music": "مع موسيقى"
+    "with_music": "مع موسيقى",
+    "plan_loading": "جارٍ حساب مدة الفيلم…",
+    "plan_summary": "{photos} صورة · {videos} مقطعاً · {seconds} ثوانٍ لكل صورة · نحو {minutes} دقيقة",
+    "seconds_auto": "تلقائي",
+    "library_empty": "لا توجد موسيقى بعد — شغّلوا scripts/fetch-music.sh على الخادم أو ارفعوا ملفاتكم",
+    "music_none_picked": "لم تُختَر موسيقى (سيكون الفيلم صامتاً)",
+    "music_enough": "{n} مقطوعة · {minutes} دقيقة — تكفي الفيلم كاملاً",
+    "music_short": "{n} مقطوعة · {minutes} دقيقة من {need} دقيقة — والباقي يُعاد",
+    "theme_mine": "موسيقاي",
+    "theme_wedding": "حفل زفاف",
+    "theme_graduation": "حفل تخرّج",
+    "theme_birthday": "عيد ميلاد",
+    "theme_calm": "موسيقى هادئة",
+    "both_styles": "إنشاء الشكلين معاً",
+    "style_of": "الشكل {index} من {total}",
+    "theme_summary": "{n} مقطوعة · {minutes} دقيقة"
   },
   "paper": {
     "heading": "ملفات PDF بعد الحفل",

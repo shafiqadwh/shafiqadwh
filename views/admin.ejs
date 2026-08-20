@@ -76,22 +76,27 @@
   </div>
 
   <form class="film__form" id="film-form">
+    <%# ติ๊กได้ทั้งสองแบบ กดครั้งเดียวได้สองเรื่อง — ค่าเริ่มต้นคือทั้งคู่ %>
     <div class="film__styles">
       <span class="film__legend"><%= t('film.style') %></span>
       <label class="film__style">
-        <input type="radio" name="style" value="cinema" checked>
+        <input type="checkbox" name="style" value="cinema" checked>
         <span><%= t('film.style_cinema') %></span>
       </label>
       <label class="film__style">
-        <input type="radio" name="style" value="wall">
+        <input type="checkbox" name="style" value="wall" checked>
         <span><%= t('film.style_wall') %></span>
       </label>
     </div>
 
+    <%# ตัวเลขที่โปรแกรมคิดเอง เติมด้วย JavaScript จาก /admin/film/plan %>
+    <p class="film__plan" id="film-plan"><%= t('film.plan_loading') %></p>
+
     <div class="film__options">
       <label class="film__field">
         <span><%= t('film.seconds') %></span>
-        <input type="number" name="seconds" value="6" min="2" max="20" inputmode="numeric">
+        <input type="number" name="seconds" value="" min="2" max="20" inputmode="numeric"
+               placeholder="<%= t('film.seconds_auto') %>">
       </label>
       <label class="film__field">
         <span><%= t('film.video_seconds') %></span>
@@ -101,21 +106,19 @@
         <input type="checkbox" name="motion">
         <span><%= t('film.motion') %></span>
       </label>
-      <label class="film__toggle">
-        <input type="checkbox" name="music" id="film-use-music">
-        <span><%= t('film.use_music') %></span>
-      </label>
     </div>
 
+    <%# คลังเพลง — วาดด้วย JavaScript เพราะรายการเปลี่ยนได้ตลอดเวลาที่อัพเพลงเพิ่ม %>
     <div class="film__music">
-      <span class="film__music-name" id="film-music-name"><%= t('film.music_none') %></span>
+      <h3 class="film__subtitle"><%= t('film.music') %></h3>
+      <p class="film__note" id="film-music-empty" hidden><%= t('film.library_empty') %></p>
+      <div class="film__themes" id="film-themes"></div>
+      <p class="film__line" id="film-picked"></p>
+
       <label class="button button--tiny button--ghost">
         <%= t('film.music_choose') %>
         <input type="file" id="film-music-file" accept="audio/*" hidden>
       </label>
-      <button type="button" class="button button--tiny button--ghost" id="film-music-remove" hidden>
-        <%= t('film.music_remove') %>
-      </button>
       <p class="film__note"><%= t('film.music_hint') %></p>
     </div>
 

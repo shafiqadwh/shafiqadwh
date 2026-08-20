@@ -200,7 +200,22 @@
     "delete": "Padam",
     "confirm_delete": "Padam filem ini secara kekal?",
     "deleted": "Telah dipadam",
-    "with_music": "Ada muzik latar"
+    "with_music": "Ada muzik latar",
+    "plan_loading": "Mengira panjang filem…",
+    "plan_summary": "{photos} gambar · {videos} video · {seconds} saat setiap gambar · kira-kira {minutes} minit",
+    "seconds_auto": "Automatik",
+    "library_empty": "Belum ada lagu — jalankan scripts/fetch-music.sh pada NAS atau muat naik sendiri",
+    "music_none_picked": "Belum pilih lagu (filem akan senyap)",
+    "music_enough": "{n} lagu dipilih · {minutes} minit — cukup untuk keseluruhan filem",
+    "music_short": "{n} lagu · {minutes} minit daripada {need} minit — selebihnya diulang",
+    "theme_mine": "Lagu saya",
+    "theme_wedding": "Majlis perkahwinan",
+    "theme_graduation": "Majlis konvokesyen",
+    "theme_birthday": "Hari lahir",
+    "theme_calm": "Muzik tenang",
+    "both_styles": "Buat kedua-dua gaya",
+    "style_of": "Gaya {index} daripada {total}",
+    "theme_summary": "{n} lagu · {minutes} minit"
   },
   "paper": {
     "heading": "Dokumen PDF selepas majlis",

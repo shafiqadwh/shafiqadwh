@@ -132,8 +132,9 @@ test('several films are kept side by side, newest first, and can be deleted one 
 test('the film style is limited to the two the renderer knows', async () => {
   const source = await fs.readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
   const block = source.slice(source.indexOf("adminRouter.post('/admin/film/start'"));
-  assert.match(block, /STYLES\.includes\(req\.body\.style\)/,
-    'a made-up style must fall back, not reach the renderer');
+  // หนึ่งงานทำได้หลายรูปแบบแล้ว แต่ทุกค่ายังต้องผ่านรายการที่ตัวเรนเดอร์รู้จัก
+  assert.match(block, /filter\(\(style\) => STYLES\.includes\(style\)\)/,
+    'a made-up style must be filtered out, not reach the renderer');
 });
 
 test('two exports can never run at once, even from different containers', async () => {
@@ -183,7 +184,7 @@ test('numbers typed into the form are clamped before they reach ffmpeg', async (
   assert.match(block, /clamp\(req\.body\.maxVideoSeconds/);
 });
 
-test('the music upload only accepts audio, and keeps one file at a time', async () => {
+test('the music upload only accepts audio, and builds up a library', async () => {
   const notAudio = new FormData();
   notAudio.append('music', new Blob([Buffer.alloc(64)]), 'song.exe');
   const refused = await asAdmin('/admin/film/music', { method: 'POST', body: notAudio });
@@ -197,13 +198,47 @@ test('the music upload only accepts audio, and keeps one file at a time', async 
   second.append('music', new Blob([Buffer.alloc(2048, 2)]), 'second.m4a');
   assert.equal((await asAdmin('/admin/film/music', { method: 'POST', body: second })).status, 200);
 
-  // อัพเพลงใหม่ต้องทับของเดิม ไม่ใช่กองสะสมจนไม่รู้ว่าเพลงไหนถูกใช้
-  const names = await fs.readdir(config.paths.music);
-  assert.equal(names.length, 1, `only one song may be kept, found ${names.join(', ')}`);
-  assert.equal(names[0], 'song.m4a');
+  // เจ้าของเลือกได้หลายเพลงต่อหนึ่งเรื่องแล้ว เพลงที่อัพจึงต้องสะสม ไม่ใช่ทับกัน
+  const mine = path.join(config.paths.music, 'library', 'mine');
+  const names = (await fs.readdir(mine)).sort();
+  assert.deepEqual(names, ['first.mp3', 'second.m4a']);
 
-  await asAdmin('/admin/film/music/delete', { method: 'POST' });
-  assert.deepEqual(await fs.readdir(config.paths.music), []);
+  // ชื่อไฟล์มาจากผู้ใช้ ต้องถูกล้างจนพาไปที่อื่นในดิสก์ไม่ได้
+  const nasty = new FormData();
+  nasty.append('music', new Blob([Buffer.alloc(2048, 3)]), '../../escape.mp3');
+  assert.equal((await asAdmin('/admin/film/music', { method: 'POST', body: nasty })).status, 200);
+  const after = await fs.readdir(mine);
+  assert.ok(after.every((name) => !name.includes('/')), after.join(', '));
+  assert.ok(after.some((name) => name.startsWith('escape')), 'the file must land inside mine/');
+
+  // ชื่อซ้ำต้องไม่ทับของเดิมเงียบ ๆ
+  const again = new FormData();
+  again.append('music', new Blob([Buffer.alloc(2048, 4)]), 'first.mp3');
+  assert.equal((await asAdmin('/admin/film/music', { method: 'POST', body: again })).status, 200);
+  assert.ok((await fs.readdir(mine)).includes('first (2).mp3'));
+});
+
+test('a track can be deleted, but only one the owner uploaded', async () => {
+  const mine = path.join(config.paths.music, 'library', 'mine');
+  await fs.mkdir(mine, { recursive: true });
+  await fs.writeFile(path.join(mine, 'bye.mp3'), Buffer.alloc(2048, 9));
+
+  const body = (id) => new URLSearchParams({ id });
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+  const gone = await asAdmin('/admin/film/track/delete', { method: 'POST', headers, body: body('mine/bye.mp3') });
+  assert.equal(gone.status, 200);
+  assert.ok(!(await fs.readdir(mine)).includes('bye.mp3'));
+
+  // เพลงที่มากับโปรแกรมลบจากหน้าเว็บไม่ได้ — fetch-music.sh จะโหลดกลับมาอยู่ดี
+  const kept = await asAdmin('/admin/film/track/delete', { method: 'POST', headers, body: body('wedding/x.mp3') });
+  assert.equal(kept.status, 404);
+
+  // และชื่อที่พาออกนอกคลังต้องไม่ถูกแตะเลย
+  for (const id of ['../../.env', 'mine/../../.env', 'mine/x.txt']) {
+    const refused = await asAdmin('/admin/film/track/delete', { method: 'POST', headers, body: body(id) });
+    assert.equal(refused.status, 404, id);
+  }
 });
 
 test('the admin page ships the film panel and its script', async () => {

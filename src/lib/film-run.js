@@ -1,13 +1,21 @@
 import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 import { translator } from '../i18n.js';
 import { acquireLock } from './film-lock.js';
-import { readDeck, dedupe, buildTimeline, sourceFor, thumbFor } from './film-plan.js';
+import { FFPROBE } from './media.js';
+import { readDeck, dedupe, buildTimeline, planLength, sourceFor, thumbFor } from './film-plan.js';
 import { photoFrame, openingCard, closingCard, wishCard, captionLayer } from './film.js';
 import { SLOTS, wallFrame } from './film-wall.js';
-import { stillClip, videoClip, wallVideoClip, concatClips, mixMusic, alreadyDone } from './film-encode.js';
+import {
+  stillClip, videoClip, wallVideoClip, concatClips, mixMusic, alreadyDone,
+  buildMusicBed, encoderSignature,
+} from './film-encode.js';
+
+const run = promisify(execFile);
 
 /**
  * เดินงาน export หนังทั้งเรื่อง — ใช้ร่วมกันทั้งปุ่มในหน้าเว็บและสคริปต์ที่รันผ่าน ssh
@@ -22,9 +30,11 @@ import { stillClip, videoClip, wallVideoClip, concatClips, mixMusic, alreadyDone
 export const STYLES = ['cinema', 'wall'];
 
 export const DEFAULTS = {
-  seconds: 6,
+  // 'auto' = ให้โปรแกรมคิดจากจำนวนรูปเอง (planLength) ใส่ตัวเลขทับได้ถ้าอยากกำหนดเอง
+  seconds: 'auto',
   maxVideoSeconds: 30,
   music: null,
+  tracks: null,
   motion: false,
   keepDuplicates: false,
   limit: 0,
@@ -57,6 +67,44 @@ export function beNice() {
     os.setPriority(process.pid, os.constants.priority.PRIORITY_LOW);
   } catch {
     // บางแซนด์บ็อกซ์ไม่ให้เรียก setpriority เลย ไม่ใช่เรื่องคอขาดบาดตาย
+  }
+}
+
+/**
+ * ล้างคลิปเก่าทิ้งถ้าตัวเข้ารหัสเปลี่ยนไปจากรอบก่อน
+ *
+ * `alreadyDone()` ข้ามคลิปที่ทำไว้แล้วเพื่อให้รันซ้ำเร็ว แต่ concat แบบ `-c copy`
+ * ต้องการคลิปที่พารามิเตอร์เหมือนกันทุกใบ ถ้าเจ้าของเปลี่ยน VIDEO_ENCODER ใน .env
+ * ทั้งที่ยังมีคลิปเก่าค้างอยู่ จะได้หนังที่ภาพค้างกลางเรื่อง โดยไม่มี error สักบรรทัด
+ */
+async function dropStaleParts(workDir) {
+  const stampPath = path.join(workDir, 'encoder.json');
+  const now = encoderSignature();
+
+  let before = null;
+  try {
+    before = JSON.parse(await fs.readFile(stampPath, 'utf8')).encoder;
+  } catch {
+    // ยังไม่เคยมีลายเซ็น — โฟลเดอร์ว่างหรือมาจากเวอร์ชันก่อนหน้า
+  }
+
+  if (before && before !== now) {
+    await fs.rm(workDir, { recursive: true, force: true });
+    await fs.mkdir(workDir, { recursive: true });
+  }
+  await fs.writeFile(stampPath, JSON.stringify({ encoder: now })).catch(() => {});
+}
+
+/** ความยาวจริงของไฟล์ที่ต่อเสร็จแล้ว ถ้าอ่านไม่ได้ให้ใช้ค่าที่ประมาณไว้ */
+async function filmSeconds(filePath, fallback) {
+  try {
+    const { stdout } = await run(FFPROBE, [
+      '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', filePath,
+    ], { timeout: 20000 });
+    const seconds = Number(stdout.trim());
+    return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -162,7 +210,11 @@ export async function preflight() {
 export async function runExport(input = {}, onProgress = () => {}) {
   const style = STYLES.includes(input.style) ? input.style : DEFAULTS.style;
   const options = { ...DEFAULTS, ...pathsFor(style), ...input, style };
-  const lock = await acquireLock(options.source ?? 'cli');
+
+  // ผู้เรียกที่ถือล็อกอยู่แล้วส่งมาได้ — งานที่ทำหลายรูปแบบต่อกันต้องถือใบเดียว
+  // ตลอดทั้งงาน ไม่ใช่ปล่อยแล้วขอใหม่ระหว่างเรื่อง ซึ่งเปิดช่องให้งานอื่นแทรกกลางคัน
+  const borrowed = input.lock ?? null;
+  const lock = borrowed ?? await acquireLock(options.source ?? 'cli');
 
   try {
     if (options.music) await fs.access(options.music);
@@ -170,6 +222,7 @@ export async function runExport(input = {}, onProgress = () => {}) {
 
     await fs.mkdir(options.work, { recursive: true });
     await fs.mkdir(path.dirname(options.out), { recursive: true });
+    await dropStaleParts(options.work);
 
     const t = translator(config.i18n.default);
     const deck = readDeck();
@@ -183,6 +236,11 @@ export async function runExport(input = {}, onProgress = () => {}) {
 
     const timeline = buildTimeline(deck, options);
 
+    // ความยาวคิดครั้งเดียวที่นี่ แล้วใช้ค่าชุดเดียวกันทั้งการเรนเดอร์และการตัดเพลง
+    // ผู้เรียกส่ง plan เข้ามาได้ เพื่อให้หนังสองแบบจากปุ่มเดียวยาวเท่ากันเป๊ะ
+    const plan = options.plan ?? planLength(timeline, options);
+    options.seconds = plan.secondsPerPhoto;
+
     // กำแพงต้องรู้ว่ารอบ ๆ ใบไฮไลท์มีรูปอะไรบ้าง ใช้รูปย่อเพราะมีสิบกว่าใบต่อเฟรม
     const wall = makeWallPainter(timeline);
     const counts = {
@@ -192,6 +250,8 @@ export async function runExport(input = {}, onProgress = () => {}) {
       attached: timeline.filter((entry) => entry.wish).length,
       duplicatesRemoved: removed,
       total: timeline.length,
+      secondsPerPhoto: plan.secondsPerPhoto,
+      filmSeconds: plan.totalSeconds,
     };
     onProgress({ phase: 'building', counts, done: 0, total: timeline.length });
 
@@ -213,20 +273,35 @@ export async function runExport(input = {}, onProgress = () => {}) {
     }
 
     onProgress({ phase: 'joining', counts, done: timeline.length, total: timeline.length });
-    const silent = options.music ? path.join(options.work, 'film-silent.mp4') : options.out;
+
+    // เพลย์ลิสต์ที่ผู้ใช้เลือกมาก่อน ถ้าไม่มีค่อยตกไปที่ไฟล์เพลงเดี่ยวแบบเดิม
+    const wantsMusic = (options.tracks && options.tracks.length > 0) || options.music;
+    const silent = wantsMusic ? path.join(options.work, 'film-silent.mp4') : options.out;
     await fs.rm(silent, { force: true });
     await concatClips(clips, silent, options.work);
 
-    if (options.music) {
+    if (wantsMusic) {
       onProgress({ phase: 'music', counts, done: timeline.length, total: timeline.length });
+
+      // ความยาวจริงของหนังที่ได้ ไม่ใช่ค่าที่ประมาณไว้ — เพลงจะได้จบพอดีกับภาพ
+      const played = await filmSeconds(silent, plan.totalSeconds);
+      let bed = options.music;
+      if (options.tracks && options.tracks.length > 0) {
+        bed = options.bed ?? await buildMusicBed(
+          options.tracks, played, path.join(options.work, 'music-bed.m4a'), options.work,
+        );
+      }
+
       await fs.rm(options.out, { force: true });
-      await mixMusic(silent, options.music, options.out);
+      await mixMusic(silent, bed, options.out);
       await fs.rm(silent, { force: true });
     }
 
     const { size } = await fs.stat(options.out);
-    return { out: options.out, work: options.work, bytes: size, counts, style: options.style };
+    return {
+      out: options.out, work: options.work, bytes: size, counts, style: options.style, plan,
+    };
   } finally {
-    await lock.release();
+    if (!borrowed) await lock.release();
   }
 }

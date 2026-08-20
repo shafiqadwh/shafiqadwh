@@ -200,7 +200,22 @@
     "delete": "ลบ",
     "confirm_delete": "ลบหนังเรื่องนี้ถาวร?",
     "deleted": "ลบแล้ว",
-    "with_music": "มีเพลงคลอ"
+    "with_music": "มีเพลงคลอ",
+    "plan_loading": "กำลังคำนวณความยาว…",
+    "plan_summary": "{photos} รูป · {videos} วิดีโอ · โปรแกรมเลือก {seconds} วินาทีต่อรูป · หนังยาวประมาณ {minutes} นาที",
+    "seconds_auto": "อัตโนมัติ",
+    "library_empty": "ยังไม่มีเพลงในคลัง — รัน scripts/fetch-music.sh บน NAS หรืออัพเพลงเอง",
+    "music_none_picked": "ยังไม่ได้เลือกเพลง (หนังจะเงียบ)",
+    "music_enough": "เลือกแล้ว {n} เพลง · {minutes} นาที — พอดีทั้งเรื่อง",
+    "music_short": "เลือกแล้ว {n} เพลง · {minutes} นาที จากที่ต้องการ {need} นาที — ที่เหลือจะวนเพลงเดิม",
+    "theme_mine": "เพลงของฉัน",
+    "theme_wedding": "งานแต่งงาน",
+    "theme_graduation": "งานรับปริญญา",
+    "theme_birthday": "งานวันเกิด",
+    "theme_calm": "บรรเลงเบา ๆ",
+    "both_styles": "สร้างทั้งสองแบบ",
+    "style_of": "แบบที่ {index} จาก {total}",
+    "theme_summary": "{n} เพลง · {minutes} นาที"
   },
   "paper": {
     "heading": "เอกสาร PDF หลังงาน",

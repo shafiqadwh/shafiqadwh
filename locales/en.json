@@ -200,7 +200,22 @@
     "delete": "Delete",
     "confirm_delete": "Delete this film for good?",
     "deleted": "Deleted",
-    "with_music": "With music"
+    "with_music": "With music",
+    "plan_loading": "Working out the length…",
+    "plan_summary": "{photos} photos · {videos} videos · {seconds} seconds each · about {minutes} minutes long",
+    "seconds_auto": "Automatic",
+    "library_empty": "No music yet — run scripts/fetch-music.sh on the NAS, or upload your own",
+    "music_none_picked": "No music picked (the film will be silent)",
+    "music_enough": "{n} tracks · {minutes} minutes — enough for the whole film",
+    "music_short": "{n} tracks · {minutes} of the {need} minutes needed — the rest loops",
+    "theme_mine": "My music",
+    "theme_wedding": "Wedding",
+    "theme_graduation": "Graduation",
+    "theme_birthday": "Birthday",
+    "theme_calm": "Quiet instrumental",
+    "both_styles": "Make both styles",
+    "style_of": "Style {index} of {total}",
+    "theme_summary": "{n} tracks · {minutes} min"
   },
   "paper": {
     "heading": "PDF documents",

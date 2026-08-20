@@ -150,3 +150,54 @@ export function buildTimeline({ items, messages }, options) {
   return timeline;
 }
 
+/**
+ * คิดเองว่ารูปหนึ่งใบควรอยู่กี่วินาที และหนังทั้งเรื่องจะยาวเท่าไร
+ *
+ * งานหนึ่งมีรูปกี่ใบเดาไม่ได้ล่วงหน้า — งานเล็กอาจมีสามสิบใบ งานที่แขกพันคนอาจมี
+ * สองพันใบ ถ้าตั้งวินาทีต่อใบตายตัวไว้ อย่างใดอย่างหนึ่งจะพัง: หกวินาทีกับสามสิบใบ
+ * ได้หนังสามนาทีที่จบก่อนคนจะนั่งลง ส่วนหกวินาทีกับสองพันใบได้หนังสามชั่วโมง
+ *
+ * จึงไล่ระดับตามจำนวนรูป แล้ว **คุมไว้ในช่วง 4–8 วินาที** สองด้าน
+ * ต่ำกว่าสี่วินาทีคนดูไม่ทันว่าในรูปมีใคร สูงกว่าแปดวินาทีรูปเดียวก็เริ่มน่าเบื่อ
+ */
+export const SECONDS_FLOOR = 4;
+export const SECONDS_CEILING = 8;
+
+export function secondsForPhotos(count) {
+  if (count <= 0) return SECONDS_CEILING;
+  if (count <= 40) return SECONDS_CEILING;
+  if (count <= 120) return 7;
+  if (count <= 300) return 6;
+  if (count <= 700) return 5;
+  return SECONDS_FLOOR;
+}
+
+/**
+ * ความยาวรวมที่คาดไว้ คิดจากไทม์ไลน์จริง ไม่ใช่จำนวนรูปคูณ ๆ กันคร่าว ๆ
+ *
+ * ค่าพื้นของการ์ดเปิด/ปิด/คำอวยพรต้องตรงกับที่ `buildClip()` ใน film-run.js ใช้จริง
+ * ไม่งั้นตัวเลขที่โชว์ก่อนกดปุ่มจะไม่ตรงกับหนังที่ได้ ซึ่งแย่กว่าไม่โชว์เลย
+ */
+export function planLength(timeline, { seconds = 'auto', maxVideoSeconds = 30 } = {}) {
+  const photos = timeline.filter((entry) => entry.kind === 'image').length;
+  const perPhoto = seconds === 'auto' || !Number.isFinite(Number(seconds))
+    ? secondsForPhotos(photos)
+    : Math.min(Math.max(Math.round(Number(seconds)), 1), 60);
+
+  let total = 0;
+  for (const entry of timeline) {
+    if (entry.kind === 'video') {
+      // ความยาวจริงอยู่ในฐานข้อมูลแล้ว ไม่ต้องเปิดไฟล์ซ้ำ คลิปที่ยาวเกินถูกตัด
+      const duration = Number(entry.item?.duration) || maxVideoSeconds;
+      total += Math.min(duration, maxVideoSeconds);
+    } else if (entry.kind === 'opening' || entry.kind === 'closing') {
+      total += Math.max(perPhoto, 7);
+    } else if (entry.kind === 'wish') {
+      total += Math.max(perPhoto, 8);
+    } else {
+      total += perPhoto;
+    }
+  }
+
+  return { secondsPerPhoto: perPhoto, totalSeconds: Math.round(total), photos };
+}

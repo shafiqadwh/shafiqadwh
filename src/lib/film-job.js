@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import { lockOwner } from './film-lock.js';
-import { runExport } from './film-run.js';
+import { acquireLock, lockOwner } from './film-lock.js';
+import { STYLES, runExport } from './film-run.js';
 
 /**
  * งาน export ที่สั่งจากหน้าแอดมิน — เก็บสถานะไว้บนดิสก์ ไม่ใช่แค่ในหน่วยความจำ
@@ -175,6 +175,17 @@ export async function startJob(options = {}) {
     throw error;
   }
 
+  const styles = (Array.isArray(options.styles) && options.styles.length > 0)
+    ? options.styles.filter((style) => STYLES.includes(style))
+    : [STYLES.includes(options.style) ? options.style : 'cinema'];
+
+  // ถือล็อกให้ได้ *ก่อน* ประกาศว่างานเริ่มแล้ว
+  //
+  // ถ้าปล่อยให้ runExport ไปขอเอง จะมีช่วงสั้น ๆ ที่สถานะบอกว่า "กำลังทำ" แต่ยัง
+  // ไม่มีใครถือล็อก แล้ว jobStatus() จะอ่านว่างานตายกลางทางและรายงานว่า "หยุดกลางทาง"
+  // ทั้งที่เพิ่งกดปุ่มไปเมื่อครู่ — เห็นชัดตอนทำหลายรูปแบบ เพราะมี await คั่นก่อนเริ่มจริง
+  const held = await acquireLock('web');
+
   update({
     state: 'running',
     phase: 'starting',
@@ -182,46 +193,85 @@ export async function startJob(options = {}) {
     total: 0,
     counts: null,
     error: null,
+    styleIndex: 0,
+    styleTotal: styles.length,
+    styles,
     startedAt: new Date().toISOString(),
     finishedAt: null,
   });
 
-  runExport({ ...options, source: 'web' }, (progress) => {
-    update({
-      phase: progress.phase,
-      done: progress.done ?? 0,
-      total: progress.total ?? 0,
-      counts: progress.counts ?? current?.counts ?? null,
-      secondsLeft: progress.secondsLeft ?? null,
-    });
-  })
-    .then(async (result) => {
+  void runAll(styles, options, held);
+  return current;
+}
+
+/**
+ * เรนเดอร์ทีละรูปแบบจนครบ แล้วค่อยรายงานว่าเสร็จ
+ *
+ * ความยาวกับเตียงเสียงคิด **ครั้งเดียว** ในรอบแรก แล้วส่งต่อให้รอบถัดไปใช้ซ้ำ —
+ * ไม่งั้นหนังสองเรื่องที่มาจากรูปชุดเดียวกันจะยาวไม่เท่ากันและเพลงคนละชุด
+ * ซึ่งเป็นเรื่องที่คนดูสังเกตเห็นทันทีเมื่อเปิดสองไฟล์เทียบกัน
+ */
+async function runAll(styles, options, held) {
+  const made = [];
+  let shared = {};
+
+  try {
+    for (const [index, style] of styles.entries()) {
+      update({ styleIndex: index, phase: 'starting', done: 0, total: 0 });
+
+      const result = await runExport({ ...options, ...shared, style, source: 'web', lock: held }, (progress) => {
+        update({
+          phase: progress.phase,
+          done: progress.done ?? 0,
+          total: progress.total ?? 0,
+          counts: progress.counts ?? current?.counts ?? null,
+          secondsLeft: progress.secondsLeft ?? null,
+          styleIndex: index,
+        });
+      });
+
       // ไฟล์ข้อมูลข้าง ๆ หนัง บอกว่าเรื่องนี้ใช้รูปแบบไหนและมีอะไรอยู่ข้างใน
       // เก็บไว้ตอนนี้เลย เพราะข้อมูลพวกนี้อ่านย้อนหลังจากตัวไฟล์ mp4 ไม่ได้
       await fs.writeFile(`${result.out}.json`, JSON.stringify({
         madeAt: new Date().toISOString(),
         style: result.style,
         counts: result.counts,
-        seconds: options.seconds ?? null,
-        music: Boolean(options.music),
+        seconds: result.plan?.secondsPerPhoto ?? null,
+        music: Boolean(options.music) || (options.tracks?.length ?? 0) > 0,
+        tracks: options.tracks?.length ?? 0,
       })).catch(() => {});
 
-      update({
-        state: 'done',
-        phase: 'done',
-        bytes: result.bytes,
-        counts: result.counts,
-        finishedAt: new Date().toISOString(),
-      });
-    })
-    .catch((error) => {
-      update({
-        state: 'failed',
-        phase: 'failed',
-        error: error.message,
-        finishedAt: new Date().toISOString(),
-      });
-    });
+      made.push(result);
 
-  return current;
+      // รอบถัดไปใช้ความยาวและเตียงเสียงชุดเดิม ไม่คิดใหม่
+      shared = {
+        plan: result.plan,
+        bed: shared.bed ?? bedFrom(result, options),
+      };
+    }
+
+    update({
+      state: 'done',
+      phase: 'done',
+      bytes: made.reduce((sum, one) => sum + one.bytes, 0),
+      counts: made.at(-1)?.counts ?? null,
+      styleIndex: styles.length,
+      finishedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    update({
+      state: 'failed',
+      phase: 'failed',
+      error: error.message,
+      finishedAt: new Date().toISOString(),
+    });
+  } finally {
+    await held.release().catch(() => {});
+  }
+}
+
+/** เตียงเสียงที่รอบแรกสร้างไว้ อยู่ในโฟลเดอร์งานของรูปแบบนั้น */
+function bedFrom(result, options) {
+  if (!(options.tracks?.length > 0)) return undefined;
+  return path.join(result.work, 'music-bed.m4a');
 }

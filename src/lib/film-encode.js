@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config } from '../config.js';
-import { FFMPEG, probeVideo } from './media.js';
+import { FFMPEG, FFPROBE, probeVideo } from './media.js';
 import { FRAME_WIDTH, FRAME_HEIGHT } from './film.js';
 
 const run = promisify(execFile);
@@ -22,15 +22,31 @@ const run = promisify(execFile);
  */
 
 const FPS = 30;
+
+/**
+ * ตัวเข้ารหัสมาจาก config ไม่ได้ฮาร์ดโค้ดไว้ — ตั้ง `VIDEO_ENCODER=h264_nvenc` ใน `.env`
+ * แล้วทั้งคิวแปลงวิดีโอและหนังจะใช้ GPU ด้วยกัน (ค่าเริ่มต้นคือ libx264 เหมือนเดิมเป๊ะ)
+ *
+ * `-pix_fmt` กับ `-r` อยู่นอกชุดที่ตั้งเองได้ เพราะ concat แบบ `-c copy` ต้องการคลิป
+ * ที่รูปแบบพิกเซลและเฟรมเรตตรงกันทุกใบ ปล่อยให้แก้ได้เมื่อไรก็ได้หนังที่ภาพค้างกลางเรื่อง
+ */
 const VIDEO_ARGS = [
-  '-c:v', 'libx264',
-  '-preset', 'veryfast',
-  '-crf', '20',
-  '-profile:v', 'high',
-  '-level', '4.1',
+  '-c:v', config.media.videoEncoder,
+  ...config.media.filmEncoderArgs,
   '-pix_fmt', 'yuv420p',
   '-r', String(FPS),
 ];
+
+/**
+ * ลายเซ็นของตัวเข้ารหัสที่ใช้อยู่ — เขียนกำกับไว้ในโฟลเดอร์งาน
+ *
+ * `alreadyDone()` ข้ามคลิปที่ทำไว้แล้วเพื่อให้รันซ้ำได้เร็ว แต่ถ้าเจ้าของเปลี่ยน
+ * encoder ใน `.env` ทั้งที่ยังมีคลิปเก่าค้างอยู่ มันจะเอาคลิปคนละชนิดมาต่อกัน
+ * แล้ว `-c copy` จะได้ไฟล์ที่ภาพค้างกลางเรื่องโดยไม่มี error ให้เห็นเลยสักบรรทัด
+ */
+export function encoderSignature() {
+  return [config.media.videoEncoder, ...config.media.filmEncoderArgs, ...config.media.decoderArgs].join(' ');
+}
 const AUDIO_ARGS = ['-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2'];
 const SILENCE = ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000'];
 
@@ -128,7 +144,9 @@ export async function videoClip(sourcePath, outPath, { seconds = 30, captionPath
   }
   chain.push(`${tail}fps=${FPS},${fades(limit)},format=yuv420p[v]`);
 
-  const inputs = ['-i', sourcePath];
+  // อาร์กิวเมนต์ถอดรหัส (เช่น -hwaccel cuda) ต้องมาก่อน -i ของไฟล์ที่จะถอด
+  // วางหลัง -i แล้ว ffmpeg จะเมินเงียบ ๆ ไม่เตือนอะไรเลย
+  const inputs = [...config.media.decoderArgs, '-i', sourcePath];
   if (!hasAudio) inputs.push(...SILENCE);
   else inputs.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
   if (captionPath) inputs.push('-i', captionPath);
@@ -173,7 +191,7 @@ export async function wallVideoClip(sourcePath, outPath, { framePath, window, se
     `[under][2:v]overlay=0:0,fps=${FPS},${fades(limit)},format=yuv420p[v]`,
   ];
 
-  const inputs = ['-i', sourcePath];
+  const inputs = [...config.media.decoderArgs, '-i', sourcePath];
   if (!hasAudio) inputs.push(...SILENCE);
   else inputs.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
   inputs.push('-i', framePath);
@@ -208,6 +226,99 @@ export async function concatClips(clipPaths, outPath, workDir) {
     '-movflags', '+faststart',
     partial,
   ]));
+}
+
+/**
+ * ต่อเพลงหลายเพลงเป็น "เตียงเสียง" หนึ่งเส้นยาวเท่าหนัง
+ *
+ * เจ้าของเลือกกี่เพลงก็ได้ ซ้ำก็ได้ และไม่จำเป็นต้องเลือกให้ยาวพอ — ที่เลือกมาจะถูก
+ * วนซ้ำทั้งชุดจนคลุมทั้งเรื่อง เลือกเพลงเดียวก็ได้พฤติกรรมเดิมคือวนเพลงนั้นทั้งเรื่อง
+ *
+ * ทุกเพลงถูกแปลงเป็น 48 kHz สเตอริโอก่อนต่อ ด้วยเหตุผลเดียวกับที่คลิปวิดีโอทุกใบ
+ * ต้องมีพารามิเตอร์ตรงกัน — concat ที่อินพุตคนละ sample rate ได้เสียงที่เพี้ยน
+ * หรือความยาวไม่ตรงกับที่บอกไว้ ซึ่งจะไปโผล่เป็นเพลงกับภาพหลุดกันตอนท้ายเรื่อง
+ */
+export const BED_CROSSFADE = 4;
+const BED_MAX_SEGMENTS = 40;
+
+export async function buildMusicBed(trackPaths, seconds, outPath, workDir) {
+  if (!Array.isArray(trackPaths) || trackPaths.length === 0) return null;
+
+  // แปลงทุกเพลงให้พารามิเตอร์ตรงกันก่อน แล้ววัดความยาวจริงจากไฟล์ที่แปลงแล้ว
+  const parts = [];
+  for (const [index, source] of trackPaths.entries()) {
+    const part = path.join(workDir, `bed-${String(index).padStart(3, '0')}.m4a`);
+    await fs.rm(part, { force: true });
+    await ffmpeg([
+      '-y', '-i', source,
+      '-vn',                       // ปกอัลบั้มที่ฝังในไฟล์เป็นสตรีมภาพ ต้องทิ้ง
+      '-af', 'aresample=48000',
+      '-ac', '2',
+      ...AUDIO_ARGS,
+      part,
+    ]);
+    const { stdout } = await run(FFPROBE, [
+      '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', part,
+    ], { timeout: 20000 });
+    parts.push({ path: part, seconds: Number(stdout.trim()) || 0 });
+  }
+
+  /*
+   * วนเพลย์ลิสต์ล่วงหน้าให้ยาวคลุมทั้งเรื่อง แล้วเชื่อมทุกรอยต่อด้วย acrossfade
+   *
+   * ตอนแรกใช้ concat ธรรมดาแล้ววนด้วย -stream_loop วัดผลจริงด้วย silencedetect
+   * พบว่า **ทุกรอยต่อมีช่วงเงียบ 3.5–5.3 วินาที** เพราะเพลงเปียโนจบด้วยเสียงที่
+   * ค่อย ๆ หายไป พอเอามาต่อกันดื้อ ๆ จึงได้ความเงียบยาวคาหนังทุกครั้งที่เปลี่ยนเพลง
+   * การไล่เฟดทับกันทำให้เสียงต่อเนื่องจริง และเพราะวนล่วงหน้า รอยต่อของรอบวน
+   * ก็ถูกเชื่อมด้วย ไม่ใช่เชื่อมแต่ในรอบแรกแล้วปล่อยรอยวนโล่ง
+   */
+  const wanted = seconds + BED_CROSSFADE;
+  const chain = [];
+  let covered = 0;
+  for (let i = 0; chain.length < BED_MAX_SEGMENTS && covered < wanted; i += 1) {
+    const part = parts[i % parts.length];
+    chain.push(part);
+    covered += part.seconds - (chain.length > 1 ? BED_CROSSFADE : 0);
+    if (part.seconds <= 0) break; // ไฟล์ที่วัดความยาวไม่ได้ กันลูปไม่รู้จบ
+  }
+
+  const joined = path.join(workDir, 'bed-joined.m4a');
+  await fs.rm(joined, { force: true });
+
+  if (chain.length === 1) {
+    await fs.copyFile(chain[0].path, joined);
+  } else {
+    const filters = [];
+    let label = '[0:a]';
+    for (let i = 1; i < chain.length; i += 1) {
+      const out = i === chain.length - 1 ? '[bed]' : `[x${i}]`;
+      filters.push(`${label}[${i}:a]acrossfade=d=${BED_CROSSFADE}:c1=tri:c2=tri${out}`);
+      label = out;
+    }
+    await ffmpeg([
+      '-y',
+      ...chain.flatMap((part) => ['-i', part.path]),
+      '-filter_complex', filters.join(';'),
+      '-map', '[bed]',
+      ...AUDIO_ARGS,
+      joined,
+    ]);
+  }
+
+  // ยังสั้นกว่าหนังได้ถ้าชนเพดานจำนวนท่อน — วนต่อแล้วตัดที่ความยาวหนัง
+  const fadeAt = Math.max(seconds - BED_CROSSFADE, 0).toFixed(2);
+  await atomically(outPath, (partial) => ffmpeg([
+    '-y',
+    '-stream_loop', '-1', '-i', joined,
+    '-t', String(seconds),
+    '-af', `afade=t=out:st=${fadeAt}:d=${BED_CROSSFADE}`,
+    ...AUDIO_ARGS,
+    partial,
+  ]));
+
+  for (const part of parts) await fs.rm(part.path, { force: true });
+  await fs.rm(joined, { force: true });
+  return outPath;
 }
 
 /**

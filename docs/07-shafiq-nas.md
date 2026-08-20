@@ -667,16 +667,34 @@ docker exec wedding-share ffmpeg -encoders 2>/dev/null | grep nvenc   # ffmpeg �
 
 ### ถ้าวันหนึ่งทำสำเร็จแล้ว
 
-โค้ดรองรับไว้ให้แล้ว ไม่ต้องแก้อะไร เปลี่ยนแค่ `.env`
+โค้ดรองรับไว้ให้แล้วทั้งคิวแปลงวิดีโอและการ export หนัง เปลี่ยนแค่ `.env`
 
 ```env
 VIDEO_ENCODER=h264_nvenc
 VIDEO_ENCODER_ARGS=-preset p4 -cq 24
+FILM_ENCODER_ARGS=-preset p4 -cq 20
 VIDEO_DECODER_ARGS=-hwaccel cuda
 ```
 
-แล้ว `sudo docker compose up -d` ยืนยันผลด้วยการดูว่าคิวเดินเร็วขึ้นจริง
-ไม่ใช่ดูว่าไม่มี error
+⚠️ **ต้องเปลี่ยนอาร์กิวเมนต์คู่กับตัวเข้ารหัสเสมอ** — `libx264` ใช้ `-crf`
+ส่วน `nvenc` ไม่รู้จักคำนี้ ต้องใช้ `-cq` แทน ตั้งตัวเข้ารหัสใหม่แต่ลืมอาร์กิวเมนต์
+ffmpeg จะล้มทันทีตั้งแต่คลิปแรก
+
+`FILM_ENCODER_ARGS` แยกจาก `VIDEO_ENCODER_ARGS` เพราะหนังคือของที่เก็บไว้ตลอดชีวิต
+จึงตั้งคุณภาพสูงกว่าคิวแปลงวิดีโอ (20 แทน 24)
+
+แล้ว `sudo docker compose up -d`
+
+**ยืนยันผลด้วยตัวเลข ไม่ใช่ด้วยการที่ไม่มี error**
+
+```bash
+docker exec wedding-share ffmpeg -encoders 2>/dev/null | grep nvenc   # ต้องเจอก่อน
+docker compose logs -f wedding-share | grep -i fps                     # เทียบ fps ก่อน/หลัง
+```
+
+> ตอนเปลี่ยนตัวเข้ารหัส คลิปเก่าที่ค้างอยู่ใน `export/parts/` จะถูกล้างทิ้งอัตโนมัติ
+> เพราะ concat แบบ `-c copy` ต้องการคลิปที่พารามิเตอร์เหมือนกันทุกใบ
+> เอาคลิปสองชนิดมาต่อกันจะได้หนังที่ภาพค้างกลางเรื่องโดยไม่มี error ให้เห็น
 
 ### สิ่งที่ทำแทนไปแล้ว และได้ผลมากกว่า
 

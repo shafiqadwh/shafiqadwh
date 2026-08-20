@@ -20,10 +20,11 @@
   const list = document.getElementById('film-list');
   const emptyLine = document.getElementById('film-empty');
   const countTag = document.getElementById('film-count');
-  const musicName = document.getElementById('film-music-name');
   const musicFile = document.getElementById('film-music-file');
-  const musicRemove = document.getElementById('film-music-remove');
-  const useMusic = document.getElementById('film-use-music');
+  const planLine = document.getElementById('film-plan');
+  const themesBox = document.getElementById('film-themes');
+  const pickedLine = document.getElementById('film-picked');
+  const libraryEmpty = document.getElementById('film-music-empty');
 
   // ระหว่างงานเดินอยู่ ถามถี่หน่อยเพื่อให้แถบขยับให้เห็น ตอนว่างถามห่าง ๆ พอ
   // เพราะเปิดหน้าแอดมินค้างไว้ทั้งวันแล้วยิงทุกสองวินาทีคือการกวน NAS เปล่า ๆ
@@ -79,18 +80,6 @@
     }
 
     paintGallery(status.films ?? []);
-
-    if (status.music) {
-      musicName.textContent = `${status.music.name} · ${status.music.size}`;
-      musicRemove.hidden = false;
-    } else {
-      musicName.textContent = t('music_none');
-      musicRemove.hidden = true;
-      useMusic.checked = false;
-      useMusic.disabled = true;
-    }
-    if (status.music) useMusic.disabled = false;
-
     schedule(running ? FAST_MS : SLOW_MS);
   }
 
@@ -218,33 +207,96 @@
     schedule(800);
   });
 
+  /* ---------- คลังเพลง กับ ตัวเลขที่โปรแกรมคิดเอง ---------- */
+
+  const minutes = (seconds) => Math.max(1, Math.round(seconds / 60));
+
+  function paintPicked(plan) {
+    const chosen = [...themesBox.querySelectorAll('input[name="track"]:checked')];
+    const have = chosen.reduce((sum, box) => sum + Number(box.dataset.seconds || 0), 0);
+
+    if (chosen.length === 0) {
+      pickedLine.textContent = t('music_none_picked');
+      return;
+    }
+    // ขาดอยู่เท่าไรบอกไปตรง ๆ แต่ไม่ห้ามกด — ระบบวนเพลย์ลิสต์ให้เองอยู่แล้ว
+    pickedLine.textContent = have >= plan.totalSeconds
+      ? t('music_enough', { n: chosen.length, minutes: minutes(have) })
+      : t('music_short', { n: chosen.length, minutes: minutes(have), need: minutes(plan.totalSeconds) });
+  }
+
+  let paintedLibrary = '';
+  async function loadPlan() {
+    let plan;
+    try {
+      const response = await fetch('/admin/film/plan', { headers: { accept: 'application/json' } });
+      if (!response.ok) return;
+      plan = await response.json();
+    } catch {
+      return;
+    }
+
+    planLine.textContent = t('plan_summary', {
+      photos: plan.photos,
+      videos: plan.videos,
+      seconds: plan.secondsPerPhoto,
+      minutes: minutes(plan.totalSeconds),
+    });
+
+    const signature = plan.library.map((group) => `${group.theme}:${group.tracks.length}`).join('|');
+    if (signature !== paintedLibrary) {
+      paintedLibrary = signature;
+      themesBox.textContent = '';
+      libraryEmpty.hidden = plan.library.length > 0;
+
+      for (const group of plan.library) {
+        const box = document.createElement('details');
+        box.className = 'film__theme';
+        const head = document.createElement('summary');
+        const label = window.I18N?.film?.[`theme_${group.theme}`] ?? group.theme;
+        head.textContent = `${label} · ${t('theme_summary', {
+          n: group.tracks.length, minutes: minutes(group.seconds),
+        })}`;
+        box.append(head);
+
+        for (const track of group.tracks) {
+          const row = document.createElement('label');
+          row.className = 'film__track';
+          const tick = document.createElement('input');
+          tick.type = 'checkbox';
+          tick.name = 'track';
+          tick.value = track.id;
+          tick.dataset.seconds = String(track.seconds);
+          const text = document.createElement('span');
+          const mm = Math.floor(track.seconds / 60);
+          const ss = String(track.seconds % 60).padStart(2, '0');
+          text.textContent = `${track.title} · ${mm}:${ss}`;
+          row.append(tick, text);
+          box.append(row);
+        }
+        themesBox.append(box);
+      }
+    }
+
+    paintPicked(plan);
+    themesBox.onchange = () => paintPicked(plan);
+  }
+
   musicFile.addEventListener('change', async () => {
     const file = musicFile.files?.[0];
     if (!file) return;
 
-    musicName.textContent = window.I18N?.common?.loading ?? '…';
     const body = new FormData();
     body.append('music', file);
-
     try {
-      const response = await fetch('/admin/film/music', { method: 'POST', body });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        musicName.textContent = payload.error || t('music_none');
-        return;
-      }
-      useMusic.disabled = false;
-      useMusic.checked = true;
+      await fetch('/admin/film/music', { method: 'POST', body });
     } finally {
       musicFile.value = '';
-      refresh();
+      paintedLibrary = '';   // บังคับให้วาดคลังใหม่ จะได้เห็นเพลงที่เพิ่งอัพ
+      loadPlan();
     }
   });
 
-  musicRemove.addEventListener('click', async () => {
-    await fetch('/admin/film/music/delete', { method: 'POST' }).catch(() => {});
-    refresh();
-  });
-
+  loadPlan();
   refresh();
-})();
+}());
