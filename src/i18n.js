@@ -13,9 +13,9 @@ export const languages = config.i18n.available.map((code) => ({
   code,
   name: catalogues.get(code).lang.name,
   short: catalogues.get(code).lang.short,
-  // ภาษาอาหรับไม่มีธงชาติที่ใช้แทนได้ เพราะไม่ได้ผูกกับประเทศเดียว
-  // ปุ่มของมันจึงใช้ตัวอักษรแทนธง — แต่ละภาษาบอกเองว่ามีธงไหม ไม่ต้องให้ view เดา
-  flag: catalogues.get(code).lang.dir !== 'rtl',
+  // แต่ละภาษาประกาศเองว่ามีธงใน sprite ไหม เดาจาก lang.dir ไม่ได้ —
+  // ภาษา RTL ภาษาถัดไปที่เพิ่มเข้ามาอาจมีธงหรือไม่มีก็ได้ ไม่เกี่ยวกับทิศทางเลย
+  flag: catalogues.get(code).lang.flag !== false,
 }));
 
 function lookup(catalogue, key) {

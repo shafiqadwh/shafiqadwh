@@ -3,6 +3,7 @@
     "code": "en",
     "html": "en",
     "dir": "ltr",
+    "flag": true,
     "name": "English",
     "short": "EN"
   },

@@ -122,6 +122,12 @@ video {
   min-width: 44px;
 }
 
+/* คำชะฮาดะห์บนธงซาอุฯ — ของจริงเป็นอักษรษุลุษ ในเว็บใช้ฟอนต์อาหรับที่เครื่องมี
+   ที่ขนาดปุ่ม 24px มันเล็กจนอ่านไม่ออกอยู่แล้ว เหมือนธงจริงที่ย่อขนาดเท่ากัน */
+.flag-sprite__shahada {
+  font-family: "Noto Naskh Arabic", "Segoe UI", "Geeza Pro", "Traditional Arabic", serif;
+}
+
 .lang__flag {
   width: 24px;
   height: 16px;

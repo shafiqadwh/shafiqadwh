@@ -27,8 +27,8 @@
              title="<%= option.name %>"
              aria-label="<%= option.name %>"
              aria-current="<%= option.code === lang ? 'true' : 'false' %>">
-            <%# ภาษาอาหรับไม่ผูกกับประเทศเดียว จึงไม่มีธงที่ใช้แทนได้อย่างถูกต้อง
-                ปุ่มของมันเป็นตัวอักษรเดี่ยวขนาดเท่ากับธงบวกรหัสของภาษาอื่น %>
+            <%# ภาษาที่ยังไม่มีธงใน sprite ใช้ตัวอักษรเดี่ยวขนาดเท่ากับธงบวกรหัสแทน
+                ไม่ใช่ <use> ที่ชี้ไป symbol ที่ไม่มีอยู่ ซึ่งขึ้นเป็นกล่องว่าง %>
             <% if (option.flag) { %>
               <svg class="lang__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= option.code %>"/></svg>
               <span class="lang__code"><%= option.short %></span>

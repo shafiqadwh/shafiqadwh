@@ -197,8 +197,13 @@ test('the printable QR card carries every language at once', async () => {
   // บล็อกอาหรับต้องเรียงขวาไปซ้ายของตัวเอง แม้หน้าที่ครอบอยู่จะเป็นภาษาไทย
   assert.match(html, /lang="ar" dir="rtl"/, 'the Arabic block runs right to left on paper');
 
-  // ธงที่ไม่มีอยู่จริงจะพิมพ์ออกมาเป็นกล่องสี่เหลี่ยมว่าง ๆ บนกระดาษ
-  assert.doesNotMatch(html, /#flag-ar/, 'Arabic has no flag of its own — it uses a letter');
+  // ธงที่อ้างถึงแต่ไม่มี symbol รองรับ จะพิมพ์ออกมาเป็นกล่องสี่เหลี่ยมว่าง ๆ บนกระดาษ
+  // ตรวจทุกธงที่การ์ดอ้างถึง ไม่ใช่เฉพาะภาษาที่นึกออกตอนเขียนเทสต์
+  const referenced = [...html.matchAll(/href="#flag-([a-z]{2})"/g)].map((m) => m[1]);
+  assert.ok(referenced.includes('ar'), 'Arabic now prints the Saudi flag like the others');
+  for (const code of new Set(referenced)) {
+    assert.ok(html.includes(`id="flag-${code}"`), `the card asks for #flag-${code} but never draws it`);
+  }
 });
 
 test('a guest page tells the browser which way its language runs', async () => {

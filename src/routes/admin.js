@@ -182,9 +182,9 @@ adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
       // แต่ละบล็อกบอกทิศทางของตัวเอง ภาษาอาหรับบนการ์ดที่พิมพ์จึงเรียงขวาไปซ้าย
       // ได้ถูกต้อง แม้หน้าที่ครอบมันอยู่จะเป็นภาษาไทย
       dir: catalogue(code).lang.dir ?? 'ltr',
-      // ภาษาที่ไม่มีธงประจำ (อาหรับ) ใช้ตัวอักษรแทน ไม่ใช่ <use> ที่ชี้ไปยัง
-      // sprite ที่ไม่มีอยู่ ซึ่งพิมพ์ออกมาเป็นกล่องสี่เหลี่ยมว่าง ๆ
-      flag: catalogue(code).lang.dir !== 'rtl',
+      // ภาษาที่ไม่มีธงใน sprite ใช้ตัวอักษรแทน ไม่ใช่ <use> ที่ชี้ไปยัง symbol
+      // ที่ไม่มีอยู่ ซึ่งพิมพ์ออกมาเป็นกล่องสี่เหลี่ยมว่าง ๆ
+      flag: catalogue(code).lang.flag !== false,
       short: catalogue(code).lang.short,
       title: translate('qr.title'),
       step1: translate('qr.step1'),
