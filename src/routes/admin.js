@@ -11,6 +11,7 @@ import {
   deleteMessageRow,
   getItem,
   getMessage,
+  listGuests,
   listItems,
   listMessages,
   setItemStatus,
@@ -19,6 +20,14 @@ import {
 } from '../repo.js';
 import { formatBytes, randomName } from '../lib/media.js';
 import { deleteFilm, filmPath, jobStatus, listFilms, startJob } from '../lib/film-job.js';
+import {
+  KINDS as PAPER_KINDS,
+  deletePaper,
+  jobStatus as paperStatus,
+  listPapers,
+  paperPath,
+  startJob as startPaperJob,
+} from '../lib/paper-job.js';
 import { STYLES } from '../lib/film-run.js';
 import { queueLength } from '../lib/queue.js';
 import { qrDataUrl, qrPngBuffer, shareUrl } from '../lib/qr.js';
@@ -68,11 +77,19 @@ adminRouter.get('/admin', async (req, res) => {
   // สถานะหนังใส่มาตั้งแต่ตอนเรนเดอร์หน้า เจ้าของที่เปิดหน้ามาแล้วเห็นเลยว่ามีหนัง
   // อยู่ไหม โดยไม่ต้องรอ JavaScript ยิง poll รอบแรก
   const film = await jobStatus();
+  const paper = await paperStatus();
   return res.render('admin', {
     film: {
       ...film,
       films: film.films.map((one) => ({ ...one, size: formatBytes(one.bytes) })),
     },
+    paper: {
+      ...paper,
+      papers: paper.papers.map((one) => ({ ...one, size: formatBytes(one.bytes) })),
+    },
+    // รายชื่อแขกเรนเดอร์มาพร้อมหน้าเลย ช่องค้นหากรองบนรายการที่มีอยู่แล้วในหน้า
+    // จำนวนแขกมีขอบเขตชัดเจนไม่กี่ร้อยแถว ไม่คุ้มที่จะยิง API ทุกตัวอักษรที่พิมพ์
+    guests: listGuests({ includeHidden: true }),
     page: 'admin',
     stats: { ...summary, storage: formatBytes(summary.bytes) },
     queue: queueLength(),
@@ -317,6 +334,7 @@ adminRouter.post('/admin/film/music/delete', requireAdmin, async (req, res) => {
  *
  * res.sendFile รองรับ Range ให้อยู่แล้ว จึงใช้ตัวนั้นแทนการ pipe เอง
  */
+/** ส่งไฟล์ใหญ่แบบรองรับการกระโดดข้าม (Range) — ใช้ทั้งกับหนังและกับ PDF */
 function sendFilm(res, filmPath, { download }) {
   return new Promise((resolve, reject) => {
     res.sendFile(path.basename(filmPath), {
@@ -361,6 +379,58 @@ adminRouter.get('/admin/film/:id/download', requireAdmin, (req, res, next) =>
 
 adminRouter.post('/admin/film/:id/delete', requireAdmin, async (req, res) => {
   const removed = await deleteFilm(req.params.id);
+  res.status(removed ? 200 : 404).json({ ok: removed });
+});
+
+adminRouter.get('/admin/paper/status', requireAdmin, async (req, res) => {
+  const status = await paperStatus();
+  res.json({
+    ...status,
+    papers: status.papers.map((paper) => ({ ...paper, size: formatBytes(paper.bytes) })),
+  });
+});
+
+adminRouter.post('/admin/paper/start', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
+  try {
+    const status = await startPaperJob({
+      // ชนิดต้องอยู่ในรายการที่รู้จักเท่านั้น ค่าที่ส่งมาเองจะถูกปฏิเสธ ไม่ใช่เดาให้
+      kind: PAPER_KINDS.includes(req.body.kind) ? req.body.kind : null,
+      // เอกสารใช้ภาษาของหน้าที่กดปุ่ม — วันที่กับหัวเรื่องจะได้เป็นภาษาเดียวกันทั้งเล่ม
+      t: req.t,
+      lang: req.lang,
+    });
+    res.json({ ok: true, state: status.state, kind: status.kind });
+  } catch (error) {
+    const code = { BUSY: 409, LOCKED: 409, BAD_KIND: 400 }[error.code] ?? 500;
+    res.status(code).json({ error: error.message });
+  }
+});
+
+async function servePaper(req, res, next, download) {
+  const target = paperPath(req.params.id);
+  if (!target) return next();
+
+  try {
+    await fs.stat(target);
+  } catch {
+    return next();
+  }
+
+  try {
+    return await sendFilm(res, target, { download });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+adminRouter.get('/admin/paper/:id/view', requireAdmin, (req, res, next) =>
+  servePaper(req, res, next, false));
+
+adminRouter.get('/admin/paper/:id/download', requireAdmin, (req, res, next) =>
+  servePaper(req, res, next, true));
+
+adminRouter.post('/admin/paper/:id/delete', requireAdmin, async (req, res) => {
+  const removed = await deletePaper(req.params.id);
   res.status(removed ? 200 : 404).json({ ok: removed });
 });
 

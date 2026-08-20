@@ -18,63 +18,78 @@ import { config } from '../config.js';
  * มานั่งลบไฟล์ล็อกทิ้งเอง
  */
 
-const LOCK_PATH = path.join(config.paths.export, '.lock');
 const STALE_AFTER_MS = 60_000;
 const HEARTBEAT_MS = 15_000;
 
-async function readLock() {
-  try {
-    return JSON.parse(await fs.readFile(LOCK_PATH, 'utf8'));
-  } catch {
-    return null;
+/**
+ * โรงงานล็อก — งานหนักแต่ละชนิดมีไฟล์ล็อกของตัวเอง
+ *
+ * ตอนแรกมีแต่ export หนัง ไฟล์ล็อกจึงเป็นค่าคงที่ในโมดูล พอมี export PDF เพิ่มเข้ามา
+ * การใช้ล็อกร่วมกันจะแปลว่าสร้าง PDF ไม่ได้ระหว่างหนังกำลังเรนเดอร์ ทั้งที่สองงานนี้
+ * ไม่ได้แย่งไฟล์อะไรกันเลย — แยกไฟล์ล็อก ส่วนกลไก mtime กับ heartbeat คงเดิมทุกอย่าง
+ */
+export function createLock(fileName, { busyMessage } = {}) {
+  const lockPath = path.join(config.paths.export, fileName);
+
+  const read = async () => {
+    try {
+      return JSON.parse(await fs.readFile(lockPath, 'utf8'));
+    } catch {
+      return null;
+    }
+  };
+
+  const isHeld = async () => {
+    let stat;
+    try {
+      stat = await fs.stat(lockPath);
+    } catch {
+      return false;
+    }
+    return Date.now() - stat.mtimeMs < STALE_AFTER_MS;
+  };
+
+  const owner = async () => ((await isHeld()) ? read() : null);
+
+  async function acquire(source) {
+    if (await isHeld()) {
+      const held = await read();
+      const error = new Error(busyMessage ? busyMessage(held) : 'มีงานกำลังรันอยู่แล้ว');
+      error.code = 'LOCKED';
+      throw error;
+    }
+
+    await fs.mkdir(config.paths.export, { recursive: true });
+    const write = () => fs.writeFile(lockPath, JSON.stringify({ source, startedAt: new Date().toISOString() }));
+    await write();
+
+    const timer = setInterval(() => {
+      write().catch(() => {}); // ล็อกหายกลางทางแค่ทำให้ตรวจสถานะพลาด ไม่ใช่เรื่องร้ายแรง
+    }, HEARTBEAT_MS);
+    timer.unref?.();
+
+    return {
+      async release() {
+        clearInterval(timer);
+        await fs.rm(lockPath, { force: true });
+      },
+    };
   }
+
+  return { path: lockPath, owner, acquire };
 }
 
-async function isHeld() {
-  let stat;
-  try {
-    stat = await fs.stat(LOCK_PATH);
-  } catch {
-    return false;
-  }
-  return Date.now() - stat.mtimeMs < STALE_AFTER_MS;
-}
+const filmLock = createLock('.lock', {
+  busyMessage: (held) => (held?.source === 'web'
+    ? 'มีงาน export กำลังรันอยู่แล้วจากหน้าเว็บ'
+    : 'มีงาน export กำลังรันอยู่แล้ว (เริ่มจาก SSH)'),
+});
 
 /** ใครกำลังถือล็อกอยู่ — ใช้บอกแอดมินว่างานที่รันอยู่เริ่มจากไหน */
-export async function lockOwner() {
-  if (!(await isHeld())) return null;
-  return readLock();
-}
+export const lockOwner = filmLock.owner;
 
 /**
- * ขอถือล็อก โยน error ถ้ามีคนถืออยู่แล้วจริง ๆ (ไม่ใช่ล็อกค้างที่หมดอายุ)
- * คืนฟังก์ชัน heartbeat กับ release ให้ผู้เรียกเอาไปใช้ต่อ
+ * ขอถือล็อกของงาน export หนัง โยน error ถ้ามีคนถืออยู่แล้วจริง ๆ
+ * (ไม่ใช่ล็อกค้างที่หมดอายุ) คืนฟังก์ชัน release ให้ผู้เรียกเอาไปใช้ต่อ
  */
-export async function acquireLock(source) {
-  if (await isHeld()) {
-    const owner = await readLock();
-    const error = new Error(
-      owner?.source === 'web'
-        ? 'มีงาน export กำลังรันอยู่แล้วจากหน้าเว็บ'
-        : 'มีงาน export กำลังรันอยู่แล้ว (เริ่มจาก SSH)',
-    );
-    error.code = 'LOCKED';
-    throw error;
-  }
-
-  await fs.mkdir(config.paths.export, { recursive: true });
-  const write = () => fs.writeFile(LOCK_PATH, JSON.stringify({ source, startedAt: new Date().toISOString() }));
-  await write();
-
-  const timer = setInterval(() => {
-    write().catch(() => {}); // ล็อกหายกลางทางแค่ทำให้ตรวจสถานะพลาด ไม่ใช่เรื่องร้ายแรง
-  }, HEARTBEAT_MS);
-  timer.unref?.();
-
-  return {
-    async release() {
-      clearInterval(timer);
-      await fs.rm(LOCK_PATH, { force: true });
-    },
-  };
-}
+export const acquireLock = filmLock.acquire;

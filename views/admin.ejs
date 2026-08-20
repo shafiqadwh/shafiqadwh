@@ -144,6 +144,70 @@
   </ul>
 </section>
 
+<%# เอกสาร PDF — สมุดคำอวยพร กับ รายชื่อผู้ส่งภาพ
+    โครงเดียวกับแผงหนัง: สถานะเรนเดอร์มาจากเซิร์ฟเวอร์ JavaScript แค่ทำให้มันสด %>
+<section class="card film" id="paper" data-state="<%= paper.state || 'idle' %>">
+  <h2 class="section-title"><%= t('paper.heading') %></h2>
+  <p class="section-hint"><%= t('paper.hint') %></p>
+
+  <div class="film__status" id="paper-status" hidden>
+    <div class="film__bar"><span class="film__bar-fill" id="paper-bar"></span></div>
+    <p class="film__line" id="paper-phase"></p>
+  </div>
+
+  <div class="film__actions">
+    <button type="button" class="button" data-paper-kind="wishes"><%= t('paper.make_wishes') %></button>
+    <button type="button" class="button" data-paper-kind="uploaders"><%= t('paper.make_uploaders') %></button>
+  </div>
+  <p class="film__note"><%= t('paper.takes_long') %></p>
+
+  <h3 class="film__subtitle"><%= t('paper.gallery') %> <span class="section-count" id="paper-count"><%= paper.papers.length %></span></h3>
+  <p class="film__note" id="paper-empty" <%= paper.papers.length ? 'hidden' : '' %>><%= t('paper.gallery_empty') %></p>
+  <ul class="film__list film__list--flat" id="paper-list">
+    <% paper.papers.forEach(function (one) { %>
+      <li class="film__item" data-id="<%= one.id %>">
+        <div class="film__meta">
+          <span class="film__tag"><%= t(one.kind === 'uploaders' ? 'paper.kind_uploaders' : 'paper.kind_wishes') %></span>
+          <span class="film__note"><%= new Date(one.madeAt).toLocaleString() %> · <%= one.size %><%= one.pages ? ' · ' + t('paper.pages', { n: one.pages }) : '' %></span>
+        </div>
+        <div class="film__actions">
+          <a class="button button--tiny" href="/admin/paper/<%= encodeURIComponent(one.id) %>/view" target="_blank" rel="noopener"><%= t('paper.open') %></a>
+          <a class="button button--tiny" href="/admin/paper/<%= encodeURIComponent(one.id) %>/download" download><%= t('paper.download') %></a>
+          <button type="button" class="button button--tiny button--danger paper__delete"><%= t('paper.delete') %></button>
+        </div>
+      </li>
+    <% }); %>
+  </ul>
+</section>
+
+<%# รายชื่อแขก — เรนเดอร์ครบมาจากเซิร์ฟเวอร์ ช่องค้นหากรองแถวที่มีอยู่แล้วในหน้า
+    ไม่ยิง API ทุกตัวอักษร เพราะจำนวนแขกมีขอบเขตชัดเจนไม่กี่ร้อยแถว %>
+<section class="card guests" id="guests">
+  <h2 class="section-title"><%= t('guests.heading') %> <span class="section-count"><%= guests.length %></span></h2>
+  <label class="guests__search">
+    <span class="visually-hidden"><%= t('guests.search') %></span>
+    <input type="search" id="guests-search" placeholder="<%= t('guests.search') %>" autocomplete="off">
+  </label>
+  <p class="film__note" id="guests-none" hidden><%= t('guests.no_match') %></p>
+  <% if (guests.length === 0) { %>
+    <p class="film__note"><%= t('guests.empty') %></p>
+  <% } %>
+  <ul class="guests__list" id="guests-list">
+    <% guests.forEach(function (guest) { %>
+      <li class="guests__row" data-name="<%= (guest.anonymous ? t('gallery.anonymous') : guest.name).toLowerCase() %>">
+        <a class="guests__name" href="/?who=<%= encodeURIComponent(guest.key) %>">
+          <%= guest.anonymous ? t('gallery.anonymous') : guest.name %>
+        </a>
+        <span class="guests__counts">
+          <% if (guest.photos) { %><span><%= guest.photos %> <%= t('guests.photos') %></span><% } %>
+          <% if (guest.videos) { %><span><%= guest.videos %> <%= t('guests.videos') %></span><% } %>
+          <% if (guest.messages) { %><span><%= guest.messages %> <%= t('guests.messages') %></span><% } %>
+        </span>
+      </li>
+    <% }); %>
+  </ul>
+</section>
+
 <section class="card">
   <h2 class="section-title"><%= t('admin.settings') %></h2>
   <form method="post" action="/admin/settings" class="settings">
@@ -245,5 +309,6 @@
 </section>
 
 <script src="/static/js/admin-film.js?v=<%= assetVersion %>" defer></script>
+<script src="/static/js/admin-paper.js?v=<%= assetVersion %>" defer></script>
 
 <%- include('partials/foot') %>

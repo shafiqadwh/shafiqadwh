@@ -21,6 +21,9 @@
   const caption = document.getElementById('lightbox-caption');
   const downloadLink = document.getElementById('lightbox-download');
 
+  // ชื่อที่กำลังกรองอยู่มาจากเซิร์ฟเวอร์ ไม่ได้อ่านจาก URL เอง — ค่าที่เซิร์ฟเวอร์
+  // normalise แล้วเท่านั้นที่ตรงกับที่ API ใช้เทียบ
+  const who = document.getElementById('grid')?.dataset.who || '';
   const state = { filter: 'all', items: [], nextBefore: null, maxId: 0, index: -1, loading: false };
 
   function formatDuration(seconds) {
@@ -83,6 +86,7 @@
     state.loading = true;
 
     const params = new URLSearchParams({ filter: state.filter });
+    if (who) params.set('who', who);
     if (append && state.nextBefore) params.set('before', String(state.nextBefore));
 
     try {
@@ -184,6 +188,10 @@
   });
 
   async function poll() {
+    // ตอนกรองชื่อคนเดียวอยู่ ป้าย "มีของใหม่" จะโกหก เพราะมันนับของใหม่ทั้งงาน
+    // ไม่ใช่ของคนนั้น — เงียบไว้ดีกว่าบอกเลขที่กดแล้วไม่เจอ
+    if (who) return;
+
     try {
       const response = await fetch(`/api/updates?since=${state.maxId}`);
       const payload = await response.json();

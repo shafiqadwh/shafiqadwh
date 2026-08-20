@@ -60,11 +60,27 @@
     </div>
   </div>
 
+  <%# ค้นหาชื่อผู้ส่ง — เป็นฟอร์มจริงที่ส่ง GET ไม่ใช่ JavaScript ล้วน
+      แขกที่ปิด JS หรือกล่องทีวีรุ่นเก่าจึงยังค้นได้ และลิงก์ที่ได้ส่งต่อกันได้ %>
+  <form class="gallery__search" method="get" action="/" role="search">
+    <label class="visually-hidden" for="who"><%= t('guests.search') %></label>
+    <input type="search" id="who" name="who" value="<%= locals.who || '' %>"
+           placeholder="<%= t('guests.search') %>" autocomplete="off">
+    <button type="submit" class="button button--tiny"><%= t('guests.search') %></button>
+    <% if (locals.who) { %>
+      <a class="button button--tiny button--ghost" href="/"><%= t('guests.clear') %></a>
+    <% } %>
+  </form>
+
+  <% if (locals.who) { %>
+    <p class="gallery__showing"><%= t('guests.showing', { name: locals.guestName || locals.who }) %></p>
+  <% } %>
+
   <p class="gallery__count" id="gallery-count"><%= t('gallery.count', { n: total }) %></p>
 
   <button class="new-items" id="new-items" hidden></button>
 
-  <div class="grid" id="grid" aria-live="polite"></div>
+  <div class="grid" id="grid" aria-live="polite" data-who="<%= locals.who || '' %>"></div>
 
   <div class="empty" id="empty" hidden>
     <p class="empty__title"><%= t('gallery.empty_title') %></p>

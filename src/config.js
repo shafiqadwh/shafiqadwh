@@ -98,6 +98,8 @@ export const config = {
     // หนังงานแต่งที่ export แล้ว กับเพลงคลอที่แอดมินอัพโหลดผ่านหน้าเว็บ
     export: path.join(dataDir, 'export'),
     films: path.join(dataDir, 'export', 'films'),
+    // PDF สมุดคำอวยพร กับ รายชื่อผู้ส่งภาพ ที่สร้างจากหน้าแอดมิน
+    papers: path.join(dataDir, 'export', 'papers'),
     music: path.join(dataDir, 'music'),
   },
 

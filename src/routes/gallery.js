@@ -2,7 +2,8 @@ import path from 'node:path';
 import express from 'express';
 import { config, withinUploadWindow } from '../config.js';
 import { getFlag } from '../db.js';
-import { countItems, getItem, listItems, newerCount } from '../repo.js';
+import { countItems, getItem, listGuests, listItems, newerCount } from '../repo.js';
+import { normaliseName } from '../lib/guests.js';
 import { ensureDisplayCopy, safeOriginalName } from '../lib/media.js';
 
 export const galleryRouter = express.Router();
@@ -31,21 +32,29 @@ export function uploadsOpen() {
 }
 
 galleryRouter.get('/', (req, res) => {
+  // ?who= คือคีย์ที่ normalise แล้ว ไม่ใช่ชื่อดิบ — ชื่อที่ต่างกันแค่ช่องว่างหรือ
+  // ตัวพิมพ์จึงเปิดลิงก์เดียวกันได้ และลิงก์ที่ส่งต่อกันไม่พังเพราะพิมพ์ต่างกันนิดเดียว
+  const who = typeof req.query.who === 'string' ? normaliseName(req.query.who) : null;
+  const guest = who === null ? null : listGuests().find((one) => one.key === who);
+
   res.render('gallery', {
     page: 'gallery',
     uploadsOpen: uploadsOpen(),
-    total: countItems({}),
+    total: countItems({ who }),
+    who,
+    guestName: guest && (guest.anonymous ? req.t('gallery.anonymous') : guest.name),
   });
 });
 
 galleryRouter.get('/api/items', (req, res) => {
   const filter = ['all', 'photos', 'videos'].includes(req.query.filter) ? req.query.filter : 'all';
   const limit = Number(req.query.limit) || 60;
-  const rows = listItems({ filter, limit, beforeId: req.query.before ?? null });
+  const who = typeof req.query.who === 'string' ? normaliseName(req.query.who) : null;
+  const rows = listItems({ filter, limit, beforeId: req.query.before ?? null, who });
 
   res.json({
     items: rows.map(toPublicItem),
-    total: countItems({ filter }),
+    total: countItems({ filter, who }),
     nextBefore: rows.length === Math.min(limit, 200) ? rows.at(-1).id : null,
   });
 });

@@ -34,6 +34,8 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_items_status_created ON items (status, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_items_convert_state  ON items (convert_state);
+  -- ค้นหาและจัดกลุ่มตามชื่อผู้ส่ง (หน้าแกลลอรี่ + รายชื่อแขก + PDF)
+  CREATE INDEX IF NOT EXISTS idx_items_uploader       ON items (uploader);
 
   CREATE TABLE IF NOT EXISTS messages (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +48,7 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_messages_status_created ON messages (status, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_messages_author         ON messages (author);
 
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
