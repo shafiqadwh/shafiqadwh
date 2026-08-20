@@ -52,7 +52,13 @@
     if (running) {
       const pct = status.total > 0 ? Math.round((status.done / status.total) * 100) : 0;
       bar.style.width = `${pct}%`;
-      phaseLine.textContent = phaseText(status);
+
+      // งานเดียวทำได้หลายรูปแบบ แถบจึงเดินจนเต็มแล้วย้อนกลับไป 0 เป็นเรื่องปกติ
+      // ถ้าไม่บอกว่ากำลังขึ้นเรื่องที่เท่าไร คนกดจะคิดว่างานล้มแล้วเริ่มใหม่
+      const many = (status.styleTotal ?? 1) > 1;
+      phaseLine.textContent = many
+        ? `${t('style_of', { index: (status.styleIndex ?? 0) + 1, total: status.styleTotal })} · ${phaseText(status)}`
+        : phaseText(status);
 
       const parts = [];
       if (status.total > 0) parts.push(t('progress', { done: status.done, total: status.total }));
@@ -229,7 +235,10 @@
   async function loadPlan() {
     let plan;
     try {
-      const response = await fetch('/admin/film/plan', { headers: { accept: 'application/json' } });
+      // ส่งเพดานวิดีโอไปด้วย ตัวเลขที่โชว์จะได้ขยับตามช่องที่เพิ่งแก้
+      const cap = form.elements.maxVideoSeconds?.value || '';
+      const query = cap ? `?maxVideoSeconds=${encodeURIComponent(cap)}` : '';
+      const response = await fetch(`/admin/film/plan${query}`, { headers: { accept: 'application/json' } });
       if (!response.ok) return;
       plan = await response.json();
     } catch {
@@ -260,8 +269,10 @@
         box.append(head);
 
         for (const track of group.tracks) {
-          const row = document.createElement('label');
+          const row = document.createElement('div');
           row.className = 'film__track';
+
+          const pick = document.createElement('label');
           const tick = document.createElement('input');
           tick.type = 'checkbox';
           tick.name = 'track';
@@ -271,7 +282,19 @@
           const mm = Math.floor(track.seconds / 60);
           const ss = String(track.seconds % 60).padStart(2, '0');
           text.textContent = `${track.title} · ${mm}:${ss}`;
-          row.append(tick, text);
+          pick.append(tick, text);
+          row.append(pick);
+
+          // ลบได้เฉพาะเพลงที่อัพเอง — เพลงที่มากับโปรแกรม fetch-music.sh
+          // จะโหลดกลับมาอยู่ดี ปุ่มลบจึงมีแต่จะทำให้งง
+          if (group.theme === 'mine') {
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'button button--tiny button--danger film__track-delete';
+            remove.dataset.id = track.id;
+            remove.textContent = t('delete');
+            row.append(remove);
+          }
           box.append(row);
         }
         themesBox.append(box);
@@ -281,6 +304,26 @@
     paintPicked(plan);
     themesBox.onchange = () => paintPicked(plan);
   }
+
+  // ผูกที่กล่องทั้งก้อน ปุ่มที่ถูกวาดใหม่ทีหลังจึงใช้ได้ด้วย
+  themesBox.addEventListener('click', async (event) => {
+    const button = event.target.closest('.film__track-delete');
+    if (!button || !window.confirm(t('confirm_delete_track'))) return;
+
+    button.disabled = true;
+    try {
+      const response = await fetch('/admin/film/track/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ id: button.dataset.id }),
+      });
+      if (!response.ok) button.disabled = false;
+    } catch {
+      button.disabled = false;
+    }
+    paintedLibrary = '';
+    loadPlan();
+  });
 
   musicFile.addEventListener('change', async () => {
     const file = musicFile.files?.[0];
@@ -296,6 +339,9 @@
       loadPlan();
     }
   });
+
+  // ช่องเพดานวิดีโอเปลี่ยน = ความยาวที่คาดไว้เปลี่ยน ต้องถามใหม่
+  form.elements.maxVideoSeconds?.addEventListener('change', () => loadPlan());
 
   loadPlan();
   refresh();

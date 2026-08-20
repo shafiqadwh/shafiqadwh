@@ -9,18 +9,9 @@
   },
   "common": {
     "language": "Language",
-    "cancel": "Cancel",
     "close": "Close",
-    "ok": "OK",
     "back": "Back",
-    "loading": "Loading...",
-    "retry": "Try again",
-    "photo": "Photo",
-    "video": "Video",
-    "just_now": "Just now",
-    "minutes_ago": "{n} minutes ago",
-    "hours_ago": "{n} hours ago",
-    "days_ago": "{n} days ago"
+    "video": "Video"
   },
   "nav": {
     "gallery": "Photos",
@@ -45,10 +36,8 @@
     "success": "Sent. Thank you!",
     "success_pending": "Sent. It will appear once the hosts have reviewed it.",
     "failed": "Upload failed",
-    "retry_file": "Resend \"{name}\"",
     "closed_title": "Uploads are not open",
-    "closed_body": "Uploading is closed for now, but you can still browse the gallery.",
-    "converting": "Preparing video"
+    "closed_body": "Uploading is closed for now, but you can still browse the gallery."
   },
   "gallery": {
     "heading": "Photos and videos from the day",
@@ -98,7 +87,6 @@
     "login": "Log in",
     "logout": "Log out",
     "wrong_password": "Incorrect password",
-    "too_many_attempts": "Too many attempts. Please wait a moment and try again.",
     "stats": "Overview",
     "stat_photos": "Photos",
     "stat_videos": "Videos",
@@ -108,7 +96,6 @@
     "settings": "Settings",
     "uploads_enabled": "Allow guest uploads",
     "review_required": "Review before showing",
-    "saved": "Saved",
     "items": "Manage files",
     "pending": "Awaiting review",
     "approve": "Approve",
@@ -116,11 +103,9 @@
     "unhide": "Show",
     "delete": "Delete",
     "confirm_delete": "Permanently delete this file?",
-    "deleted": "Deleted",
     "download": "Download everything",
     "download_photos": "Photos only (.zip)",
     "download_all": "Photos + videos (.zip)",
-    "download_note": "A ZIP that includes videos will be very large. Downloading from a computer is recommended.",
     "qr": "Printable QR card",
     "print": "Print",
     "slideshow": "Big-screen slideshow",
@@ -141,11 +126,9 @@
   },
   "qr": {
     "title": "Scan to share your photos",
-    "subtitle": "Take as many as you like and send them to us",
     "step1": "Open your phone camera and scan the QR code",
     "step2": "Pick the photos or videos you took",
-    "step3": "Hit send, then browse everyone else's",
-    "url_hint": "Or type this address into your browser"
+    "step3": "Hit send, then browse everyone else's"
   },
   "errors": {
     "no_files": "No files selected",
@@ -165,7 +148,6 @@
     "heading": "Wedding film",
     "hint": "Join every photo and video from the day into a single video file. Run it after the party.",
     "start": "Make the film",
-    "rebuild": "Make it again",
     "running": "Making the film",
     "done": "Ready",
     "failed": "It did not finish",
@@ -179,18 +161,13 @@
     "progress": "{done} of {total}",
     "time_left": "About {minutes} minutes left",
     "summary": "{photos} photos · {videos} videos · {wishes} wishes",
-    "play": "Play the film",
     "download": "Download the file",
-    "made_at": "Made {when}",
     "seconds": "Seconds per photo",
     "video_seconds": "Trim videos to",
     "motion": "Slow zoom",
-    "use_music": "Add background music",
     "music": "Background music",
     "music_hint": "An audio file you have the rights to · mp3 m4a wav, up to 30 MB",
     "music_choose": "Choose a music file",
-    "music_none": "No music yet",
-    "music_remove": "Remove the music",
     "takes_long": "This takes tens of minutes. You can close this page and come back later.",
     "style": "Film style",
     "style_cinema": "Cinema — one photo, full screen",
@@ -199,7 +176,6 @@
     "gallery_empty": "No films made yet",
     "delete": "Delete",
     "confirm_delete": "Delete this film for good?",
-    "deleted": "Deleted",
     "with_music": "With music",
     "plan_loading": "Working out the length…",
     "plan_summary": "{photos} photos · {videos} videos · {seconds} seconds each · about {minutes} minutes long",
@@ -213,9 +189,9 @@
     "theme_graduation": "Graduation",
     "theme_birthday": "Birthday",
     "theme_calm": "Quiet instrumental",
-    "both_styles": "Make both styles",
     "style_of": "Style {index} of {total}",
-    "theme_summary": "{n} tracks · {minutes} min"
+    "theme_summary": "{n} tracks · {minutes} min",
+    "confirm_delete_track": "Remove this track from the library?"
   },
   "paper": {
     "heading": "PDF documents",
@@ -235,7 +211,6 @@
     "done": "Ready",
     "failed": "Did not finish",
     "stopped": "Stopped partway",
-    "busy": "A document is already being made",
     "progress": "{done} of {total}",
     "gallery": "Documents you have made",
     "gallery_empty": "No documents yet",
@@ -244,7 +219,6 @@
     "delete": "Delete",
     "confirm_delete": "Delete this document for good?",
     "pages": "{n} pages",
-    "made_at": "Made on {when}",
     "takes_long": "This takes a little while. You can close the page and come back later."
   },
   "guests": {
@@ -252,11 +226,9 @@
     "search": "Search for a guest",
     "empty": "Nobody has sent anything yet",
     "no_match": "No guest by that name",
-    "count": "{n} people",
     "photos": "Photos",
     "videos": "Videos",
     "messages": "Wishes",
-    "view": "See what they sent",
     "clear": "Clear the search",
     "showing": "Showing what {name} sent"
   }

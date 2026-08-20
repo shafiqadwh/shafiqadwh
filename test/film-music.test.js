@@ -157,6 +157,28 @@ test('the bed comes out exactly as long as the film asked for', async () => {
   assert.match(probe.stdout, /channels=2/);
 });
 
+test('short tracks shrink the crossfade instead of yielding an empty bed', async () => {
+  // acrossfade=d=4 บนเพลง 2 วินาที **ไม่ error แต่คืนไฟล์ยาว 0 วินาที** แล้วไปล้ม
+  // ทีหลังตอน -stream_loop ด้วยข้อความที่อ่านไม่ออกว่าเกี่ยวกับเพลง — และล้มหลังจาก
+  // เรนเดอร์หนังครบทุกคลิปไปแล้ว
+  const tiny = [
+    await tone(2, 440, path.join(WORK, 's1.m4a')),
+    await tone(2, 550, path.join(WORK, 's2.m4a')),
+    await tone(2, 660, path.join(WORK, 's3.m4a')),
+  ];
+  const out = path.join(WORK, 'bed-short.m4a');
+  await buildMusicBed(tiny, 25, out, WORK);
+  assert.ok(Math.abs(await seconds(out) - 25) < 0.3, 'เพลงสั้นก็ต้องได้เตียงเสียงยาวตามสั่ง');
+});
+
+test('tracks too short to fade at all are refused by name, not silently dropped', async () => {
+  const blink = await tone(1, 440, path.join(WORK, 'blink.m4a'));
+  await assert.rejects(
+    () => buildMusicBed([blink], 25, path.join(WORK, 'bed-blink.m4a'), WORK),
+    /สั้นเกินไป/,
+  );
+});
+
 test('no music picked means no bed, not a crash', async () => {
   assert.equal(await buildMusicBed([], 30, path.join(WORK, 'none.m4a'), WORK), null);
   assert.equal(await buildMusicBed(null, 30, path.join(WORK, 'none.m4a'), WORK), null);
@@ -251,3 +273,67 @@ test('the fetch script verifies hashes instead of trusting the download', async 
 });
 
 test.after(() => fs.rm(WORK, { recursive: true, force: true }));
+
+/* ---------- สคริปต์โหลดเพลงต้องชี้ไปโฟลเดอร์ที่แอปอ่านจริง ---------- */
+
+test('the fetch script never defaults to a folder the app does not read', async () => {
+  const script = await fs.readFile(new URL('../scripts/fetch-music.sh', import.meta.url), 'utf8');
+
+  // `$PROJECT_DIR/data` คือโฟลเดอร์ในโค้ด ส่วนแอปอ่านจากโฟลเดอร์ที่ bind mount
+  // เข้าไปเป็น /app/data (บนเครื่องจริงคือ /volume1/wedding) — โหลดผิดที่แปลว่า
+  // สคริปต์รายงานว่าสำเร็จครบทุกเพลง แต่คลังในหน้าเว็บว่างเปล่า
+  assert.ok(!/DATA_DIR="\$\{DATA_DIR:-\$PROJECT_DIR\/data\}"/.test(script),
+    'ห้ามใช้โฟลเดอร์ในโค้ดเป็นค่าเริ่มต้น');
+  assert.match(script, /\/volume1\/wedding/);
+  assert.match(script, /docker inspect/, 'ควรถามคอนเทนเนอร์ที่รันอยู่ก่อน');
+  // ปลายทางที่ไม่มีอยู่ต้องหยุด ไม่ใช่สร้างใหม่แล้วโหลดลงไป
+  assert.match(script, /ไม่พบโฟลเดอร์ข้อมูล/);
+  assert.match(script, /--data-dir/);
+});
+
+/* ---------- ตัวเลขที่โชว์ต้องเป็นตัวเลขที่ใช้จริง ---------- */
+
+test('the estimate removes duplicates exactly like the renderer does', async () => {
+  const routes = await fs.readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+  const block = routes.slice(routes.indexOf("adminRouter.get('/admin/film/plan'"));
+  assert.match(block.slice(0, block.indexOf('res.json')), /dedupe\(deck\.items\)/,
+    'ไม่ตัดไฟล์ซ้ำ ตัวเลขจะสูงเกินจริงในงานที่แขกอัพรูปซ้ำ');
+  assert.match(block.slice(0, block.indexOf('res.json')), /maxVideoSeconds/,
+    'เพดานวิดีโอต้องมีผลกับตัวเลขที่โชว์');
+});
+
+/* ---------- เก็บกวาดหลังทำหนังเสร็จ ---------- */
+
+test('the clip folders are cleared on success and kept on failure', async () => {
+  const job = await fs.readFile(new URL('../src/lib/film-job.js', import.meta.url), 'utf8');
+  const done = job.indexOf("state: 'done'");
+  const failed = job.indexOf("state: 'failed'");
+
+  const cleanup = job.indexOf('rm(result.work');
+  assert.ok(cleanup > 0, 'ต้องมีการเก็บกวาดโฟลเดอร์งาน');
+  assert.ok(cleanup < done, 'ต้องเก็บกวาดก่อนรายงานว่าเสร็จ');
+  // ตอนล้มต้องเก็บคลิปไว้ ไม่งั้นกดใหม่ก็ต้องเรนเดอร์ใหม่ทั้งเรื่อง
+  assert.ok(cleanup < failed, 'การเก็บกวาดต้องอยู่ในเส้นทางสำเร็จเท่านั้น');
+});
+
+/* ---------- ของที่ถอดออกไปแล้ว ต้องไม่หลงเหลือ ---------- */
+
+test('the music folder is never mistaken for a single song file', async () => {
+  const routes = await fs.readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+  // currentMusic() หยิบ "รายการแรกในโฟลเดอร์" ซึ่งตอนนี้คือโฟลเดอร์ library
+  // ไม่ใช่ไฟล์เพลง — ffmpeg ที่ได้ path ของโฟลเดอร์จะล้มแบบอ่านไม่รู้เรื่อง
+  assert.ok(!routes.includes('currentMusic'), 'ถอด currentMusic ออกแล้ว');
+  assert.ok(!routes.includes('film/music/delete'), 'route ที่ไม่มีใครเรียกต้องถูกถอดด้วย');
+});
+
+test('the admin page can delete an uploaded track and shows which film is rendering', async () => {
+  const js = await fs.readFile(new URL('../public/js/admin-film.js', import.meta.url), 'utf8');
+
+  // เอกสารบอกว่า "ลบรายเพลงได้" — ต้องมีปุ่มจริง ไม่ใช่มีแค่ route กับเทสต์
+  assert.match(js, /film\/track\/delete/);
+  assert.match(js, /group\.theme === 'mine'/, 'ปุ่มลบต้องมีเฉพาะกลุ่มเพลงของตัวเอง');
+
+  // ทำหนังสองเรื่องแล้วแถบเดินเต็มจนย้อนกลับไป 0 โดยไม่บอกอะไร คนกดจะคิดว่างานล้ม
+  assert.match(js, /style_of/);
+  assert.match(js, /styleTotal/);
+});

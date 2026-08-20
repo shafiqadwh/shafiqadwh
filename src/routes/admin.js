@@ -21,7 +21,7 @@ import {
 import { formatBytes, randomName } from '../lib/media.js';
 import { deleteFilm, filmPath, jobStatus, listFilms, startJob } from '../lib/film-job.js';
 import { deleteTrack, listLibrary, resolveTracks, totalSeconds } from '../lib/music.js';
-import { buildTimeline, planLength } from '../lib/film-plan.js';
+import { buildTimeline, dedupe, planLength } from '../lib/film-plan.js';
 import { readDeck } from '../lib/film-plan.js';
 import {
   KINDS as PAPER_KINDS,
@@ -246,32 +246,15 @@ const musicUpload = multer({
  * เก็บใน data/music/ ไม่ใช่ใน uploads/ เพราะไฟล์ใน uploads คือของที่แขกส่งมา
  * ซึ่งจะถูกเอาไปทำสไลด์โชว์ ทำ ZIP และเข้าหนัง เพลงไม่ควรหลุดไปอยู่ในนั้น
  */
-async function currentMusic() {
-  try {
-    const names = await fs.readdir(config.paths.music);
-    const first = names.find((name) => !name.startsWith('.'));
-    if (!first) return null;
-    const filePath = path.join(config.paths.music, first);
-    const stat = await fs.stat(filePath);
-    return { name: first, path: filePath, bytes: stat.size };
-  } catch {
-    return null;
-  }
-}
-
 adminRouter.get('/admin/film/status', requireAdmin, async (req, res) => {
   const status = await jobStatus();
-  const music = await currentMusic();
   res.json({
     ...status,
     films: status.films.map((film) => ({ ...film, size: formatBytes(film.bytes) })),
-    music: music && { name: music.name, size: formatBytes(music.bytes) },
   });
 });
 
 adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
-  const music = await currentMusic();
-
   // ตัวเลขจากฟอร์มต้องผ่านการตรวจก่อน ไม่ใช่ส่งตรงเข้า ffmpeg — ค่าติดลบหรือ
   // ค่าที่ไม่ใช่ตัวเลขจะทำให้ตัวกรองของ ffmpeg พังกลางทางแบบอ่าน error ไม่รู้เรื่อง
   const clamp = (raw, fallback, low, high) => {
@@ -295,8 +278,6 @@ adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extende
       maxVideoSeconds: clamp(req.body.maxVideoSeconds, 30, 5, 120),
       motion: req.body.motion === 'on',
       tracks,
-      // ไฟล์เพลงเดี่ยวแบบเดิมยังใช้ได้ ถ้าไม่ได้เลือกเพลงจากคลัง
-      music: tracks.length === 0 && req.body.music === 'on' && music ? music.path : null,
     });
     res.json({ ok: true, state: status.state, styles: status.styles, tracks: tracks.length });
   } catch (error) {
@@ -351,12 +332,6 @@ adminRouter.post('/admin/film/music', requireAdmin, (req, res) => {
   });
 });
 
-adminRouter.post('/admin/film/music/delete', requireAdmin, async (req, res) => {
-  const music = await currentMusic();
-  if (music) await fs.rm(music.path, { force: true });
-  res.json({ ok: true });
-});
-
 /**
  * ส่งหนังให้เบราว์เซอร์ — ต้องรองรับ Range ไม่งั้นกดเล่นแล้วเลื่อนหาช่วงกลางไม่ได้
  *
@@ -405,8 +380,15 @@ async function serveFilm(req, res, next, download) {
  */
 adminRouter.get('/admin/film/plan', requireAdmin, async (req, res) => {
   const deck = readDeck();
+
+  // ต้องตัดไฟล์ซ้ำแบบเดียวกับตอนเรนเดอร์จริง (`runExport`) ไม่งั้นงานที่แขกอัพรูปซ้ำ
+  // จะโชว์ตัวเลขสูงเกินจริง แล้วคำที่เขียนไว้ในเอกสารว่า "ตัวเลขที่โชว์คือตัวเลขที่ใช้จริง"
+  // ก็ไม่จริงขึ้นมาทันที
+  deck.items = await dedupe(deck.items);
+
+  const maxVideoSeconds = Math.min(Math.max(Number(req.query.maxVideoSeconds) || 30, 5), 120);
   const timeline = buildTimeline(deck, { limit: 0 });
-  const plan = planLength(timeline, { seconds: 'auto' });
+  const plan = planLength(timeline, { seconds: 'auto', maxVideoSeconds });
   const picked = await totalSeconds([req.query.track ?? []].flat());
 
   res.json({

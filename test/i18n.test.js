@@ -148,3 +148,32 @@ test('the Arabic flag carries the real shahada, not an imitation of the script',
   // textLength บีบให้พอดีกรอบ ไม่ต้องเดาความกว้างของฟอนต์ที่เครื่องปลายทางมี
   assert.match(symbol.slice(0, symbol.indexOf('</symbol>')), /textLength=/);
 });
+
+test('no catalogue key is left behind with nothing using it', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const sources = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(js|ejs)$/.test(entry.name)) sources.push(fs.readFileSync(full, 'utf8'));
+    }
+  };
+  for (const dir of ['src', 'views', 'public/js']) walk(path.join(root, dir));
+  const code = sources.join('\n');
+
+  // คีย์ถูกเรียกได้สองแบบ: เขียนเต็ม `t('film.start')` หรือประกอบชื่อเอา
+  // เช่น `phase_${status.phase}` และ `theme_${group.theme}` — ต้องรู้จักทั้งสองแบบ
+  const prefixes = [...code.matchAll(/[`'"]([a-z_]+_)\$\{/g)].map((m) => m[1]);
+  const dead = [];
+  for (const [namespace, block] of Object.entries(catalogues.th)) {
+    if (namespace === 'lang') continue;
+    for (const key of Object.keys(block)) {
+      if (code.includes(`${namespace}.${key}`)) continue;
+      if (new RegExp(`['"\`]${key}['"\`]`).test(code)) continue;
+      if (prefixes.some((prefix) => key.startsWith(prefix))) continue;
+      dead.push(`${namespace}.${key}`);
+    }
+  }
+  assert.deepEqual(dead, [], `คีย์ที่ไม่มีใครใช้: ${dead.join(', ')}`);
+});

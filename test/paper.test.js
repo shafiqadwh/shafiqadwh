@@ -14,7 +14,7 @@ const { config } = await import('../src/config.js');
 const { db } = await import('../src/db.js');
 const { ensureDirs } = await import('../src/lib/media.js');
 const { groupGuests, normaliseName, pickDisplayName } = await import('../src/lib/guests.js');
-const { buildPdf } = await import('../src/lib/pdf.js');
+const { buildPdf, pdfString } = await import('../src/lib/pdf.js');
 const { listGuests, listItems, countItems } = await import('../src/repo.js');
 const { paperPath } = await import('../src/lib/paper-job.js');
 
@@ -347,4 +347,49 @@ test('the document routes are closed to anyone not logged in', async () => {
     });
     assert.ok([401, 302].includes(response.status), `${path} ตอบ ${response.status}`);
   }
+});
+
+/* ---------- ชื่อเรื่องใน PDF ---------- */
+
+/** อ่านสตริงกลับตามกฎของสเปก PDF — ตัวถอดที่เขียนแยกจากตัวเข้ารหัส */
+function readPdfString(raw) {
+  const bytes = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    if (raw[i] === '\\') { i += 1; }
+    bytes.push(raw.charCodeAt(i));
+  }
+  const buffer = Buffer.from(bytes);
+  return buffer[0] === 0xfe && buffer[1] === 0xff
+    ? buffer.subarray(2).swap16().toString('utf16le')
+    : buffer.toString('latin1');
+}
+
+test('a title in any script survives the trip into the file', async () => {
+  for (const title of ['Guest Book', 'สมุดคำอวยพร', 'سجل التهاني', 'ทดสอบ ษ ฬ ฦ', 'a(b)c\\d']) {
+    const text = buildPdf(await samplePages(1), { title }).toString('latin1');
+    const raw = /\/Title \((.*?)\) \/Producer/s.exec(text)[1];
+    assert.equal(readPdfString(raw), title, `ชื่อเรื่อง ${JSON.stringify(title)} เพี้ยน`);
+  }
+});
+
+test('a title can never unbalance the dictionary it sits in', async () => {
+  // "ษ" คือ U+0E29 — ไบต์ล่างคือ 0x29 ซึ่งคือวงเล็บปิด การเข้ารหัสแบบเดิม
+  // (ตัดเหลือไบต์เดียว) จึงแทรก ) เข้าไปเองหลังจาก escape ไปแล้ว แล้วไฟล์ก็พัง
+  for (const title of ['ษ', 'ษษษ', '(((', ')))', '\\\\', 'สมุดคำอวยพร']) {
+    const text = buildPdf(await samplePages(1), { title }).toString('latin1');
+    const dict = /\/Title \((.*?)\) \/Producer/s.exec(text)[1];
+
+    let depth = 0;
+    for (let i = 0; i < dict.length; i += 1) {
+      if (dict[i] === '\\') { i += 1; continue; }
+      if (dict[i] === '(') depth += 1;
+      if (dict[i] === ')') depth -= 1;
+      assert.ok(depth >= 0, `${JSON.stringify(title)} ปิดวงเล็บเกิน — ไฟล์ผิดรูปแบบ`);
+    }
+    assert.equal(depth, 0, `${JSON.stringify(title)} วงเล็บไม่สมดุล`);
+  }
+});
+
+test('control characters never reach the file', () => {
+  assert.equal(pdfString('a\u0000b\u0007c'), 'abc');
 });

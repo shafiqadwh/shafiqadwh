@@ -29,6 +29,32 @@ function dictionary(entries) {
 }
 
 /**
+ * ข้อความใน PDF — ต้องเข้ารหัสก่อน escape ไม่ใช่หลัง
+ *
+ * ทั้งไฟล์นี้เขียนด้วย latin1 ซึ่ง **ตัดตัวอักษรหลายไบต์ให้เหลือไบต์ล่างตัวเดียว**
+ * ชื่อเรื่องภาษาไทยจึงกลายเป็นขยะ และที่ร้ายกว่านั้นคือไบต์ที่เหลือบังเอิญเป็น
+ * `(` `)` หรือ `\` ได้ — เช่น "ษ" (U+0E29) เหลือไบต์ 0x29 คือวงเล็บปิด
+ * แล้วพจนานุกรมก็พังทั้งอัน โดยที่การ escape ข้อความต้นฉบับไว้ก่อนช่วยอะไรไม่ได้เลย
+ *
+ * สเปก PDF รองรับ UTF-16BE นำหน้าด้วย BOM สำหรับข้อความที่ไม่ใช่ ASCII
+ * เข้ารหัสก่อนแล้วค่อย escape ไบต์อันตราย จึงถูกทั้งการอ่านออกและความปลอดภัยของรูปแบบ
+ */
+export function pdfString(value) {
+  const text = String(value ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+
+  const bytes = /^[\x20-\x7e]*$/.test(text)
+    ? Buffer.from(text, 'latin1')
+    : Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(text, 'utf16le').swap16()]);
+
+  const escaped = [];
+  for (const byte of bytes) {
+    if (byte === 0x28 || byte === 0x29 || byte === 0x5c) escaped.push(0x5c);
+    escaped.push(byte);
+  }
+  return Buffer.from(escaped).toString('latin1');
+}
+
+/**
  * ประกอบไฟล์ทั้งก้อนในหน่วยความจำ แล้วค่อยเขียนทีเดียว
  *
  * ตาราง xref ต้องบอก "ออฟเซ็ตเป็นไบต์" ของทุกวัตถุ ซึ่งรู้ได้ก็ต่อเมื่อประกอบเสร็จแล้ว
@@ -108,7 +134,7 @@ export function buildPdf(pages, { title = '' } = {}) {
 
   const infoNumber = 3 + pages.length * 3;
   object(infoNumber, dictionary([
-    `/Title (${String(title).replace(/[\\()]/g, '')})`,
+    `/Title (${pdfString(title)})`,
     ' /Producer (wedding-share)',
   ]));
 

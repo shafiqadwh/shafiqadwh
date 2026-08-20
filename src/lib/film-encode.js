@@ -238,8 +238,24 @@ export async function concatClips(clipPaths, outPath, workDir) {
  * ต้องมีพารามิเตอร์ตรงกัน — concat ที่อินพุตคนละ sample rate ได้เสียงที่เพี้ยน
  * หรือความยาวไม่ตรงกับที่บอกไว้ ซึ่งจะไปโผล่เป็นเพลงกับภาพหลุดกันตอนท้ายเรื่อง
  */
+/** ความยาวของไฟล์เสียง — 0 ถ้าอ่านไม่ได้ */
+async function probeSeconds(filePath) {
+  try {
+    const { stdout } = await run(FFPROBE, [
+      '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', filePath,
+    ], { timeout: 20000 });
+    return Number(stdout.trim()) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export const BED_CROSSFADE = 4;
 const BED_MAX_SEGMENTS = 40;
+
+// เพลงที่สั้นกว่านี้เชื่อมด้วยการไล่เฟดไม่ได้ — ต่อให้หดเวลาเฟดจนสุด (0.5 วินาที)
+// ก็ยังไม่เหลือช่วงที่ได้ยินจริงระหว่างเฟดเข้ากับเฟดออก
+const BED_MIN_TRACK_SECONDS = 1.5;
 
 export async function buildMusicBed(trackPaths, seconds, outPath, workDir) {
   if (!Array.isArray(trackPaths) || trackPaths.length === 0) return null;
@@ -257,11 +273,25 @@ export async function buildMusicBed(trackPaths, seconds, outPath, workDir) {
       ...AUDIO_ARGS,
       part,
     ]);
-    const { stdout } = await run(FFPROBE, [
-      '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', part,
-    ], { timeout: 20000 });
-    parts.push({ path: part, seconds: Number(stdout.trim()) || 0 });
+    parts.push({ path: part, seconds: await probeSeconds(part) });
   }
+
+  /*
+   * เวลาเฟดต้องพอดีกับเพลงที่สั้นที่สุด
+   *
+   * `acrossfade=d=4` บนเพลงที่สั้นกว่า 4 วินาที **ไม่ error แต่คืนไฟล์ยาว 0 วินาที**
+   * (ยืนยันแล้ว: exit 0, duration 0.000000) แล้วไปล้มทีหลังตอน -stream_loop ด้วยข้อความ
+   * "Output file does not contain any stream" ซึ่งอ่านไม่ออกว่าเกี่ยวกับเพลง
+   * และจังหวะที่ล้มคือหลังเรนเดอร์หนังครบทุกคลิปแล้ว = เสียเวลาไปทั้งชั่วโมง
+   */
+  const usable = parts.filter((part) => part.seconds >= BED_MIN_TRACK_SECONDS);
+  if (usable.length === 0) {
+    for (const part of parts) await fs.rm(part.path, { force: true });
+    throw new Error(`เพลงที่เลือกสั้นเกินไปทุกเพลง (ต้องยาวอย่างน้อย ${BED_MIN_TRACK_SECONDS} วินาที)`);
+  }
+
+  const shortest = Math.min(...usable.map((part) => part.seconds));
+  const fade = Math.max(0.5, Math.min(BED_CROSSFADE, shortest / 3));
 
   /*
    * วนเพลย์ลิสต์ล่วงหน้าให้ยาวคลุมทั้งเรื่อง แล้วเชื่อมทุกรอยต่อด้วย acrossfade
@@ -272,14 +302,13 @@ export async function buildMusicBed(trackPaths, seconds, outPath, workDir) {
    * การไล่เฟดทับกันทำให้เสียงต่อเนื่องจริง และเพราะวนล่วงหน้า รอยต่อของรอบวน
    * ก็ถูกเชื่อมด้วย ไม่ใช่เชื่อมแต่ในรอบแรกแล้วปล่อยรอยวนโล่ง
    */
-  const wanted = seconds + BED_CROSSFADE;
+  const wanted = seconds + fade;
   const chain = [];
   let covered = 0;
   for (let i = 0; chain.length < BED_MAX_SEGMENTS && covered < wanted; i += 1) {
-    const part = parts[i % parts.length];
+    const part = usable[i % usable.length];
     chain.push(part);
-    covered += part.seconds - (chain.length > 1 ? BED_CROSSFADE : 0);
-    if (part.seconds <= 0) break; // ไฟล์ที่วัดความยาวไม่ได้ กันลูปไม่รู้จบ
+    covered += part.seconds - (chain.length > 1 ? fade : 0);
   }
 
   const joined = path.join(workDir, 'bed-joined.m4a');
@@ -292,7 +321,7 @@ export async function buildMusicBed(trackPaths, seconds, outPath, workDir) {
     let label = '[0:a]';
     for (let i = 1; i < chain.length; i += 1) {
       const out = i === chain.length - 1 ? '[bed]' : `[x${i}]`;
-      filters.push(`${label}[${i}:a]acrossfade=d=${BED_CROSSFADE}:c1=tri:c2=tri${out}`);
+      filters.push(`${label}[${i}:a]acrossfade=d=${fade}:c1=tri:c2=tri${out}`);
       label = out;
     }
     await ffmpeg([
@@ -305,13 +334,22 @@ export async function buildMusicBed(trackPaths, seconds, outPath, workDir) {
     ]);
   }
 
+  /*
+   * ยืนยันว่าได้เสียงจริงก่อนเอาไปผสม ไม่ใช่เชื่อว่า ffmpeg ไม่ error แปลว่าสำเร็จ
+   * นี่คือด่านสุดท้ายที่กันไม่ให้ความผิดพลาดเรื่องเสียงไปโผล่เป็นหนังที่เงียบทั้งเรื่อง
+   */
+  const joinedSeconds = await probeSeconds(joined);
+  if (!(joinedSeconds > 0)) {
+    throw new Error('ต่อเพลงแล้วได้ความยาวศูนย์ — ลองเลือกเพลงที่ยาวกว่านี้');
+  }
+
   // ยังสั้นกว่าหนังได้ถ้าชนเพดานจำนวนท่อน — วนต่อแล้วตัดที่ความยาวหนัง
-  const fadeAt = Math.max(seconds - BED_CROSSFADE, 0).toFixed(2);
+  const fadeAt = Math.max(seconds - fade, 0).toFixed(2);
   await atomically(outPath, (partial) => ffmpeg([
     '-y',
     '-stream_loop', '-1', '-i', joined,
     '-t', String(seconds),
-    '-af', `afade=t=out:st=${fadeAt}:d=${BED_CROSSFADE}`,
+    '-af', `afade=t=out:st=${fadeAt}:d=${fade}`,
     ...AUDIO_ARGS,
     partial,
   ]));

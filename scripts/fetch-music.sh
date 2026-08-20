@@ -4,6 +4,7 @@
 #   sudo ./scripts/fetch-music.sh                 โหลดทุกกลุ่ม (~105 MB)
 #   sudo ./scripts/fetch-music.sh --theme wedding โหลดเฉพาะกลุ่มที่ต้องการ
 #   sudo ./scripts/fetch-music.sh --list          ดูว่ามีเพลงอะไรบ้าง ไม่โหลด
+#   sudo ./scripts/fetch-music.sh --data-dir PATH  ชี้โฟลเดอร์ข้อมูลเอง
 #
 # ทำไมไม่เอาไฟล์เพลงใส่ใน git: `scripts/update.sh` โหลด tarball ของโค้ดทั้งก้อน
 # ใหม่ทุกครั้งที่อัปเดต ไฟล์เสียงร้อยเมกะไบต์จะถูกลากมาซ้ำทุกครั้งไปตลอด
@@ -22,20 +23,49 @@ cd "$PROJECT_DIR"
 CATALOGUE="assets/music-catalogue.json"
 ONLY=""
 LIST="0"
+DATA_DIR=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --theme) ONLY="$2"; shift 2 ;;
     --list)  LIST="1"; shift ;;
-    -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --data-dir) DATA_DIR="$2"; shift 2 ;;
+    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "ไม่รู้จักตัวเลือก: $1" >&2; exit 1 ;;
   esac
 done
 
 [ -f "$CATALOGUE" ] || { echo "ไม่พบ $CATALOGUE" >&2; exit 1; }
 
-DATA_DIR="$(grep '^DATA_DIR=' .env 2>/dev/null | head -1 | cut -d= -f2-)"
-DATA_DIR="${DATA_DIR:-$PROJECT_DIR/data}"
+# โฟลเดอร์ข้อมูลคือโฟลเดอร์ที่ bind mount เข้าไปเป็น /app/data ในคอนเทนเนอร์
+#
+# ⚠️ ห้ามใช้ $PROJECT_DIR/data เป็นค่าเริ่มต้น — บนเครื่องจริงนั่นคือโฟลเดอร์ที่
+# **แอปไม่เคยอ่าน** ค่า DATA_DIR ที่แอปใช้ถูกตั้งไว้ใน Dockerfile ซึ่งอยู่ในอิมเมจ
+# ไม่ได้อยู่ใน .env บนโฮสต์ เคยพลาดตรงนี้แล้ว: สคริปต์รายงานว่าโหลดสำเร็จครบทุกเพลง
+# แต่คลังเพลงในหน้าเว็บว่างเปล่า โดยไม่มีอะไรบอกว่าทำไม
+if [ -z "$DATA_DIR" ]; then
+  # ถามคอนเทนเนอร์ที่รันอยู่ก่อน — เป็นคำตอบที่ถูกเสมอไม่ว่าตั้งค่าไว้ยังไง
+  DATA_DIR="$(docker inspect -f \
+    '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Source}}{{end}}{{end}}' \
+    wedding-share 2>/dev/null || true)"
+fi
+if [ -z "$DATA_DIR" ]; then
+  # คอนเทนเนอร์ไม่ได้รัน — ใช้ค่าเดียวกับที่ deploy-nas.sh กับ backup-zip.sh ใช้
+  DATA_DIR="/volume1/wedding"
+fi
+
+if [ ! -d "$DATA_DIR" ]; then
+  cat >&2 <<EOF
+  ✗ ไม่พบโฟลเดอร์ข้อมูล: $DATA_DIR
+
+    เพลงต้องอยู่ในโฟลเดอร์เดียวกับที่แอปอ่าน ไม่งั้นโหลดเสร็จแล้วคลังจะว่างเปล่า
+    ถ้าโฟลเดอร์ข้อมูลของคุณอยู่ที่อื่น สั่งแบบนี้
+
+      sudo ./scripts/fetch-music.sh --data-dir /path/ถึงโฟลเดอร์ข้อมูล
+EOF
+  exit 1
+fi
+
 LIBRARY="$DATA_DIR/music/library"
 
 say() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }

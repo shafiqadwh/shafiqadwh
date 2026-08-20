@@ -9,18 +9,9 @@
   },
   "common": {
     "language": "Bahasa",
-    "cancel": "Batal",
     "close": "Tutup",
-    "ok": "OK",
     "back": "Kembali",
-    "loading": "Sedang memuatkan...",
-    "retry": "Cuba lagi",
-    "photo": "Gambar",
-    "video": "Video",
-    "just_now": "Sebentar tadi",
-    "minutes_ago": "{n} minit lalu",
-    "hours_ago": "{n} jam lalu",
-    "days_ago": "{n} hari lalu"
+    "video": "Video"
   },
   "nav": {
     "gallery": "Galeri",
@@ -45,10 +36,8 @@
     "success": "Berjaya dihantar. Terima kasih!",
     "success_pending": "Berjaya dihantar. Menunggu pengesahan tuan rumah sebelum dipaparkan.",
     "failed": "Penghantaran gagal",
-    "retry_file": "Hantar semula \"{name}\"",
     "closed_title": "Muat naik belum dibuka",
-    "closed_body": "Muat naik ditutup buat sementara waktu, tetapi anda masih boleh melihat galeri.",
-    "converting": "Sedang menyediakan video"
+    "closed_body": "Muat naik ditutup buat sementara waktu, tetapi anda masih boleh melihat galeri."
   },
   "gallery": {
     "heading": "Gambar dan video majlis",
@@ -98,7 +87,6 @@
     "login": "Log masuk",
     "logout": "Log keluar",
     "wrong_password": "Kata laluan salah",
-    "too_many_attempts": "Terlalu banyak percubaan. Sila tunggu sebentar dan cuba lagi.",
     "stats": "Ringkasan",
     "stat_photos": "Gambar",
     "stat_videos": "Video",
@@ -108,7 +96,6 @@
     "settings": "Tetapan",
     "uploads_enabled": "Benarkan tetamu muat naik",
     "review_required": "Semak dahulu sebelum dipaparkan",
-    "saved": "Telah disimpan",
     "items": "Urus fail",
     "pending": "Menunggu semakan",
     "approve": "Luluskan",
@@ -116,11 +103,9 @@
     "unhide": "Papar",
     "delete": "Padam",
     "confirm_delete": "Padam fail ini secara kekal?",
-    "deleted": "Telah dipadam",
     "download": "Muat turun semua",
     "download_photos": "Gambar sahaja (.zip)",
     "download_all": "Gambar + video (.zip)",
-    "download_note": "Fail ZIP yang mengandungi video adalah sangat besar. Sebaiknya muat turun menggunakan komputer.",
     "qr": "Kad QR untuk dicetak",
     "print": "Cetak",
     "slideshow": "Tayangan skrin besar",
@@ -141,11 +126,9 @@
   },
   "qr": {
     "title": "Imbas untuk kongsi gambar majlis",
-    "subtitle": "Rakam sebanyak mungkin dan kongsikan dengan kami",
     "step1": "Buka kamera telefon dan imbas kod QR",
     "step2": "Pilih gambar atau video yang anda rakam",
-    "step3": "Tekan hantar, kemudian lihat gambar semua orang",
-    "url_hint": "Atau taip alamat ini dalam pelayar web"
+    "step3": "Tekan hantar, kemudian lihat gambar semua orang"
   },
   "errors": {
     "no_files": "Tiada fail dipilih",
@@ -165,7 +148,6 @@
     "heading": "Filem majlis",
     "hint": "Gabungkan semua gambar dan video majlis menjadi satu fail video. Buat selepas majlis.",
     "start": "Mula buat filem",
-    "rebuild": "Buat semula",
     "running": "Sedang dibuat",
     "done": "Sudah siap",
     "failed": "Gagal dibuat",
@@ -179,18 +161,13 @@
     "progress": "{done} daripada {total}",
     "time_left": "Lebih kurang {minutes} minit lagi",
     "summary": "{photos} gambar · {videos} video · {wishes} ucapan",
-    "play": "Main filem",
     "download": "Muat turun fail",
-    "made_at": "Dibuat pada {when}",
     "seconds": "Berapa saat setiap gambar",
     "video_seconds": "Potong video pada berapa saat",
     "motion": "Zum perlahan",
-    "use_music": "Masukkan muzik latar",
     "music": "Muzik latar",
     "music_hint": "Fail audio yang anda ada haknya · mp3 m4a wav, maksimum 30 MB",
     "music_choose": "Pilih fail muzik",
-    "music_none": "Belum ada muzik",
-    "music_remove": "Buang muzik",
     "takes_long": "Kerja ini mengambil masa berpuluh minit. Anda boleh tutup halaman ini dan kembali kemudian.",
     "style": "Gaya filem",
     "style_cinema": "Panggung — satu gambar penuh skrin",
@@ -199,7 +176,6 @@
     "gallery_empty": "Belum ada filem dibuat",
     "delete": "Padam",
     "confirm_delete": "Padam filem ini secara kekal?",
-    "deleted": "Telah dipadam",
     "with_music": "Ada muzik latar",
     "plan_loading": "Mengira panjang filem…",
     "plan_summary": "{photos} gambar · {videos} video · {seconds} saat setiap gambar · kira-kira {minutes} minit",
@@ -213,9 +189,9 @@
     "theme_graduation": "Majlis konvokesyen",
     "theme_birthday": "Hari lahir",
     "theme_calm": "Muzik tenang",
-    "both_styles": "Buat kedua-dua gaya",
     "style_of": "Gaya {index} daripada {total}",
-    "theme_summary": "{n} lagu · {minutes} minit"
+    "theme_summary": "{n} lagu · {minutes} minit",
+    "confirm_delete_track": "Padam lagu ini daripada perpustakaan?"
   },
   "paper": {
     "heading": "Dokumen PDF selepas majlis",
@@ -235,7 +211,6 @@
     "done": "Siap",
     "failed": "Tidak berjaya",
     "stopped": "Terhenti di pertengahan",
-    "busy": "Ada kerja dokumen sedang berjalan",
     "progress": "{done} daripada {total}",
     "gallery": "Dokumen yang telah dibuat",
     "gallery_empty": "Belum ada dokumen dibuat",
@@ -244,7 +219,6 @@
     "delete": "Padam",
     "confirm_delete": "Padam dokumen ini selamanya?",
     "pages": "{n} halaman",
-    "made_at": "Dibuat pada {when}",
     "takes_long": "Ini mengambil sedikit masa. Anda boleh tutup halaman ini dan kembali kemudian."
   },
   "guests": {
@@ -252,11 +226,9 @@
     "search": "Cari nama tetamu",
     "empty": "Belum ada sesiapa menghantar apa-apa",
     "no_match": "Nama tidak dijumpai",
-    "count": "{n} orang",
     "photos": "Gambar",
     "videos": "Video",
     "messages": "Ucapan",
-    "view": "Lihat hantaran beliau",
     "clear": "Kosongkan carian",
     "showing": "Menunjukkan hantaran {name}"
   }
