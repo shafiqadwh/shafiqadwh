@@ -2,6 +2,7 @@
 # อัปเดตระเบียน A บน Cloudflare ให้ตรงกับไอพีบ้านปัจจุบันโดยอัตโนมัติ
 #
 #   sudo ./scripts/cloudflare-ddns.sh --setup    ตั้งค่าโทเคนครั้งแรก (ถามทีละบรรทัด)
+#   sudo ./scripts/cloudflare-ddns.sh --setup-from FILE   อ่านโทเคนจากไฟล์ แล้วลบไฟล์ทิ้งเอง
 #   sudo ./scripts/cloudflare-ddns.sh            อัปเดตถ้าจำเป็น — ใช้ตัวนี้กับตัวตั้งเวลา
 #   sudo ./scripts/cloudflare-ddns.sh --check    ตรวจอย่างเดียว ไม่แก้อะไรเลย
 #   sudo ./scripts/cloudflare-ddns.sh --quiet    พูดเฉพาะตอนเปลี่ยนจริงหรือมีปัญหา
@@ -27,6 +28,7 @@ set -u
 API="${CLOUDFLARE_API:-https://api.cloudflare.com/client/v4}"
 HOST=""
 FORCED_IP=""
+TOKEN_FILE=""
 ZONE=""
 TTL=""
 MODE="update"
@@ -35,6 +37,7 @@ QUIET="0"
 while [ $# -gt 0 ]; do
   case "$1" in
     --setup) MODE="setup"; shift ;;
+    --setup-from) MODE="setup"; TOKEN_FILE="$2"; shift 2 ;;
     --check) MODE="check"; shift ;;
     --quiet) QUIET="1"; shift ;;
     --host)  HOST="$2"; shift 2 ;;
@@ -84,12 +87,38 @@ if [ "$MODE" = "setup" ]; then
   · Zone Resources: Include → Specific zone → shafiq-lap.com
 
 EOF
-  printf 'วางโทเคนแล้วกด Enter (ไม่แสดงบนจอ): '
-  stty -echo 2>/dev/null || true
-  read -r NEW_TOKEN
-  stty echo 2>/dev/null || true
-  echo
+  if [ -n "$TOKEN_FILE" ]; then
+    [ -f "$TOKEN_FILE" ] || die "ไม่พบไฟล์ $TOKEN_FILE"
+    RAW="$(cat "$TOKEN_FILE")"
+  else
+    printf 'วางโทเคนแล้วกด Enter (ไม่แสดงบนจอ): '
+    stty -echo 2>/dev/null || true
+    read -r RAW
+
+    # กวาดสิ่งที่ยังค้างในบัฟเฟอร์ทิ้ง — ถ้าวางมาเกินหนึ่งบรรทัด ส่วนที่เหลือจะตกไป
+    # เป็นคำสั่งของ shell หลังสคริปต์จบ แล้วโทเคนจะโผล่บนจอและลงไปอยู่ใน history
+    if stty -icanon min 0 time 0 2>/dev/null; then
+      while IFS= read -r LEFTOVER; do
+        [ -n "$LEFTOVER" ] && LEAKED="yes"
+      done
+      stty icanon 2>/dev/null || true
+    fi
+
+    stty echo 2>/dev/null || true
+    echo
+  fi
+
+  # PowerShell/PuTTY ส่งท้ายบรรทัดมาเป็น CRLF — \r ที่ติดมาทำให้ header ของ curl พัง
+  # แล้ว Cloudflare ตอบ "Invalid format for Authorization header" ทั้งที่โทเคนถูกต้อง
+  NEW_TOKEN="$(printf '%s' "$RAW" | tr -d '\r\n\t ')"
+  RAW=""
+
   [ -n "$NEW_TOKEN" ] || die "ไม่ได้ใส่อะไรมา — ไม่ได้แก้ .env"
+
+  case "$NEW_TOKEN" in
+    *[!A-Za-z0-9_-]*) die "โทเคนมีอักขระที่ไม่ควรมี — ไม่ได้แก้ .env
+    โทเคนของ Cloudflare มีแต่ A-Z a-z 0-9 _ และ - เท่านั้น" ;;
+  esac
 
   printf 'ตรวจโทเคนกับ Cloudflare... '
   VERIFY="$(printf 'header = "Authorization: Bearer %s"\n' "$NEW_TOKEN" \
@@ -102,9 +131,19 @@ EOF
 
   env_put CLOUDFLARE_API_TOKEN "$NEW_TOKEN"
   NEW_TOKEN=""
+  [ -n "$TOKEN_FILE" ] && rm -f "$TOKEN_FILE"
   echo
   loud "เก็บโทเคนลง .env แล้ว (สิทธิ์ไฟล์ 600)"
   info ".env อยู่ใน .gitignore — โทเคนจะไม่ติดไปกับ git"
+  [ -n "$TOKEN_FILE" ] && info "ลบไฟล์ $TOKEN_FILE ทิ้งให้แล้ว"
+
+  if [ -n "${LEAKED:-}" ]; then
+    echo
+    echo "  ⚠ มีข้อความที่วางมาเกินหนึ่งบรรทัด ส่วนที่เกินถูกกวาดทิ้งแล้ว"
+    echo "    ถ้าเห็นโทเคนโผล่บนจอตอนใดตอนหนึ่ง ให้ถือว่าหลุดแล้ว — เพิกถอนที่ Cloudflare"
+    echo "    แล้วล้างประวัติคำสั่ง:  cat /dev/null > ~/.bash_history && history -c"
+  fi
+
   info "ขั้นต่อไป: sudo ./scripts/cloudflare-ddns.sh"
   exit 0
 fi

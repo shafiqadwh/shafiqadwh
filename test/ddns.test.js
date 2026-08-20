@@ -37,6 +37,11 @@ function mockCloudflare({ record }) {
       };
       const wrap = (result) => ({ result, success: true, errors: [], messages: [] });
 
+      if (url.pathname === '/user/tokens/verify') {
+        if (req.headers.authorization === `Bearer ${TOKEN}`) return send(wrap({ status: 'active' }));
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, errors: [{ code: 6111, message: 'Invalid format for Authorization header' }] }));
+      }
       if (url.pathname === '/zones') {
         const name = url.searchParams.get('name');
         return send(wrap(name === 'shafiq-lap.com'
@@ -78,8 +83,8 @@ async function withMock(options, run) {
 
   // ต้องเรียกแบบไม่บล็อก — execFileSync จะแช่ event loop ไว้
   // แล้วเซิร์ฟเวอร์จำลองจะไม่มีโอกาสตอบ กลายเป็นค้างกันทั้งคู่
-  const call = (args) => new Promise((resolve) => {
-    execFile('sh', [path.join(dir, 'scripts', 'cloudflare-ddns.sh'), ...args], {
+  const call = (args, stdin) => new Promise((resolve) => {
+    const child = execFile('sh', [path.join(dir, 'scripts', 'cloudflare-ddns.sh'), ...args], {
       env: {
         ...process.env,
         CLOUDFLARE_API: api,
@@ -93,6 +98,7 @@ async function withMock(options, run) {
     }, (err, stdout, stderr) => {
       resolve({ code: err ? (err.code ?? 1) : 0, stdout: stdout || '', stderr: stderr || '' });
     });
+    child.stdin.end(stdin || '');
   });
 
   try {
@@ -228,5 +234,50 @@ test('leaves the rest of .env untouched when storing a token', async () => {
     const env = fs.readFileSync(path.join(dir, '.env'), 'utf8');
     assert.match(env, /ADMIN_PASSWORD=keepme/);
     assert.match(env, new RegExp(`CLOUDFLARE_API_TOKEN=${TOKEN}`));
+  });
+});
+
+// PowerShell กับ PuTTY ส่งท้ายบรรทัดมาเป็น CRLF — \r ที่ติดมากับโทเคนทำให้ header
+// ของ curl พัง แล้ว Cloudflare ตอบ "Invalid format for Authorization header"
+// ทั้งที่โทเคนถูกต้องทุกตัวอักษร เกิดขึ้นจริงมาแล้วบน NAS
+test('accepts a token pasted from Windows with a trailing carriage return', async () => {
+  await withMock({ record: { ...RECORD } }, async ({ call, dir }) => {
+    const run = await call(['--setup'], `${TOKEN}\r\n`);
+    assert.equal(run.code, 0, run.stderr);
+    const env = fs.readFileSync(path.join(dir, '.env'), 'utf8');
+    assert.match(env, new RegExp(`CLOUDFLARE_API_TOKEN=${TOKEN}$`, 'm'));
+  });
+});
+
+test('refuses a token carrying anything but token characters', async () => {
+  await withMock({ record: { ...RECORD } }, async ({ call, dir }) => {
+    fs.writeFileSync(path.join(dir, '.env'), `BASE_URL=https://${HOST}\nADMIN_PASSWORD=keepme\n`);
+    const run = await call(['--setup'], 'abc123; rm -rf /\n');
+    assert.equal(run.code, 1);
+    assert.match(run.stderr, /อักขระที่ไม่ควรมี/);
+    assert.ok(!fs.readFileSync(path.join(dir, '.env'), 'utf8').includes('CLOUDFLARE_API_TOKEN'));
+  });
+});
+
+test('a rejected token leaves .env exactly as it was', async () => {
+  await withMock({ record: { ...RECORD } }, async ({ call, dir }) => {
+    fs.writeFileSync(path.join(dir, '.env'), `BASE_URL=https://${HOST}\nADMIN_PASSWORD=keepme\n`);
+    const before = fs.readFileSync(path.join(dir, '.env'), 'utf8');
+    const run = await call(['--setup'], 'wrongtoken\n');
+    assert.equal(run.code, 1);
+    assert.match(run.stderr, /ไม่ได้แก้ \.env/);
+    assert.equal(fs.readFileSync(path.join(dir, '.env'), 'utf8'), before);
+  });
+});
+
+test('--setup-from deletes the token file once it is stored', async () => {
+  await withMock({ record: { ...RECORD } }, async ({ call, dir }) => {
+    const file = path.join(dir, 'token.txt');
+    fs.writeFileSync(file, `${TOKEN}\r\n`);
+    const run = await call(['--setup-from', file]);
+    assert.equal(run.code, 0, run.stderr);
+    assert.equal(fs.existsSync(file), false, 'ไฟล์โทเคนต้องถูกลบทิ้ง');
+    assert.match(fs.readFileSync(path.join(dir, '.env'), 'utf8'),
+      new RegExp(`CLOUDFLARE_API_TOKEN=${TOKEN}$`, 'm'));
   });
 });
