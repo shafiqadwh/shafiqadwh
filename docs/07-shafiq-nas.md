@@ -228,7 +228,7 @@ sudo synosystemctl restart nginx
 ```bash
 ls -l /usr/local/etc/nginx/conf.d/          # ต้องเห็นชื่อไฟล์เต็ม ๆ ไม่มี [ ] ( )
 sudo nginx -t                                # ต้องขึ้น syntax is ok / test is successful
-sudo ./scripts/diagnose-nas.sh               # ข้อ 4-6 ต้องผ่านหมด
+sudo ./scripts/diagnose-nas.sh               # ข้อ 4-6.5 ต้องผ่านหมด · ข้อ 8 ต้องขึ้นว่าแอปจริงตอบ
 ```
 
 `synosystemctl restart nginx` พิมพ์ `[nginx] restarted.` **ทุกครั้ง** แม้ config พังจน
@@ -336,7 +336,8 @@ sudo docker compose up -d                      # ต้อง up -d ไม่ใ
 | `Bad Request 400` | ต่อ https ไปยังพอร์ตที่พูด http (หรือกลับกัน) **ไม่ใช่ปัญหาใบรับรอง** — เบราว์เซอร์ไม่ auto-upgrade เป็น https บนพอร์ตที่ไม่ใช่ 443 (§6.4) |
 | `no alternative certificate subject name matches` | ยังไม่ได้ map cert ที่ Security → Certificate → Settings → Configure |
 | เข้าได้ในบ้าน แต่ NXDOMAIN บนมือถือ 4G | ขาดระเบียน Cloudflare (มีแต่ AdGuard rewrite) — เคสเดียวกับ `jellyfin.shafiq-lap.com` |
-| หน้า DSM เด้งขึ้นมาแทนเว็บงานแต่ง | reverse proxy ไม่ match hostname → เช็คว่า Source hostname สะกดตรงและ Source protocol เป็น HTTPS |
+| หน้า DSM เด้งขึ้นมาแทนเว็บงานแต่ง | **เช็คก่อนว่าพิมพ์ `https://` นำหน้าหรือเปล่า** — พอร์ต 80 เป็นของเว็บเริ่มต้นของ DSM กฎ reverse proxy ผูกกับ 443 เท่านั้น · ถ้าเป็น https อยู่แล้วยังได้หน้านี้ = กฎไม่ match hostname → เช็ค Source hostname สะกดตรงและ Source protocol เป็น HTTPS |
+| อยากรู้ว่าเป็นอย่างไหนใน 30 วินาที | `sudo ./scripts/diagnose-nas.sh` — ข้อ **6.5** บอกว่ามีกฎอยู่จริงไหมและชี้ไปที่ไหน · ข้อ **8** บอกว่าใครเป็นคนตอบ แอปจริงหรือหน้าเริ่มต้นของ DSM แยกทั้ง https และ http |
 | อัพรูปได้ แต่วิดีโอไม่ผ่าน | ลิมิต nginx ยังไม่มีผล — ทำขั้นที่ 7 ซ้ำแล้ว restart nginx |
 | `502 Bad Gateway` | nginx รับสายได้แต่ต่อไปหาแอปไม่ติด — เรียงความน่าจะเป็น: คอนเทนเนอร์ไม่ได้รัน → Destination hostname เป็น `localhost` (แก้เป็น `127.0.0.1`) → Destination port พิมพ์ตกเลข |
 | **5G ใช้ได้ แต่ในบ้านเข้าไม่ได้** | ดูหัวข้อถัดไป — เกือบทุกครั้งคือ DNS ของเครื่องไคลเอนต์ ไม่ใช่ปัญหาที่ NAS |

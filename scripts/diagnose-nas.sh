@@ -3,6 +3,7 @@
 #
 #   sudo ./scripts/diagnose-nas.sh
 #   sudo ./scripts/diagnose-nas.sh --host wedding.shafiq-lap.com --port 18090
+#   sudo ./scripts/diagnose-nas.sh --public-port 8443   ถ้า reverse proxy ไม่ได้อยู่ที่ 443
 #
 # สคริปต์นี้ "อ่านอย่างเดียว" ไม่แก้อะไรทั้งสิ้น รันซ้ำได้ปลอดภัย
 # ทุกหัวข้อบอกผลเป็น ✓ / ✗ พร้อมบอกว่าถ้าไม่ผ่านต้องไปแก้ตรงไหน
@@ -12,13 +13,17 @@ set -u
 HOSTNAME_TO_TEST="wedding.shafiq-lap.com"
 PORT=""
 NAS_IP=""
+# พอร์ตที่เบราว์เซอร์ยิงเข้า ไม่ใช่พอร์ตของแอป — ขั้นที่ 5 ของเอกสารอนุญาตให้ถอยไป 8443
+# ถ้า DSM ไม่ยอมปล่อย 443 การฝังเลข 443 ไว้ตายตัวจะทำให้สคริปต์ตรวจผิดพอร์ตบนเครื่องแบบนั้น
+PUBLIC_PORT="443"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOSTNAME_TO_TEST="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
+    --public-port) PUBLIC_PORT="$2"; shift 2 ;;
     --ip) NAS_IP="$2"; shift 2 ;;
-    -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "ไม่รู้จักตัวเลือก: $1" >&2; exit 1 ;;
   esac
 done
@@ -43,9 +48,13 @@ FAILED=0
 step() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
 ok()   { printf '  ✓ %s\n' "$*"; }
 bad()  { printf '  ✗ %s\n' "$*"; FAILED=$((FAILED + 1)); }
+# ⚠ = ของที่ต้องรู้ แต่ไม่ใช่ความผิดพลาดของเครื่อง (เช่น พอร์ต 80 เป็นของ DSM ตามปกติ)
+# แยกจาก ✗ เพราะถ้านับรวมเป็น "ไม่ผ่าน" คนอ่านจะไล่แก้ของที่ไม่ได้พัง
+warn() { printf '  ⚠ %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 
-printf 'ตรวจ %s  ·  พอร์ตแอป %s  ·  ไอพี NAS %s\n' "$HOSTNAME_TO_TEST" "$PORT" "$NAS_IP"
+printf 'ตรวจ %s  ·  พอร์ตแอป %s  ·  พอร์ตสาธารณะ %s  ·  ไอพี NAS %s\n' \
+  "$HOSTNAME_TO_TEST" "$PORT" "$PUBLIC_PORT" "$NAS_IP"
 
 # ── 1. คอนเทนเนอร์ยังรันอยู่ไหม ─────────────────────────────────────────────
 step "1. คอนเทนเนอร์ wedding-share"
@@ -118,11 +127,20 @@ esac
 # ── 4. nginx ของ DSM ยังขึ้นอยู่ไหม ─────────────────────────────────────────
 step "4. nginx ของ DSM"
 
-if netstat -tln 2>/dev/null | grep -q '[:.]443 '; then
-  ok "มีบริการ listen ที่พอร์ต 443"
+if netstat -tln 2>/dev/null | grep -q "[:.]$PUBLIC_PORT "; then
+  ok "มีบริการ listen ที่พอร์ต $PUBLIC_PORT"
 else
-  bad "ไม่มีอะไร listen ที่พอร์ต 443 — nginx ไม่ได้รัน"
+  bad "ไม่มีอะไร listen ที่พอร์ต $PUBLIC_PORT — nginx ไม่ได้รัน"
   info "เกือบทุกครั้งคือ config ผิดจนสตาร์ทไม่ขึ้น ดูข้อ 5 ต่อ"
+fi
+
+# พอร์ต 80 เป็นของเว็บเริ่มต้นของ DSM ไม่ใช่ของกฎ reverse proxy (ซึ่งผูกกับ 443)
+# ใครเปิดเว็บโดยไม่พิมพ์ https:// นำหน้าจะมาโผล่ที่นั่นแล้วได้หน้า "page not found"
+# ของ Synology โดยที่แอปไม่ได้พังเลย — เกิดขึ้นจริงมาแล้ว
+if netstat -tln 2>/dev/null | grep -q '[:.]80 '; then
+  info "พอร์ต 80 มีคนฟังอยู่ (ปกติคือเว็บเริ่มต้นของ DSM) — ดูข้อ 8 ว่าเปิดด้วย http:// แล้วได้อะไร"
+else
+  info "ไม่มีอะไร listen ที่พอร์ต 80"
 fi
 
 # ── 5. ไฟล์ config ที่เราเพิ่มเข้าไปเอง ─────────────────────────────────────
@@ -162,10 +180,12 @@ fi
 # ── 6. ไวยากรณ์ config ของ nginx ───────────────────────────────────────────
 step "6. ตรวจไวยากรณ์ config ของ nginx"
 
-NGINX_BIN=""
-for candidate in /usr/bin/nginx /usr/sbin/nginx /bin/nginx; do
-  [ -x "$candidate" ] && NGINX_BIN="$candidate" && break
-done
+NGINX_BIN="$(command -v nginx 2>/dev/null || true)"
+if [ -z "$NGINX_BIN" ]; then
+  for candidate in /usr/bin/nginx /usr/sbin/nginx /bin/nginx; do
+    [ -x "$candidate" ] && NGINX_BIN="$candidate" && break
+  done
+fi
 
 if [ -n "$NGINX_BIN" ]; then
   if NGINX_OUT="$("$NGINX_BIN" -t 2>&1)"; then
@@ -178,41 +198,159 @@ else
   info "หา nginx binary ไม่เจอ ข้ามข้อนี้"
 fi
 
+# ── 6.5 มีกฎ reverse proxy ของโฮสต์นี้อยู่จริงไหม ───────────────────────────
+step "6.5 กฎ reverse proxy ของ $HOSTNAME_TO_TEST"
+
+# ถาม nginx ตรง ๆ ว่า "ตอนนี้โหลดอะไรอยู่" ด้วย -T แทนการเดาว่า DSM เก็บไฟล์กฎไว้ที่ไหน
+# (คนละที่กันตามเวอร์ชัน DSM) คำตอบจาก -T คือของที่มีผลจริง ไม่ว่าไฟล์จะวางอยู่ตรงไหน
+if [ -z "$NGINX_BIN" ]; then
+  info "ไม่มี nginx ให้ถาม ข้ามข้อนี้"
+elif ! NGINX_DUMP="$("$NGINX_BIN" -T 2>/dev/null)"; then
+  bad "สั่ง nginx -T ไม่สำเร็จ — ยังสรุปข้อนี้ไม่ได้ (ห้ามถือว่าผ่าน)"
+  info "ลองเอง: sudo $NGINX_BIN -T | grep -n $HOSTNAME_TO_TEST"
+else
+  # ตัดเอาเฉพาะ server block ที่ server_name ตรงกับโฮสต์นี้ นับวงเล็บปีกกาเพื่อไม่ให้
+  # location ข้างในทำให้หลุดบล็อกก่อนเวลา · รับ wildcard (*.shafiq-lap.com) ด้วย
+  # ไม่งั้นจะรายงานว่า "ไม่มีกฎ" ทั้งที่ nginx เสิร์ฟอยู่จริง แล้วส่งคนไปสร้างกฎซ้ำ
+  RULE="$(printf '%s\n' "$NGINX_DUMP" | awk -v host="$HOSTNAME_TO_TEST" '
+    /^[ \t]*server[ \t]*\{/ && !inblock { inblock = 1; depth = 0; n = 0; hit = 0 }
+    inblock {
+      buf[++n] = $0
+      for (i = 1; i <= length($0); i++) {
+        c = substr($0, i, 1)
+        if (c == "{") depth++
+        else if (c == "}") depth--
+      }
+      if ($0 ~ /^[ \t]*server_name/) {
+        line = $0
+        gsub(/;/, " ", line)
+        m = split(line, tok, /[ \t]+/)
+        for (j = 1; j <= m; j++) {
+          t = tok[j]
+          if (t == host) hit = 1
+          else if (substr(t, 1, 2) == "*.") {
+            suf = substr(t, 2)
+            if (length(host) > length(suf) &&
+                substr(host, length(host) - length(suf) + 1) == suf) hit = 1
+          }
+        }
+      }
+      if (depth <= 0) {
+        if (hit) for (i = 1; i <= n; i++) if (buf[i] ~ /listen|server_name|proxy_pass/) print buf[i]
+        inblock = 0
+      }
+    }
+  ')"
+
+  if [ -z "$RULE" ]; then
+    bad "ไม่มีกฎ reverse proxy สำหรับ $HOSTNAME_TO_TEST ในคอนฟิกที่ nginx โหลดอยู่จริง"
+    info "นี่คือเหตุที่เบราว์เซอร์ได้หน้าเริ่มต้นของ DSM แทนเว็บงานแต่ง"
+    info "สร้างตามตารางขั้นที่ 5 ของ docs/07-shafiq-nas.md:"
+    info "  Control Panel → Login Portal → Advanced → Reverse Proxy → Create"
+    info "  Source       HTTPS · $HOSTNAME_TO_TEST · $PUBLIC_PORT"
+    info "  Destination  HTTP  · 127.0.0.1 · $PORT"
+  else
+    ok "เจอกฎที่ตรงกับชื่อนี้"
+    printf '%s\n' "$RULE" | sed 's/^[[:space:]]*/    /'
+
+    case "$RULE" in
+      *proxy_pass*localhost*)
+        bad "ปลายทางเป็น localhost — เครื่องที่เปิด IPv6 จะ resolve เป็น ::1 แล้วได้ 502"
+        info "แก้ Destination hostname เป็น 127.0.0.1"
+        ;;
+    esac
+
+    if printf '%s\n' "$RULE" | grep -q "proxy_pass.*:$PORT"; then
+      ok "ปลายทางชี้ไปพอร์ต $PORT ตรงกับพอร์ตของแอป"
+    else
+      bad "ไม่เห็น proxy_pass ที่ชี้ไปพอร์ต $PORT — ตรวจ Destination port ให้ครบทุกหลัก"
+    fi
+  fi
+fi
+
 # ── 7. ยิงผ่าน nginx ด้วยชื่อโดเมนจริง (ชี้ IP เอง ไม่พึ่ง DNS) ──────────────
 step "7. ยิงผ่าน nginx ด้วยชื่อ $HOSTNAME_TO_TEST"
 
-PROXY_CODE="$(curl -sS -o /dev/null -m 10 -w '%{http_code}' \
-  --noproxy "*" --resolve "$HOSTNAME_TO_TEST:443:$NAS_IP" \
-  "https://$HOSTNAME_TO_TEST/healthz" 2>/dev/null)"
+# เก็บทั้งรหัสและเนื้อหาจากการยิง "ครั้งเดียว" — ข้อ 8 ต้องใช้เนื้อหา และการยิงซ้ำ
+# เพื่อเอาเนื้อหาทีหลังอาจได้คนละคำตอบกับรหัสที่เพิ่งรายงานไป
+# ใส่เลขพอร์ตใน URL ด้วยเสมอ เพราะ --resolve ผูกกับพอร์ต ถ้า URL ไม่มีพอร์ตมันจะไป 443
+probe() {
+  PROBE_TMP="$(mktemp)"
+  PROBE_CODE="$(curl -sS -o "$PROBE_TMP" -m 10 -w '%{http_code}' --noproxy "*" \
+    --resolve "$HOSTNAME_TO_TEST:$2:$NAS_IP" \
+    "$1://$HOSTNAME_TO_TEST:$2/healthz" 2>/dev/null)"
+  PROBE_BODY="$(head -c 400 "$PROBE_TMP" | tr -d '\r' | tr '\n' ' ')"
+  rm -f "$PROBE_TMP"
+}
 
-case "$PROXY_CODE" in
-  200) ok "HTTP 200 — เส้นทางครบวงจรใช้ได้" ;;
+probe https "$PUBLIC_PORT"
+HTTPS_CODE="$PROBE_CODE"
+HTTPS_BODY="$PROBE_BODY"
+
+case "$HTTPS_CODE" in
+  200) ok "https พอร์ต $PUBLIC_PORT → HTTP 200" ;;
   502|503)
-    bad "HTTP $PROXY_CODE — nginx รับสายได้ แต่ต่อไปหาแอปไม่ติด"
+    bad "https พอร์ต $PUBLIC_PORT → HTTP $HTTPS_CODE — nginx รับสายได้ แต่ต่อไปหาแอปไม่ติด"
     info "ไล่ตามลำดับ:"
     info "  ก) ข้อ 2 ได้ 200 ไหม — ถ้าไม่ แอปนั่นแหละที่ล่ม"
     info "  ข) Reverse Proxy → Destination hostname เปลี่ยนจาก localhost เป็น 127.0.0.1"
     info "  ค) Destination port ต้องเป็น $PORT พอดี (เคยพิมพ์ตกเลขมาแล้ว)"
     ;;
   000|"")
-    bad "ต่อไม่ติดเลย — nginx ไม่ได้รับสายที่พอร์ต 443 (ดูข้อ 4 กับ 6)"
+    bad "https พอร์ต $PUBLIC_PORT → ต่อไม่ติดเลย (ดูข้อ 4 กับ 6)"
     ;;
   *)
-    bad "HTTP $PROXY_CODE — ไม่ใช่ค่าที่คาดไว้"
-    info "ถ้าได้ 200 แต่หน้าเป็นหน้า DSM แปลว่ากฎ reverse proxy ยังไม่ match ชื่อโดเมนนี้"
+    bad "https พอร์ต $PUBLIC_PORT → HTTP $HTTPS_CODE — ข้อ 8 จะบอกว่าใครเป็นคนตอบ"
     ;;
 esac
 
+# ยิงพอร์ต 80 ด้วย ไม่ใช่เพื่อหาความผิด แต่เพื่อแยก "แอปพัง" ออกจาก "เปิดผิด scheme"
+probe http 80
+HTTP_CODE="$PROBE_CODE"
+HTTP_BODY="$PROBE_BODY"
+
+case "$HTTP_CODE" in
+  000|"") info "http พอร์ต 80 → ไม่มีใครรับสาย" ;;
+  *)      info "http พอร์ต 80 → HTTP $HTTP_CODE" ;;
+esac
+
 # ── 8. เนื้อหาที่ได้กลับมาใช่ของแอปจริงไหม ──────────────────────────────────
-if [ "$PROXY_CODE" = "200" ]; then
-  step "8. ตรวจว่าเนื้อหาที่ได้เป็นของแอปจริง ไม่ใช่หน้าเริ่มต้นของ DSM"
-  BODY="$(curl -sS -m 10 --noproxy "*" --resolve "$HOSTNAME_TO_TEST:443:$NAS_IP" \
-    "https://$HOSTNAME_TO_TEST/healthz" 2>/dev/null)"
-  case "$BODY" in
-    *'"ok"'*) ok "ได้ $BODY จากแอปจริง" ;;
-    *) bad "เนื้อหาไม่ใช่ของแอป: $(printf '%s' "$BODY" | head -c 120)" ;;
+step "8. ใครเป็นคนตอบ — แอปจริง หรือหน้าเริ่มต้นของ DSM"
+
+# ต้องดูเนื้อหา "ทุกกรณี" ไม่ใช่เฉพาะตอนได้ 200 แบบเดิม — อาการที่เจอจริงเมื่อ 21 ส.ค.
+# คือ HTTP 404 พร้อมหน้า HTML ของ Synology ซึ่งเป็นกรณีที่โค้ดเดิมไม่เคยดูเนื้อหาเลย
+judge() {
+  case "$2" in
+    *'"ok"'*) JUDGE_KIND="app" ;;
+    *Synology*|*'page you are looking for'*) JUDGE_KIND="dsm" ;;
+    '') JUDGE_KIND="empty" ;;
+    *) JUDGE_KIND="other" ;;
   esac
-fi
+}
+
+judge "$HTTPS_CODE" "$HTTPS_BODY"
+case "$JUDGE_KIND" in
+  app) ok "https → แอปจริงตอบ: $HTTPS_BODY" ;;
+  dsm)
+    bad "https → หน้าเริ่มต้นของ DSM — nginx ตอบเอง ไม่ได้ส่งต่อไปหาแอป"
+    info "กฎ reverse proxy ไม่ match ชื่อนี้ที่พอร์ต $PUBLIC_PORT (ดูข้อ 6.5 ประกอบ)"
+    info "เช็คทีละช่อง: Source protocol ต้องเป็น HTTPS · Source hostname ต้องสะกดตรงเป๊ะ"
+    ;;
+  empty) info "https → ไม่มีเนื้อหากลับมา (HTTP $HTTPS_CODE) — นับไปแล้วในข้อ 7" ;;
+  *) bad "https → เนื้อหาไม่ใช่ของแอป: $(printf '%s' "$HTTPS_BODY" | head -c 120)" ;;
+esac
+
+judge "$HTTP_CODE" "$HTTP_BODY"
+case "$JUDGE_KIND" in
+  app) ok "http → แอปจริงตอบเหมือนกัน" ;;
+  dsm)
+    warn "http → หน้าเริ่มต้นของ DSM · อันนี้ปกติ กฎผูกไว้กับพอร์ต $PUBLIC_PORT เท่านั้น"
+    info "แปลว่า เปิดเว็บโดยไม่พิมพ์ https:// นำหน้า จะได้หน้านี้ทั้งที่แอปไม่ได้พังเลย"
+    info "การ์ด QR ใช้ BASE_URL ซึ่งเป็น https อยู่แล้ว แขกที่สแกนจึงไม่เจอกรณีนี้"
+    ;;
+  empty) info "http → ไม่มีเนื้อหา (HTTP $HTTP_CODE)" ;;
+  *) info "http → $(printf '%s' "$HTTP_BODY" | head -c 80)" ;;
+esac
 
 # ── 9. DNS สาธารณะยังชี้มาที่ไอพีบ้านตอนนี้ไหม (ข้อนี้คือตัวที่ทำให้ 5G เข้าไม่ได้) ──
 step "9. DNS สาธารณะของ $HOSTNAME_TO_TEST เทียบกับไอพี WAN ตอนนี้"

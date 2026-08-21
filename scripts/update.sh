@@ -73,3 +73,35 @@ done
 
 VERSION="$(curl -s "http://127.0.0.1:${PORT}/" | grep -o 'app\.css?v=[a-f0-9]*' | head -1)"
 printf '  ✓ เว็บตอบแล้ว  ·  %s\n\n' "${VERSION:-ไม่พบเลขเวอร์ชันไฟล์}"
+
+# ── เส้นทางที่คนใช้จริง ─────────────────────────────────────────────────────
+# 127.0.0.1 ตอบแล้วไม่ได้แปลว่าเบราว์เซอร์เข้าได้ — ระหว่างสองจุดนั้นมี nginx ของ DSM คั่นอยู่
+# เกิดขึ้นจริงมาแล้ว: สคริปต์นี้ขึ้น ✓ ตอนตี 6 แต่พอเปิด /admin ได้หน้า "page not found"
+# ของ Synology เพราะกฎ reverse proxy ไม่ได้ส่งต่อมาที่แอป การตรวจแค่ loopback มองไม่เห็นชั้นนั้น
+#
+# ข้อนี้เป็น "คำเตือน" ไม่ใช่ความล้มเหลว — โค้ดถูกอัปเดตและแอปทำงานแล้วจริง ๆ
+# การทำให้สคริปต์ออกด้วยรหัสผิดพลาดตรงนี้จะกลายเป็นการรายงานผิดอีกทางหนึ่ง
+BASE="$(grep '^BASE_URL=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r')"
+if [ -n "${BASE:-}" ]; then
+  SCHEME="${BASE%%://*}"
+  HOST_PORT="${BASE#*://}"
+  HOST_PORT="${HOST_PORT%%/*}"
+  HOST="${HOST_PORT%%:*}"
+  PUBLIC_PORT="${HOST_PORT#*:}"
+  if [ "$PUBLIC_PORT" = "$HOST" ]; then
+    [ "$SCHEME" = "http" ] && PUBLIC_PORT="80" || PUBLIC_PORT="443"
+  fi
+
+  # ชี้ไอพีเองไปที่ NAS เครื่องนี้ ไม่พึ่ง DNS — ระเบียนสาธารณะค้างอยู่ก็ยังตรวจได้
+  LAN_IP="$(ip route get 1.1.1.1 2>/dev/null | awk '/src/ {print $7; exit}')"
+  [ -n "${LAN_IP:-}" ] || LAN_IP="127.0.0.1"
+
+  if curl -fsS -m 10 --noproxy '*' --resolve "$HOST:$PUBLIC_PORT:$LAN_IP" \
+      "$SCHEME://$HOST:$PUBLIC_PORT/healthz" 2>/dev/null | grep -q '"ok"'; then
+    printf '  ✓ เส้นทางจากเบราว์เซอร์ก็ถึงแอป  ·  %s://%s\n\n' "$SCHEME" "$HOST"
+  else
+    printf '  ⚠ แอปทำงานปกติ แต่ยิงผ่าน %s://%s แล้วไม่ถึงแอป\n' "$SCHEME" "$HOST"
+    printf '    เบราว์เซอร์จะได้หน้าของ DSM แทนเว็บงานแต่ง — ตรวจต่อด้วย\n'
+    printf '    sudo ./scripts/diagnose-nas.sh\n\n'
+  fi
+fi
