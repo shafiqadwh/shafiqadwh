@@ -53,7 +53,9 @@
     "anonymous": "Tetamu",
     "download_item": "Muat turun fail ini",
     "prev": "Sebelum",
-    "next": "Seterusnya"
+    "next": "Seterusnya",
+    "music_play": "Main muzik",
+    "music_pause": "Henti muzik"
   },
   "guestbook": {
     "heading": "Buku ucapan",
@@ -123,7 +125,10 @@
     "empty_items": "Belum ada gambar atau video",
     "qr_plain": "Kad QR tanpa lokasi",
     "qr_plain_hint": "Sesuai untuk majlis beberapa hari di tempat berlainan",
-    "qr_per_page": "keping/helaian"
+    "qr_per_page": "keping/helaian",
+    "music_gallery": "Muzik latar di laman",
+    "music_gallery_hint": "Tetamu perlu tekan sendiri untuk dengar · pilih dari pustaka muzik yang sama",
+    "music_gallery_off": "Tiada muzik"
   },
   "qr": {
     "title": "Imbas untuk kongsi gambar majlis",

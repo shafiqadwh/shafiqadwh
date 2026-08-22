@@ -180,6 +180,39 @@ export async function totalSeconds(ids) {
   return total;
 }
 
+/**
+ * รายละเอียดของเพลงเดียว สำหรับเพลงคลอในหน้าแกลลอรี่
+ *
+ * คืน `bytes` มาด้วยเพราะหน้าเว็บใช้มันเป็นเลขเวอร์ชันท้าย URL — เปลี่ยนเพลงแล้ว
+ * ที่อยู่ต้องเปลี่ยนตาม ไม่งั้นมือถือที่เคยเปิดจะเล่นเพลงเก่าจากแคชต่อไป
+ * (URL ของเพลงเป็นเส้นทางตายตัวเส้นเดียว จึงไม่มีชื่อไฟล์ให้แคชแยกกันเอง)
+ */
+export async function trackDetails(id) {
+  const filePath = trackPath(id);
+  if (!filePath) return null;
+
+  const info = await durationOf(filePath);
+  if (!info) return null;
+
+  let stat;
+  try {
+    stat = await fs.stat(filePath);
+  } catch {
+    return null;
+  }
+
+  return {
+    id,
+    path: filePath,
+    title: path.basename(filePath).replace(/\.[^.]+$/, ''),
+    seconds: info.seconds,
+    bytes: info.bytes,
+    // ขนาดอย่างเดียวไม่พอเป็นเลขเวอร์ชัน เพลงคนละเพลงขนาดเท่ากันเป๊ะมีจริง
+    // (เจอในเทสต์: เสียงที่สร้างด้วยพารามิเตอร์เดียวกันได้ไฟล์ขนาดเท่ากันทุกไบต์)
+    version: `${info.bytes}-${Math.round(stat.mtimeMs)}`,
+  };
+}
+
 export async function deleteTrack(id) {
   const filePath = trackPath(id);
   // ลบได้เฉพาะเพลงที่อัพเอง เพลงที่มากับโปรแกรมโหลดใหม่ได้เสมอด้วย fetch-music.sh

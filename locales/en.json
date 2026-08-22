@@ -53,7 +53,9 @@
     "anonymous": "A guest",
     "download_item": "Download this file",
     "prev": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "music_play": "Play music",
+    "music_pause": "Pause music"
   },
   "guestbook": {
     "heading": "Guest book",
@@ -123,7 +125,10 @@
     "empty_items": "No photos or videos yet",
     "qr_plain": "QR card without the venue",
     "qr_plain_hint": "Works on any day at any place — for multi-day celebrations",
-    "qr_per_page": "per sheet"
+    "qr_per_page": "per sheet",
+    "music_gallery": "Background music on the site",
+    "music_gallery_hint": "Guests must tap to hear it · picked from the same music library the film uses",
+    "music_gallery_off": "No music"
   },
   "qr": {
     "title": "Scan to share your photos",

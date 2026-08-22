@@ -61,6 +61,34 @@
   </div>
 </section>
 
+<%# เพลงคลอในหน้าแกลลอรี่ — ฟอร์มธรรมดา ไม่มี JavaScript
+    แขกต้องกดปุ่มเองถึงจะเล่น จึงไม่มีไฟล์เสียงถูกดึงโดยคนที่ไม่ได้อยากฟัง %>
+<% if (galleryMusic.library.length > 0) { %>
+  <section class="card">
+    <h2 class="section-title"><%= t('admin.music_gallery') %></h2>
+    <p class="section-hint"><%= t('admin.music_gallery_hint') %></p>
+
+    <form class="music-pick" method="post" action="/admin/music/gallery">
+      <label class="field">
+        <span class="visually-hidden"><%= t('admin.music_gallery') %></span>
+        <select name="track">
+          <option value=""><%= t('admin.music_gallery_off') %></option>
+          <% galleryMusic.library.forEach(function (group) { %>
+            <optgroup label="<%= t('film.theme_' + group.theme) %>">
+              <% group.tracks.forEach(function (track) { %>
+                <option value="<%= track.id %>"<%= galleryMusic.picked === track.id ? ' selected' : '' %>>
+                  <%= track.title %>
+                </option>
+              <% }); %>
+            </optgroup>
+          <% }); %>
+        </select>
+      </label>
+      <button type="submit" class="button button--small"><%= t('admin.save') %></button>
+    </form>
+  </section>
+<% } %>
+
 <%# หนังงานแต่ง — กดปุ่มเดียวแล้วรอ ไม่ต้อง ssh เข้า NAS
     สถานะเริ่มต้นถูกเรนเดอร์มาจากเซิร์ฟเวอร์แล้ว JavaScript แค่ทำให้มันสด %>
 <section class="card film" id="film"

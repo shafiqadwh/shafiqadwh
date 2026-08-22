@@ -1,10 +1,11 @@
 import path from 'node:path';
 import express from 'express';
 import { config, withinUploadWindow } from '../config.js';
-import { getFlag } from '../db.js';
+import { getFlag, getSetting } from '../db.js';
 import { countItems, getItem, listGuests, listItems, newerCount } from '../repo.js';
 import { normaliseName } from '../lib/guests.js';
 import { ensureDisplayCopy, safeOriginalName } from '../lib/media.js';
+import { trackDetails } from '../lib/music.js';
 
 export const galleryRouter = express.Router();
 
@@ -31,11 +32,14 @@ export function uploadsOpen() {
   return getFlag('uploads_enabled', true) && withinUploadWindow();
 }
 
-galleryRouter.get('/', (req, res) => {
+galleryRouter.get('/', async (req, res) => {
   // ?who= คือคีย์ที่ normalise แล้ว ไม่ใช่ชื่อดิบ — ชื่อที่ต่างกันแค่ช่องว่างหรือ
   // ตัวพิมพ์จึงเปิดลิงก์เดียวกันได้ และลิงก์ที่ส่งต่อกันไม่พังเพราะพิมพ์ต่างกันนิดเดียว
   const who = typeof req.query.who === 'string' ? normaliseName(req.query.who) : null;
   const guest = who === null ? null : listGuests().find((one) => one.key === who);
+
+  // ไฟล์เพลงหายไปแล้ว (ถูกลบจาก File Station) = ไม่ต้องมีปุ่มให้กดแล้วเงียบ
+  const track = await galleryMusic();
 
   res.render('gallery', {
     page: 'gallery',
@@ -43,6 +47,7 @@ galleryRouter.get('/', (req, res) => {
     total: countItems({ who }),
     who,
     guestName: guest && (guest.anonymous ? req.t('gallery.anonymous') : guest.name),
+    music: track && { title: track.title, url: `/music/track?v=${track.version}` },
   });
 });
 
@@ -96,6 +101,30 @@ function sendMedia(res, root, filename, { download = false, downloadName = null 
     );
   });
 }
+
+/**
+ * เพลงคลอของหน้าแกลลอรี่ — เพลงเดียวที่เจ้าภาพเลือกไว้ ไม่ใช่คลังทั้งกอง
+ *
+ * ชื่อไฟล์ไม่ได้มาจาก URL เลย มาจากค่าที่เจ้าภาพบันทึกไว้แล้วผ่าน `trackPath()`
+ * อีกชั้น — เส้นทางนี้จึงไม่มีพื้นที่ให้เดินออกนอกคลังตั้งแต่แรก
+ */
+export async function galleryMusic() {
+  const id = getSetting('gallery_music', '');
+  if (!id) return null;
+  return trackDetails(id);
+}
+
+galleryRouter.get('/music/track', async (req, res, next) => {
+  const track = await galleryMusic();
+  if (!track) return next();
+
+  try {
+    // sendFile จัดการ Range ให้เอง มือถือจึงข้ามไปกลางเพลงได้โดยไม่ต้องโหลดใหม่ทั้งไฟล์
+    await sendMedia(res, path.dirname(track.path), path.basename(track.path));
+  } catch (error) {
+    next(error);
+  }
+});
 
 galleryRouter.get('/thumb/:id', async (req, res, next) => {
   const row = getItem(Number(req.params.id));

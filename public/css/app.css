@@ -207,6 +207,51 @@ video {
   color: var(--ink-soft);
 }
 
+/* ปุ่มเพลงคลอ — จงใจให้เบา ไม่แย่งสายตาจากปุ่มอัพโหลดซึ่งเป็นงานหลักของหน้านี้ */
+.hero__music {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hero__music:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.hero__music.is-on {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: var(--accent-soft, rgba(196, 154, 74, 0.1));
+}
+
+.hero__music-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* ตัวเลือกเพลงในหน้าแอดมิน */
+.music-pick {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.music-pick .field {
+  flex: 1 1 240px;
+  margin: 0;
+}
+
 .section-title {
   font-family: var(--font-display);
   font-size: 20px;

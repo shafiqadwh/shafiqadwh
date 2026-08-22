@@ -4,7 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
 import { config } from '../config.js';
-import { db, getFlag, pruneExpiredSessions, setFlag } from '../db.js';
+import { db, getFlag, getSetting, pruneExpiredSessions, setFlag, setSetting } from '../db.js';
 import { catalogue, translator } from '../i18n.js';
 import {
   deleteItemRow,
@@ -20,7 +20,7 @@ import {
 } from '../repo.js';
 import { formatBytes, randomName } from '../lib/media.js';
 import { deleteFilm, filmPath, jobStatus, listFilms, startJob } from '../lib/film-job.js';
-import { deleteTrack, listLibrary, resolveTracks, totalSeconds } from '../lib/music.js';
+import { deleteTrack, listLibrary, resolveTracks, totalSeconds, trackPath } from '../lib/music.js';
 import { buildTimeline, dedupe, planLength } from '../lib/film-plan.js';
 import { readDeck } from '../lib/film-plan.js';
 import {
@@ -101,6 +101,8 @@ adminRouter.get('/admin', async (req, res) => {
     uploadsOpen: uploadsOpen(),
     items: listItems({ limit: 120, includeHidden: true }),
     messages: listMessages({ limit: 60, includeHidden: true }),
+    // เพลงคลอของหน้าแกลลอรี่ — เลือกจากคลังเดียวกับที่หนังใช้ ไม่ต้องอัพซ้ำ
+    galleryMusic: { picked: getSetting('gallery_music', ''), library: await listLibrary() },
   });
 });
 
@@ -131,6 +133,18 @@ adminRouter.post('/admin/logout', requireAdmin, (req, res) => {
 adminRouter.post('/admin/settings', requireAdmin, express.urlencoded({ extended: false }), (req, res) => {
   setFlag('uploads_enabled', req.body?.uploads_enabled === 'on');
   setFlag('require_review', req.body?.require_review === 'on');
+  res.redirect('/admin');
+});
+
+/**
+ * เพลงคลอในหน้าแกลลอรี่ — เก็บแค่ "ชื่อเพลงที่เลือก" ไม่ได้ก๊อปไฟล์ไปไหน
+ *
+ * ค่าว่างคือปิด ซึ่งเป็นค่าเริ่มต้น · ชื่อที่ส่งมาต้องผ่าน `trackPath()` ก่อนเสมอ
+ * เพราะมันมาจากฟอร์มในเบราว์เซอร์ แก้ค่าใน DOM แล้วส่งอะไรมาก็ได้
+ */
+adminRouter.post('/admin/music/gallery', requireAdmin, express.urlencoded({ extended: false }), (req, res) => {
+  const wanted = String(req.body?.track ?? '');
+  setSetting('gallery_music', wanted && trackPath(wanted) ? wanted : '');
   res.redirect('/admin');
 });
 
