@@ -219,12 +219,21 @@ adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
   //   /admin/qr?venue=0   ตัดบรรทัดสถานที่ออก — ใช้ได้ทุกวันทุกที่
   const showVenue = req.query.venue !== '0';
 
+  // กี่ใบต่อกระดาษ A4 หนึ่งแผ่น
+  //   1 (ค่าเริ่มต้น) การ์ด A5 แผ่นละใบ — เหมือนเดิมทุกประการ ของที่พิมพ์ไปแล้วไม่เปลี่ยน
+  //   2             การ์ด A5 สองใบเต็มแผ่น ตัดครึ่งเดียว
+  //   4             การ์ด A6 สี่ใบ — งานพันคนหลายสิบโต๊ะ พิมพ์แผ่นละใบคือกระดาษเปล่ามหาศาล
+  const sheet = [2, 4].includes(Number(req.query.sheet)) ? Number(req.query.sheet) : 1;
+
   res.render('qr-card', {
     page: 'admin',
     shareUrl: url,
-    qrImage: await qrDataUrl(url, { width: 900 }),
+    // การ์ด A6 ใส่ QR ได้ ~32 มม. ซึ่งที่ 300 dpi คือ ~380 px · ขอ 500 ไว้เผื่อ
+    // แล้วยังเบากว่า 900 ที่ถูกฝังซ้ำสี่ครั้งในหน้าเดียว
+    qrImage: await qrDataUrl(url, { width: sheet === 4 ? 500 : 900 }),
     cards,
     showVenue,
+    sheet,
   });
 });
 

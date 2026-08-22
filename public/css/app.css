@@ -2177,11 +2177,50 @@ a:focus-visible {
   flex-wrap: wrap;
 }
 
+/* ตัวเลือก "กี่ใบต่อแผ่น" — อยู่บนหน้าที่กำลังจะกดพิมพ์ ไม่ใช่ในหน้า admin
+   เพราะคนที่ตัดสินใจเรื่องกระดาษคือคนที่ยืนอยู่ตรงหน้าเครื่องพิมพ์ */
+.print-bar__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.print-bar__label {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.print-bar .button.is-on {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* ขนาดทุกอย่างบนการ์ดผูกกับตัวแปรชุดนี้ชุดเดียว การ์ด A6 (สี่ใบต่อแผ่น) จึงเขียนทับ
+   แค่ตัวแปร ไม่ต้องไล่แก้กฎย่อยทีละอัน ซึ่งเป็นทางที่ลืมง่ายและทำให้ตัวอักษรล้นกรอบ */
 .qr-card {
-  width: 148mm;
-  height: 210mm;
+  --qr-w: 148mm;
+  --qr-h: 210mm;
+  --qr-pad: 10mm 11mm 9mm;
+  --qr-gap: 4mm;
+  --qr-code: 46mm;
+  --qr-arch-pad: 5mm 5mm 4mm;
+  --qr-arch-radius: 30mm 30mm 4mm 4mm;
+  --qr-monogram: 30pt;
+  --qr-names: 15pt;
+  --qr-date: 10pt;
+  --qr-title: 11pt;
+  --qr-step: 8.5pt;
+  --qr-url: 10pt;
+  --qr-venue: 8.5pt;
+  --qr-flag: 7mm;
+  --qr-block-gap: 2.4mm;
+  --qr-block-width: 108mm;
+
+  width: var(--qr-w);
+  height: var(--qr-h);
   margin: 0 auto 12mm;
-  padding: 10mm 11mm 9mm;
+  padding: var(--qr-pad);
   overflow: hidden;
   border: 1px solid var(--line);
   outline: 0.6mm solid var(--accent);
@@ -2191,10 +2230,66 @@ a:focus-visible {
   grid-template-rows: auto auto 1fr auto;
   justify-items: center;
   text-align: center;
-  gap: 4mm;
+  gap: var(--qr-gap);
   page-break-after: always;
   break-after: page;
   background: #fff;
+}
+
+/* ── หลายใบต่อกระดาษหนึ่งแผ่น ─────────────────────────────────────────
+   งาน 1,000 คนหลายสิบโต๊ะ การพิมพ์ A5 ใบเดียวต่อ A4 คือทิ้งกระดาษไปครึ่งแผ่นทุกใบ */
+.qr-sheet {
+  width: 210mm;
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  margin: 0 auto;
+}
+
+/* สองใบ = การ์ด A5 ขนาดเต็มสองใบวางเคียงกันบน A4 แนวนอน (297 × 210 มม.)
+   สองใบกว้างรวม 296 มม. พอดีกับกระดาษ — ได้การ์ดขนาดเดิมเป๊ะโดยไม่ต้องย่ออะไรเลย
+   วางซ้อนกันบน A4 แนวตั้งไม่ได้ เพราะการ์ดสูง 210 มม. สองใบเป็น 420 มม. ล้นกระดาษ
+   แล้วใบที่สองจะถูกดันไปหน้าใหม่ กลายเป็นแผ่นละใบเหมือนเดิม (เจอมาแล้วตอนวัดจริง) */
+.qr-sheet--2 {
+  width: 297mm;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.qr-sheet--4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* ในแผ่นเดียวกันห้ามขึ้นหน้าใหม่ระหว่างใบ ไม่งั้นได้กระดาษละใบเหมือนเดิม */
+.qr-sheet .qr-card {
+  margin: 0;
+  page-break-after: auto;
+  break-after: auto;
+  border-radius: 0;
+  /* เส้นประไว้ตัด — จางพอที่จะไม่แย่งสายตาจากตัวการ์ด */
+  border: 0.2mm dashed #cfc4b2;
+}
+
+.qr-sheet--4 .qr-card {
+  --qr-w: 105mm;
+  --qr-h: 148mm;
+  --qr-pad: 6mm 6mm 5mm;
+  --qr-gap: 2mm;
+  --qr-code: 32mm;
+  --qr-arch-pad: 3mm 3mm 2.5mm;
+  --qr-arch-radius: 20mm 20mm 3mm 3mm;
+  --qr-monogram: 19pt;
+  --qr-names: 11pt;
+  --qr-date: 7.5pt;
+  --qr-title: 8pt;
+  --qr-step: 6pt;
+  --qr-url: 7.5pt;
+  --qr-venue: 6.5pt;
+  --qr-flag: 5mm;
+  --qr-block-gap: 1.4mm;
+  --qr-block-width: 92mm;
+  outline-offset: -2.5mm;
 }
 
 .qr-card__header {
@@ -2207,7 +2302,7 @@ a:focus-visible {
 .qr-card__monogram {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 30pt;
+  font-size: var(--qr-monogram);
   line-height: 1;
   letter-spacing: 0.06em;
   color: var(--ink);
@@ -2216,14 +2311,14 @@ a:focus-visible {
 .qr-card__names {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 15pt;
+  font-size: var(--qr-names);
   margin: 0;
   color: var(--accent-dark);
 }
 
 .qr-card__date {
   margin: 0;
-  font-size: 10pt;
+  font-size: var(--qr-date);
   color: var(--ink-soft);
   letter-spacing: 0.22em;
 }
@@ -2235,29 +2330,29 @@ a:focus-visible {
    QR ที่ 46 มม. ยังสแกนติดสบายจากระยะโต๊ะอาหาร */
 .qr-card__arch {
   border: 0.5mm solid var(--accent);
-  border-radius: 30mm 30mm 4mm 4mm;
-  padding: 5mm 5mm 4mm;
+  border-radius: var(--qr-arch-radius);
+  padding: var(--qr-arch-pad);
   background: #fff;
 }
 
 .qr-card__code {
-  width: 46mm;
-  height: 46mm;
+  width: var(--qr-code);
+  height: var(--qr-code);
 }
 
 .qr-card__blocks {
   display: grid;
-  gap: 2.4mm;
+  gap: var(--qr-block-gap);
   align-content: center;
 }
 
 .qr-card__block {
-  max-width: 108mm;
+  max-width: var(--qr-block-width);
 }
 
 .qr-card__block h2 {
   font-family: var(--font-display);
-  font-size: 11pt;
+  font-size: var(--qr-title);
   margin: 0 0 0.8mm;
   font-weight: 600;
   display: flex;
@@ -2267,8 +2362,8 @@ a:focus-visible {
 }
 
 .qr-card__flag {
-  width: 7mm;
-  height: 4.7mm;
+  width: var(--qr-flag);
+  height: calc(var(--qr-flag) * 0.67);
   border-radius: 0.4mm;
   box-shadow: 0 0 0 0.2mm rgba(36, 31, 26, 0.25);
   flex: none;
@@ -2277,14 +2372,14 @@ a:focus-visible {
 /* ตัวอักษรแทนธง สำหรับภาษาที่ไม่ผูกกับประเทศเดียวอย่างอาหรับ */
 .qr-card__glyph {
   flex: none;
-  width: 7mm;
-  font-size: 13pt;
+  width: var(--qr-flag);
+  font-size: calc(var(--qr-title) * 1.18);
   line-height: 1;
 }
 
 .qr-card__block p {
   margin: 0;
-  font-size: 8.5pt;
+  font-size: var(--qr-step);
   color: var(--ink-soft);
   line-height: 1.5;
 }
@@ -2299,13 +2394,13 @@ a:focus-visible {
 
 .qr-card__venue {
   margin: 0;
-  font-size: 8.5pt;
+  font-size: var(--qr-venue);
   color: var(--ink-soft);
 }
 
 .qr-card__url {
   margin: 0;
-  font-size: 10pt;
+  font-size: var(--qr-url);
   color: var(--accent-dark);
   word-break: break-all;
   letter-spacing: 0.02em;
@@ -2323,6 +2418,24 @@ a:focus-visible {
   .qr-card {
     border: 0;
     margin: 0 auto;
+  }
+
+  /* แผ่นเต็ม A4 — สูงเท่ากระดาษพอดี แล้วขึ้นแผ่นใหม่ที่ขอบล่าง */
+  .qr-sheet {
+    height: 297mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .qr-sheet--2 {
+    height: 210mm; /* A4 แนวนอน */
+  }
+
+  /* เส้นตัดยังต้องเห็นบนกระดาษ ไม่งั้นตัดสี่ใบให้ตรงกันไม่ได้ */
+  .qr-sheet .qr-card {
+    border: 0.2mm dashed #cfc4b2;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 

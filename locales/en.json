@@ -122,7 +122,8 @@
     "status_pending": "Awaiting review",
     "empty_items": "No photos or videos yet",
     "qr_plain": "QR card without the venue",
-    "qr_plain_hint": "Works on any day at any place — for multi-day celebrations"
+    "qr_plain_hint": "Works on any day at any place — for multi-day celebrations",
+    "qr_per_page": "per sheet"
   },
   "qr": {
     "title": "Scan to share your photos",

@@ -5,52 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= event.title %> · QR</title>
   <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+  <% if (sheet > 1) { %>
+    <!-- @page อยู่ตรงนี้ ไม่ใช่ใน app.css เพราะ @page บังคับได้ทั้งเอกสาร สโคปด้วย
+         selector ไม่ได้ ถ้าไปวางไว้ในไฟล์รวม การ์ดแบบใบเดียวต่อแผ่น (ค่าเริ่มต้น)
+         จะขยับตำแหน่งตามไปด้วย ทั้งที่ไม่ได้ขออะไรเลย -->
+    <style>@page { size: A4 <%= sheet === 2 ? 'landscape' : 'portrait' %>; margin: 0; }</style>
+  <% } %>
 </head>
 <body class="card-body">
   <%- include('partials/flags') %>
 
   <div class="no-print print-bar">
     <button onclick="window.print()" class="button button--primary"><%= t('admin.print') %></button>
+    <span class="print-bar__group">
+      <span class="print-bar__label"><%= t('admin.qr_per_page') %></span>
+      <% [1, 2, 4].forEach(function (option) { %>
+        <a class="button button--ghost<%= sheet === option ? ' is-on' : '' %>"
+           href="/admin/qr?sheet=<%= option %><%= showVenue ? '' : '&venue=0' %>"><%= option %></a>
+      <% }); %>
+    </span>
     <a class="button button--ghost" href="/admin/qr.png" download="wedding-qr.png">PNG</a>
     <a class="button button--ghost" href="/admin"><%= t('common.back') %></a>
   </div>
 
-  <% for (let copy = 0; copy < 2; copy++) { %>
-    <article class="qr-card">
-      <header class="qr-card__header">
-        <% if (event.monogram) { %>
-          <p class="qr-card__monogram"><%= event.monogram %></p>
-        <% } %>
-        <p class="qr-card__names"><%= event.coupleNames || event.title %></p>
-        <% if (event.date) { %><p class="qr-card__date"><%= event.date %></p><% } %>
-      </header>
+  <%
+    // ใบเดียวต่อแผ่นยังพิมพ์สองใบเหมือนเดิม (สองหน้ากระดาษ) ส่วนแบบเต็มแผ่น
+    // พิมพ์ตามจำนวนช่องพอดี ไม่มีใบไหนถูกดันไปขึ้นหน้าใหม่ให้เสียกระดาษเปล่า
+    const copies = sheet === 1 ? 2 : sheet;
+  %>
+  <div class="<%= sheet === 1 ? 'qr-loose' : `qr-sheet qr-sheet--${sheet}` %>">
+    <% for (let copy = 0; copy < copies; copy++) { %>
+      <article class="qr-card">
+        <header class="qr-card__header">
+          <% if (event.monogram) { %>
+            <p class="qr-card__monogram"><%= event.monogram %></p>
+          <% } %>
+          <p class="qr-card__names"><%= event.coupleNames || event.title %></p>
+          <% if (event.date) { %><p class="qr-card__date"><%= event.date %></p><% } %>
+        </header>
 
-      <!-- กรอบทรงโค้งให้เข้ากับการ์ดเชิญ -->
-      <div class="qr-card__arch">
-        <img class="qr-card__code" src="<%= qrImage %>" alt="QR code">
-      </div>
+        <!-- กรอบทรงโค้งให้เข้ากับการ์ดเชิญ -->
+        <div class="qr-card__arch">
+          <img class="qr-card__code" src="<%= qrImage %>" alt="QR code">
+        </div>
 
-      <div class="qr-card__blocks">
-        <% cards.forEach(function (card) { %>
-          <section class="qr-card__block" lang="<%= card.code %>" dir="<%= card.dir %>">
-            <h2>
-              <% if (card.flag) { %>
-                <svg class="qr-card__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= card.code %>"/></svg>
-              <% } else { %>
-                <span class="qr-card__glyph" aria-hidden="true"><%= card.short %></span>
-              <% } %>
-              <%= card.title %>
-            </h2>
-            <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
-          </section>
-        <% }); %>
-      </div>
+        <div class="qr-card__blocks">
+          <% cards.forEach(function (card) { %>
+            <section class="qr-card__block" lang="<%= card.code %>" dir="<%= card.dir %>">
+              <h2>
+                <% if (card.flag) { %>
+                  <svg class="qr-card__flag" aria-hidden="true" focusable="false"><use href="#flag-<%= card.code %>"/></svg>
+                <% } else { %>
+                  <span class="qr-card__glyph" aria-hidden="true"><%= card.short %></span>
+                <% } %>
+                <%= card.title %>
+              </h2>
+              <p><%= card.step1 %> → <%= card.step2 %> → <%= card.step3 %></p>
+            </section>
+          <% }); %>
+        </div>
 
-      <footer class="qr-card__footer">
-        <% if (showVenue && event.venue) { %><p class="qr-card__venue"><%= event.venue %><% if (event.time) { %> · <%= event.time %><% } %></p><% } %>
-        <p class="qr-card__url"><%= shareUrl.replace(/^https?:\/\//, '') %></p>
-      </footer>
-    </article>
-  <% } %>
+        <footer class="qr-card__footer">
+          <% if (showVenue && event.venue) { %><p class="qr-card__venue"><%= event.venue %><% if (event.time) { %> · <%= event.time %><% } %></p><% } %>
+          <p class="qr-card__url"><%= shareUrl.replace(/^https?:\/\//, '') %></p>
+        </footer>
+      </article>
+    <% } %>
+  </div>
 </body>
 </html>
