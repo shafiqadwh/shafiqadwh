@@ -29,7 +29,11 @@ function toPublicMessage(row) {
     author: row.author,
     body: row.body,
     createdAt: row.created_at,
-    item: row.item_id
+    // row.item_id คือคอลัมน์ item_id ของตาราง messages เอง (FK ดิบ) ไม่ใช่ผลจาก JOIN
+    // จึงยังไม่หายไปเองแม้รูปที่แนบจะถูกลบ/ซ่อนแล้ว — ต้องเช็ค item_status ที่มาจาก
+    // การ JOIN ด้วย (เหมือนที่ attachedMedia() ของสไลด์โชว์ทำอยู่แล้ว) ไม่งั้นคำอวยพร
+    // ที่แนบรูปซึ่งถูกลบเข้าถังขยะไปแล้ว จะยังส่ง mediaUrl ของรูปนั้นออกไปให้แขกอยู่ดี
+    item: row.item_id && row.item_status === 'visible'
       ? {
           id: row.item_id,
           kind: row.item_kind,

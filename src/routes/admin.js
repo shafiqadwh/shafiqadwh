@@ -11,11 +11,16 @@ import {
   deleteMessageRow,
   getItem,
   getMessage,
+  getTrashedByIds,
+  listExpiredTrash,
   listGuests,
   listItems,
   listMessages,
+  listTrash,
+  restoreItems,
   setItemStatus,
   setMessageStatus,
+  softDeleteItems,
   stats,
 } from '../repo.js';
 import { formatBytes, randomName } from '../lib/media.js';
@@ -76,6 +81,8 @@ adminRouter.get('/admin', async (req, res) => {
     return res.render('admin-login', { page: 'admin', error: null });
   }
 
+  await purgeExpiredTrash();
+
   const summary = stats();
   // สถานะหนังใส่มาตั้งแต่ตอนเรนเดอร์หน้า เจ้าของที่เปิดหน้ามาแล้วเห็นเลยว่ามีหนัง
   // อยู่ไหม โดยไม่ต้องรอ JavaScript ยิง poll รอบแรก
@@ -103,6 +110,11 @@ adminRouter.get('/admin', async (req, res) => {
     messages: listMessages({ limit: 60, includeHidden: true }),
     // เพลงคลอของหน้าแกลลอรี่ — เลือกจากคลังเดียวกับที่หนังใช้ ไม่ต้องอัพซ้ำ
     galleryMusic: { picked: getSetting('gallery_music', ''), library: await listLibrary() },
+    trash: listTrash().map((one) => ({ ...one, size: formatBytes(one.bytes) })),
+    trashRetentionDays: config.admin.trashRetentionDays,
+    // ?undo= มาจาก redirect หลังกดลบ — เอาเฉพาะ id ที่ยังอยู่ในถังขยะจริงเท่านั้น
+    // ลิงก์ค้าง (กู้คืนไปแล้วก่อนหน้า หรือถูกกวาดทิ้งถาวรไปแล้ว) แบนเนอร์แค่ไม่ขึ้น ไม่ error
+    undoItems: getTrashedByIds(String(req.query.undo ?? '').split(',')),
   });
 });
 
@@ -158,6 +170,26 @@ async function removeFiles(row) {
   await Promise.all(targets.map((file) => fs.rm(file, { force: true })));
 }
 
+/**
+ * กวาดถังขยะที่หมดอายุแล้วจริง ๆ — ลบไฟล์บนดิสก์ + แถวใน DB ถาวร ทำได้ทางเดียว
+ *
+ * ไม่กวาดทุกครั้งที่เปิด /admin — งาน 3 วันเจ้าภาพเปิดหน้านี้ค้างในมือถือทั้งงาน
+ * กวาดทุกครั้งที่โหลดหน้าคือ I/O ลบไฟล์เปล่า ๆ ระหว่างงานชุลมุน จึงกวาดจริงเมื่อ
+ * ผ่านไปแล้วอย่างน้อยหนึ่งชั่วโมง เก็บเวลาไว้ใน settings ตัวเดิมที่มีอยู่แล้ว
+ */
+async function purgeExpiredTrash() {
+  const last = getSetting('trash_purged_at');
+  const lastMs = last ? Date.parse(last) : 0;
+  if (Number.isFinite(lastMs) && Date.now() - lastMs < 60 * 60 * 1000) return;
+
+  setSetting('trash_purged_at', new Date().toISOString());
+  const expired = listExpiredTrash(config.admin.trashRetentionDays);
+  for (const row of expired) {
+    await removeFiles(row);
+    deleteItemRow(row.id);
+  }
+}
+
 adminRouter.post('/admin/items/:id/:action', requireAdmin, async (req, res) => {
   const row = getItem(Number(req.params.id));
   if (!row) return res.status(404).json({ error: req.t('errors.not_found') });
@@ -173,15 +205,35 @@ adminRouter.post('/admin/items/:id/:action', requireAdmin, async (req, res) => {
       setItemStatus(row.id, 'visible');
       break;
     case 'delete':
-      await removeFiles(row);
-      deleteItemRow(row.id);
+      // เข้าถังขยะ ไม่ลบไฟล์จริงทันที — กันพลาดกลางงาน กู้คืนได้จากแบนเนอร์ทันที
+      // หรือจากหน้าถังขยะทีหลัง ไฟล์จริงถูกลบก็ต่อเมื่อพ้นระยะเก็บ (purgeExpiredTrash)
+      softDeleteItems([row.id]);
       break;
     default:
       return res.status(400).json({ error: 'unknown action' });
   }
 
-  if (req.accepts('html') && !req.xhr) return res.redirect('/admin');
+  if (req.accepts('html') && !req.xhr) {
+    const undo = req.params.action === 'delete' ? `?undo=${row.id}` : '';
+    return res.redirect(`/admin${undo}`);
+  }
   return res.json({ ok: true });
+});
+
+/** ids จากฟอร์ม — checkbox เดียวส่งมาเป็นสตริง หลายอันส่งมาเป็นอาร์เรย์ ต้องรวมให้เป็นแบบเดียวเสมอ */
+function idsFromBody(body) {
+  return [].concat(body?.ids ?? []);
+}
+
+adminRouter.post('/admin/items/bulk-delete', requireAdmin, express.urlencoded({ extended: false }), (req, res) => {
+  const ids = softDeleteItems(idsFromBody(req.body));
+  const undo = ids.length > 0 ? `?undo=${ids.join(',')}` : '';
+  res.redirect(`/admin${undo}`);
+});
+
+adminRouter.post('/admin/items/restore', requireAdmin, express.urlencoded({ extended: false }), (req, res) => {
+  restoreItems(idsFromBody(req.body));
+  res.redirect('/admin');
 });
 
 adminRouter.post('/admin/messages/:id/:action', requireAdmin, (req, res) => {

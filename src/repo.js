@@ -20,13 +20,14 @@ const statements = {
   setMessageStatus: db.prepare('UPDATE messages SET status = ? WHERE id = ?'),
   countByKind: db.prepare(`
     SELECT kind, COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes
-    FROM items WHERE status != 'hidden' GROUP BY kind
+    FROM items WHERE status != 'hidden' AND deleted_at IS NULL GROUP BY kind
   `),
+  // นับรวมของในถังขยะด้วย — ไฟล์ยังกินพื้นที่ดิสก์จริงจนกว่าจะถูกกวาดทิ้งถาวร
   totalBytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM items'),
   countMessages: db.prepare("SELECT COUNT(*) AS count FROM messages WHERE status != 'hidden'"),
-  countPending: db.prepare("SELECT COUNT(*) AS count FROM items WHERE status = 'pending'"),
+  countPending: db.prepare("SELECT COUNT(*) AS count FROM items WHERE status = 'pending' AND deleted_at IS NULL"),
   visibleSince: db.prepare(
-    "SELECT COUNT(*) AS count FROM items WHERE status = 'visible' AND id > ?",
+    "SELECT COUNT(*) AS count FROM items WHERE status = 'visible' AND deleted_at IS NULL AND id > ?",
   ),
 };
 
@@ -53,6 +54,64 @@ export const getItem = (id) => statements.getItem.get(id);
 export const deleteItemRow = (id) => statements.deleteItem.run(id);
 export const setItemStatus = (id, status) => statements.setItemStatus.run(status, id);
 
+/** id ที่ผู้ใช้ส่งมาเป็นสตริงจากฟอร์ม — คัดเฉพาะจำนวนเต็มบวกจริง ๆ ทิ้งของที่ไม่ใช่ */
+function positiveIntIds(ids) {
+  return (Array.isArray(ids) ? ids : [ids])
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+/**
+ * ลบ = เข้าถังขยะ ไม่ใช่ลบไฟล์จริงทันที — กันพลาดกลางงานที่คนชุลมุน
+ *
+ * เงื่อนไข `deleted_at IS NULL` ทำให้ยิงซ้ำ id เดิมไม่มีผลอะไรเพิ่ม (idempotent)
+ * และไม่ทับเวลาที่ลบไว้เดิมถ้าเผลอกดซ้ำ
+ */
+export function softDeleteItems(ids) {
+  const wanted = positiveIntIds(ids);
+  if (wanted.length === 0) return [];
+  const placeholders = wanted.map(() => '?').join(',');
+  db.prepare(`
+    UPDATE items SET deleted_at = datetime('now')
+    WHERE id IN (${placeholders}) AND deleted_at IS NULL
+  `).run(...wanted);
+  return wanted;
+}
+
+/** กู้คืนจากถังขยะ — เฉพาะแถวที่อยู่ในถังขยะจริง id ที่กู้คืนไปแล้วหรือไม่เคยลบก็แค่ไม่มีผล */
+export function restoreItems(ids) {
+  const wanted = positiveIntIds(ids);
+  if (wanted.length === 0) return [];
+  const placeholders = wanted.map(() => '?').join(',');
+  db.prepare(`
+    UPDATE items SET deleted_at = NULL
+    WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL
+  `).run(...wanted);
+  return wanted;
+}
+
+/** ทุกอย่างที่อยู่ในถังขยะตอนนี้ — ใหม่สุดก่อน ให้เห็นของที่เพิ่งพลาดอยู่บนสุด */
+export function listTrash() {
+  return db.prepare("SELECT * FROM items WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC").all();
+}
+
+/** สำหรับแบนเนอร์ "เลิกทำ" — เอาเฉพาะ id ที่ยังอยู่ในถังขยะจริง ลิงก์ค้าง/กู้คืนไปแล้วก็แค่ไม่โผล่ */
+export function getTrashedByIds(ids) {
+  const wanted = positiveIntIds(ids);
+  if (wanted.length === 0) return [];
+  const placeholders = wanted.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT * FROM items WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL
+  `).all(...wanted);
+}
+
+/** ของที่อยู่ในถังขยะเกินกำหนดแล้ว — เอาไปลบไฟล์จริง+แถวจริงต่อที่ผู้เรียก (ต้องมีสิทธิ์แตะดิสก์) */
+export function listExpiredTrash(days) {
+  return db.prepare(`
+    SELECT * FROM items WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?)
+  `).all(`-${Number(days) || 0} days`);
+}
+
 /**
  * Keyset pagination on (created_at, id) — cheap and stable even while guests
  * keep uploading underneath the reader.
@@ -62,6 +121,8 @@ export function listItems({ filter = 'all', limit = 60, beforeId = null, include
   const params = { limit: Math.min(Math.max(limit, 1), 200) };
 
   where.push(includeHidden ? "status IN ('visible', 'pending', 'hidden')" : "status = 'visible'");
+  // ของในถังขยะไม่โผล่ที่นี่เลยไม่ว่า includeHidden จะเป็นอะไร — ถังขยะมีหน้าของตัวเอง
+  where.push('deleted_at IS NULL');
   if (filter === 'photos') where.push("kind = 'image'");
   if (filter === 'videos') where.push("kind = 'video'");
   if (beforeId) {
@@ -91,7 +152,7 @@ export function listItems({ filter = 'all', limit = 60, beforeId = null, include
 }
 
 export function countItems({ filter = 'all', includeHidden = false, who = null } = {}) {
-  const where = [includeHidden ? '1 = 1' : "status = 'visible'"];
+  const where = [includeHidden ? '1 = 1' : "status = 'visible'", 'deleted_at IS NULL'];
   if (filter === 'photos') where.push("kind = 'image'");
   if (filter === 'videos') where.push("kind = 'video'");
   if (who === null) {
@@ -136,7 +197,9 @@ export function listMessages({ limit = 100, includeHidden = false } = {}) {
              i.width         AS item_width,
              i.height        AS item_height
       FROM messages m
-      LEFT JOIN items i ON i.id = m.item_id
+      -- กรองอยู่ใน JOIN เอง ไม่ใช่ WHERE — รูปที่ถูกลบต้องหายไปเหมือนไม่เคยแนบมาเลย
+      -- ไม่ใช่ทำให้ทั้งข้อความหายตามไปด้วย ข้อความยังต้องอยู่ แค่ไม่มีรูปติด
+      LEFT JOIN items i ON i.id = m.item_id AND i.deleted_at IS NULL
       WHERE ${where}
       ORDER BY m.id DESC
       LIMIT ?
@@ -166,7 +229,8 @@ export function stats() {
  * — `LOWER()` ของมันรู้จักแต่ ASCII ชื่อไทยกับอาหรับจึงหลุดทุกกรณี
  */
 export function listGuests({ includeHidden = false } = {}) {
-  const itemWhere = includeHidden ? '1 = 1' : "status = 'visible'";
+  // ถังขยะไม่นับเป็นของที่แขกคนนั้น "ส่งมา" อีกต่อไป ไม่ว่า includeHidden จะเป็นอะไร
+  const itemWhere = (includeHidden ? '1 = 1' : "status = 'visible'") + ' AND deleted_at IS NULL';
   const messageWhere = includeHidden ? '1 = 1' : "status = 'visible'";
 
   return groupGuests({
@@ -187,7 +251,8 @@ export function listMessagesForPaper({ includeHidden = false } = {}) {
            i.thumb_name    AS item_thumb,
            i.status        AS item_status
     FROM messages m
-    LEFT JOIN items i ON i.id = m.item_id
+    -- เหตุผลเดียวกับ listMessages() — รูปที่ถูกลบต้องหายจากสมุดคำอวยพร PDF ด้วย
+    LEFT JOIN items i ON i.id = m.item_id AND i.deleted_at IS NULL
     WHERE ${where}
     ORDER BY m.id
   `).all();
@@ -195,7 +260,7 @@ export function listMessagesForPaper({ includeHidden = false } = {}) {
 
 /** รูปและวิดีโอทั้งหมดพร้อมชื่อผู้ส่ง เรียงตามเวลา — ใช้ประกอบ PDF รายชื่อคนอัพรูป */
 export function listItemsForPaper({ includeHidden = false } = {}) {
-  const where = includeHidden ? '1 = 1' : "status = 'visible'";
+  const where = (includeHidden ? '1 = 1' : "status = 'visible'") + ' AND deleted_at IS NULL';
   return db.prepare(`
     SELECT id, kind, uploader, stored_name, thumb_name, created_at
     FROM items WHERE ${where} ORDER BY id

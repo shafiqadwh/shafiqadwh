@@ -104,7 +104,7 @@
     "hide": "Hide",
     "unhide": "Show",
     "delete": "Delete",
-    "confirm_delete": "Permanently delete this file?",
+    "confirm_delete": "Delete this photo? (You can restore it from the trash)",
     "download": "Download everything",
     "download_photos": "Photos only (.zip)",
     "download_all": "Photos + videos (.zip)",
@@ -128,7 +128,18 @@
     "qr_per_page": "per sheet",
     "music_gallery": "Background music on the site",
     "music_gallery_hint": "Guests must tap to hear it · picked from the same music library the film uses",
-    "music_gallery_off": "No music"
+    "music_gallery_off": "No music",
+    "select_item": "Select this photo",
+    "select_all": "Select all",
+    "selected_count": "{n} selected",
+    "delete_selected": "Delete selected",
+    "confirm_delete_selected": "Delete the selected photos? (You can restore them from the trash)",
+    "deleted_toast": "Deleted {n} item(s)",
+    "undo": "Undo",
+    "trash": "Trash",
+    "trash_hint": "Kept for {days} days before being permanently deleted",
+    "trash_empty": "Trash is empty",
+    "restore": "Restore"
   },
   "qr": {
     "title": "Scan to share your photos",

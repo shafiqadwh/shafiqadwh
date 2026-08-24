@@ -104,7 +104,7 @@
     "hide": "إخفاء",
     "unhide": "إظهار",
     "delete": "حذف",
-    "confirm_delete": "حذف هذا الملف نهائياً؟",
+    "confirm_delete": "حذف هذه الصورة؟ (يمكن استعادتها من سلة المهملات)",
     "download": "تنزيل كل شيء",
     "download_photos": "الصور فقط (zip)",
     "download_all": "الصور والمقاطع (zip)",
@@ -128,7 +128,18 @@
     "qr_per_page": "لكل ورقة",
     "music_gallery": "موسيقى خلفية في الموقع",
     "music_gallery_hint": "يجب على الضيف الضغط للاستماع · تُختار من مكتبة الموسيقى نفسها",
-    "music_gallery_off": "بدون موسيقى"
+    "music_gallery_off": "بدون موسيقى",
+    "select_item": "تحديد هذه الصورة",
+    "select_all": "تحديد الكل",
+    "selected_count": "تم تحديد {n}",
+    "delete_selected": "حذف المحدد",
+    "confirm_delete_selected": "حذف الصور المحددة؟ (يمكن استعادتها من سلة المهملات)",
+    "deleted_toast": "تم حذف {n} عنصر",
+    "undo": "تراجع",
+    "trash": "سلة المهملات",
+    "trash_hint": "تُحفظ لمدة {days} يومًا قبل الحذف النهائي",
+    "trash_empty": "سلة المهملات فارغة",
+    "restore": "استعادة"
   },
   "qr": {
     "title": "امسحوا الرمز لمشاركة صوركم",

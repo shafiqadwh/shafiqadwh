@@ -104,7 +104,7 @@
     "hide": "ซ่อน",
     "unhide": "แสดง",
     "delete": "ลบ",
-    "confirm_delete": "ลบไฟล์นี้ถาวรใช่ไหม?",
+    "confirm_delete": "ลบรูปนี้ใช่ไหม? (กู้คืนได้จากถังขยะ)",
     "download": "ดาวน์โหลดทั้งหมด",
     "download_photos": "เฉพาะรูป (.zip)",
     "download_all": "รูป + วิดีโอ (.zip)",
@@ -128,7 +128,18 @@
     "qr_per_page": "ใบต่อแผ่น",
     "music_gallery": "เพลงคลอในหน้าเว็บ",
     "music_gallery_hint": "แขกต้องกดปุ่มเองถึงจะได้ยิน · เลือกจากคลังเพลงชุดเดียวกับที่หนังใช้",
-    "music_gallery_off": "ไม่เปิดเพลง"
+    "music_gallery_off": "ไม่เปิดเพลง",
+    "select_item": "เลือกรูปนี้",
+    "select_all": "เลือกทั้งหมด",
+    "selected_count": "เลือกแล้ว {n} รายการ",
+    "delete_selected": "ลบที่เลือก",
+    "confirm_delete_selected": "ลบรูปที่เลือกไว้ใช่ไหม? (กู้คืนได้จากถังขยะ)",
+    "deleted_toast": "ลบไปแล้ว {n} รายการ",
+    "undo": "เลิกทำ",
+    "trash": "ถังขยะ",
+    "trash_hint": "เก็บไว้ {days} วัน ก่อนลบไฟล์ถาวรจริง",
+    "trash_empty": "ถังขยะว่างเปล่า",
+    "restore": "กู้คืน"
   },
   "qr": {
     "title": "สแกนเพื่อแชร์รูปในงาน",

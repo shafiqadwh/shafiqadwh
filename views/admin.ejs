@@ -260,8 +260,43 @@
   </form>
 </section>
 
+<% if (undoItems.length > 0) { %>
+  <section class="card admin-undo">
+    <div class="admin-undo__thumbs">
+      <% undoItems.slice(0, 6).forEach(function (item) { %>
+        <img src="/thumb/<%= item.id %>" alt="" loading="lazy">
+      <% }); %>
+    </div>
+    <p class="admin-undo__text"><%= t('admin.deleted_toast', { n: undoItems.length }) %></p>
+    <form method="post" action="/admin/items/restore">
+      <% undoItems.forEach(function (item) { %>
+        <input type="hidden" name="ids" value="<%= item.id %>">
+      <% }); %>
+      <button type="submit" class="button button--small"><%= t('admin.undo') %></button>
+    </form>
+    <a class="admin-undo__dismiss" href="/admin" aria-label="<%= t('common.close') %>">&times;</a>
+  </section>
+<% } %>
+
 <section class="card">
   <h2 class="section-title"><%= t('admin.items') %> <span class="section-count"><%= items.length %></span></h2>
+
+  <%# ฟอร์มเปล่าที่ checkbox แต่ละใบผูกเข้ามาด้วย form="bulk-delete-form" — ไม่ครอบกริด
+      เพราะฟอร์ม approve/hide/delete ทีละรูปมีของตัวเองอยู่แล้ว HTML ห้าม <form> ซ้อนกัน %>
+  <form id="bulk-delete-form" method="post" action="/admin/items/bulk-delete"
+        onsubmit="return confirm(<%= JSON.stringify(t('admin.confirm_delete_selected')) %>)"></form>
+
+  <% if (items.length > 0) { %>
+    <div class="admin-bulkbar" id="admin-bulkbar">
+      <label class="admin-bulkbar__all">
+        <input type="checkbox" id="select-all">
+        <span><%= t('admin.select_all') %></span>
+      </label>
+      <span class="admin-bulkbar__count" id="admin-bulkbar-count"><%= t('admin.selected_count', { n: 0 }) %></span>
+      <button type="submit" form="bulk-delete-form" class="button button--small button--danger"
+              id="admin-bulkbar-delete" disabled><%= t('admin.delete_selected') %></button>
+    </div>
+  <% } %>
 
   <% if (items.length === 0) { %>
     <p class="notice"><%= t('admin.empty_items') %></p>
@@ -270,6 +305,8 @@
       <% items.forEach(function (item) { %>
         <figure class="admin-item admin-item--<%= item.status %>">
           <div class="admin-item__frame">
+            <input type="checkbox" class="admin-item__select" name="ids" value="<%= item.id %>"
+                   form="bulk-delete-form" aria-label="<%= t('admin.select_item') %>">
             <% if (item.thumb_name) { %>
               <img loading="lazy" src="/thumb/<%= item.id %>" alt="">
             <% } else { %>
@@ -317,6 +354,39 @@
 </section>
 
 <section class="card">
+  <h2 class="section-title"><%= t('admin.trash') %> <span class="section-count"><%= trash.length %></span></h2>
+  <p class="section-hint"><%= t('admin.trash_hint', { days: trashRetentionDays }) %></p>
+
+  <% if (trash.length === 0) { %>
+    <p class="notice"><%= t('admin.trash_empty') %></p>
+  <% } else { %>
+    <div class="admin-grid admin-grid--trash">
+      <% trash.forEach(function (item) { %>
+        <figure class="admin-item admin-item--trashed">
+          <div class="admin-item__frame">
+            <% if (item.thumb_name) { %>
+              <img loading="lazy" src="/thumb/<%= item.id %>" alt="">
+            <% } else { %>
+              <div class="admin-item__placeholder"><%= item.kind === 'video' ? '🎬' : '🖼' %></div>
+            <% } %>
+            <% if (item.kind === 'video') { %>
+              <span class="admin-item__tag admin-item__tag--video"><%= t('common.video') %></span>
+            <% } %>
+          </div>
+          <figcaption>
+            <span class="admin-item__who"><%= item.uploader || t('gallery.anonymous') %></span>
+            <form method="post" action="/admin/items/restore">
+              <input type="hidden" name="ids" value="<%= item.id %>">
+              <button class="button button--tiny"><%= t('admin.restore') %></button>
+            </form>
+          </figcaption>
+        </figure>
+      <% }); %>
+    </div>
+  <% } %>
+</section>
+
+<section class="card">
   <h2 class="section-title"><%= t('guestbook.heading') %> <span class="section-count"><%= messages.length %></span></h2>
 
   <% if (messages.length === 0) { %>
@@ -339,6 +409,7 @@
   <% } %>
 </section>
 
+<script src="/static/js/admin.js?v=<%= assetVersion %>" defer></script>
 <script src="/static/js/admin-film.js?v=<%= assetVersion %>" defer></script>
 <script src="/static/js/admin-paper.js?v=<%= assetVersion %>" defer></script>
 

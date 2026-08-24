@@ -62,6 +62,25 @@ db.exec(`
   );
 `);
 
+/**
+ * การแก้ schema ครั้งแรกของโปรเจกต์ — จนถึงตอนนี้ตารางโตแบบเพิ่มอย่างเดียว
+ * (`CREATE TABLE/INDEX IF NOT EXISTS`) ไม่เคยต้องมาแก้ตารางที่มีอยู่แล้วบนเครื่องจริง
+ *
+ * `ALTER TABLE ... ADD COLUMN` ปลอดภัย (คอลัมน์ nullable ไม่มี default ไม่ต้อง
+ * เขียนตารางใหม่ทั้งก้อนแบบที่แก้ CHECK constraint ต้องทำ) แต่ไม่ idempotent เอง
+ * แบบ `IF NOT EXISTS` — รันซ้ำจะ error "duplicate column name" จึงต้องเช็คก่อนด้วย
+ * PRAGMA table_info() แล้วค่อย ALTER เฉพาะตอนยังไม่มีคอลัมน์นี้จริง ๆ
+ *
+ * `deleted_at` คือเวลาที่กดลบ — ว่าง = ไม่ได้อยู่ในถังขยะ ไม่แตะ `status` เดิมเลย
+ * เพราะ status บอกว่า "แขกเห็นไหม" ส่วน deleted_at บอกว่า "อยู่ในถังขยะไหม"
+ * เป็นคนละมิติกัน แถวหนึ่งจึงเป็น hidden+deleted พร้อมกันได้ (กู้คืนมาแล้วยังซ่อนอยู่)
+ */
+const itemColumns = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
+if (!itemColumns.includes('deleted_at')) {
+  db.exec('ALTER TABLE items ADD COLUMN deleted_at TEXT');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_items_deleted_at ON items (deleted_at)');
+
 const readSetting = db.prepare('SELECT value FROM settings WHERE key = ?');
 const writeSetting = db.prepare(`
   INSERT INTO settings (key, value) VALUES (?, ?)

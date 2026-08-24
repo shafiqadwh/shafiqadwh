@@ -80,6 +80,10 @@ galleryRouter.get('/api/updates', (req, res) => {
  */
 function mayServe(row, res) {
   if (!row) return false;
+  // เช็คถังขยะก่อนเช็ค status เสมอ — แถวที่ถูกลบยัง status = 'visible' ค้างอยู่
+  // (การลบไม่แตะ status เลย เป็นคนละมิติกัน) ถ้าเช็ค status ก่อนจะหลุดให้แขก
+  // ดึงรูปที่ "ลบ" ไปแล้วได้ตรง ๆ — อนุญาตเฉพาะแอดมิน ให้หน้าถังขยะแสดงรูปย่อได้
+  if (row.deleted_at) return res.locals.isAdmin === true;
   if (row.status === 'visible') return true;
   return res.locals.isAdmin === true;
 }

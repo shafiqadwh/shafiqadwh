@@ -104,7 +104,7 @@
     "hide": "Sembunyi",
     "unhide": "Papar",
     "delete": "Padam",
-    "confirm_delete": "Padam fail ini secara kekal?",
+    "confirm_delete": "Padam gambar ini? (Boleh dipulihkan dari tong sampah)",
     "download": "Muat turun semua",
     "download_photos": "Gambar sahaja (.zip)",
     "download_all": "Gambar + video (.zip)",
@@ -128,7 +128,18 @@
     "qr_per_page": "keping/helaian",
     "music_gallery": "Muzik latar di laman",
     "music_gallery_hint": "Tetamu perlu tekan sendiri untuk dengar · pilih dari pustaka muzik yang sama",
-    "music_gallery_off": "Tiada muzik"
+    "music_gallery_off": "Tiada muzik",
+    "select_item": "Pilih gambar ini",
+    "select_all": "Pilih semua",
+    "selected_count": "{n} dipilih",
+    "delete_selected": "Padam yang dipilih",
+    "confirm_delete_selected": "Padam gambar yang dipilih? (Boleh dipulihkan dari tong sampah)",
+    "deleted_toast": "{n} item telah dipadam",
+    "undo": "Buat asal",
+    "trash": "Tong sampah",
+    "trash_hint": "Disimpan {days} hari sebelum dipadam kekal",
+    "trash_empty": "Tong sampah kosong",
+    "restore": "Pulihkan"
   },
   "qr": {
     "title": "Imbas untuk kongsi gambar majlis",

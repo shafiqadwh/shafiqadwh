@@ -173,6 +173,9 @@ export const config = {
   admin: {
     password: str('ADMIN_PASSWORD', ''),
     sessionHours: num('ADMIN_SESSION_HOURS', 12),
+    // รูปที่ลบเข้าถังขยะก่อน ไม่ลบไฟล์จริงทันที — กันพลาดกลางงานที่คนชุลมุน
+    // ค่านี้คือลบถาวรจริงหลังจากผ่านไปกี่วัน
+    trashRetentionDays: num('TRASH_RETENTION_DAYS', 7),
   },
 
   i18n: {

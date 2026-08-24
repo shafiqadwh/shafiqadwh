@@ -1062,6 +1062,113 @@ a:focus-visible {
 
 /* ── สมุดอวยพร ───────────────────────────────────────────────────────────── */
 
+/* ── เลือกหลายรูปแล้วลบพร้อมกัน + ถังขยะ/เลิกทำ ───────────────────────────── */
+
+/* มุมซ้ายบนของกรอบ คู่กับแท็กชนิดไฟล์/สถานะที่อยู่มุมขวาบนอยู่แล้ว
+   ใหญ่พอแตะด้วยนิ้วโป้งได้เหมือนปุ่มอื่น ๆ ในกริดนี้ */
+.admin-item__select {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.admin-bulkbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.admin-bulkbar__all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.admin-bulkbar__count {
+  color: var(--ink-soft);
+  font-size: 13px;
+  flex: 1 1 auto;
+}
+
+/* แบนเนอร์ "เลิกทำ" — โทนเดียวกับ .admin-alert (คิว/รอตรวจ) เพราะเป็นข้อความ
+   ชั่วคราวแบบเดียวกัน ต่างกันแค่มีปุ่มกับรูปย่อเพิ่มมา */
+.admin-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  background: var(--blush);
+  border: 1px solid var(--line);
+}
+
+.admin-undo__thumbs {
+  display: flex;
+  gap: 4px;
+}
+
+.admin-undo__thumbs img {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
+.admin-undo__text {
+  margin: 0;
+  flex: 1 1 auto;
+  color: var(--accent-dark);
+  font-size: 14px;
+}
+
+.admin-undo form {
+  margin: 0;
+}
+
+.admin-undo__dismiss {
+  color: var(--ink-soft);
+  font-size: 20px;
+  line-height: 1;
+  text-decoration: none;
+  padding: 4px 6px;
+}
+
+.admin-undo__dismiss:hover {
+  color: var(--ink);
+}
+
+/* การ์ดในถังขยะ — เล็กกว่ากริดหลัก และจางกว่า .admin-item--hidden เพราะนี่คือ
+   "จะหายไปจริง ๆ ถ้าไม่กู้คืน" ไม่ใช่แค่ซ่อนจากแขกชั่วคราว */
+.admin-grid--trash {
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}
+
+.admin-item--trashed {
+  opacity: 0.7;
+}
+
+.admin-item--trashed .admin-item__frame img,
+.admin-item--trashed .admin-item__placeholder {
+  height: 96px;
+}
+
+/* ── สมุดอวยพร ───────────────────────────────────────────────────────────── */
+
 .admin-messages {
   list-style: none;
   margin: 0;
