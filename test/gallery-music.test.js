@@ -7,14 +7,18 @@ import { useTempDataDir, startTestServer, login } from './helpers/app.js';
 /**
  * เพลงคลอในหน้าแกลลอรี่
  *
- * กติกาของฟีเจอร์นี้มีสามข้อ และเทสต์ชุดนี้มีไว้เฝ้าทั้งสาม
+ * **ปุ่มเปิด/ปิดถูกถอดออกจากหน้าแขกไปก่อนแล้ว** (บ่นว่าดูเกะกะ วางอยู่ระหว่าง
+ * ข้อความต้อนรับกับปุ่มอัพโหลดพอดี) — แต่ backend ทั้งชุดยังอยู่ครบตั้งใจ:
+ * ตัวเลือกเพลงในหน้าแอดมิน, การตั้งค่า `gallery_music` ใน DB, และเส้นทาง
+ * `GET /music/track` ยังทำงานเหมือนเดิมทุกอย่าง เอาปุ่มกลับมาทีหลังได้ด้วยการ
+ * revert คอมมิตเดียว โดยไม่ต้องเลือกเพลงใหม่หรือแตะ backend เลย
  *
- * 1. **ไม่เล่นเอง** แขกต้องกดปุ่ม — เบราว์เซอร์บล็อกเสียงที่เล่นเองอยู่แล้ว และ
- *    แขกพันคนคูณไฟล์หลายเมกะไบต์คือแบนด์วิดท์ขาออกของบ้านที่ต้องแบ่งกับการอัพรูป
- *    ซึ่งเป็นงานหลักของระบบ
+ * กติกาของฟีเจอร์ backend ที่เทสต์ชุดนี้ยังเฝ้าอยู่:
+ *
+ * 1. **หน้าแขกไม่มีปุ่ม/เครื่องเล่นเลยไม่ว่าจะตั้งเพลงไว้หรือไม่** (ของใหม่)
  * 2. **ชื่อไฟล์ไม่เคยมาจาก URL** เส้นทางเพลงเป็นเส้นเดียวตายตัว ค่าที่ชี้ไฟล์มาจาก
  *    ค่าที่เจ้าภาพบันทึกไว้ แล้วยังต้องผ่าน trackPath() อีกชั้น
- * 3. **ไฟล์หาย = ปุ่มหาย** ไม่ใช่ปุ่มที่กดแล้วเงียบโดยไม่มีใครรู้ว่าทำไม
+ * 3. **ไฟล์หาย = เส้นทางตาย** `/music/track` ต้องตอบ 404 ไม่ใช่ส่งไฟล์ที่ไม่มีอยู่จริง
  */
 
 const dataDir = useTempDataDir('galmusic');
@@ -23,6 +27,7 @@ const cookie = await login(app.baseUrl);
 
 const { setSetting, getSetting } = await import('../src/db.js');
 const { FFMPEG } = await import('../src/lib/media.js');
+const { galleryMusic } = await import('../src/routes/gallery.js');
 
 after(() => app.close());
 
@@ -56,16 +61,19 @@ test('with no track chosen the page has no player and the route is a dead end', 
   assert.equal(response.status, 404);
 });
 
-test('the chosen track is served whole, and the page only offers to play it', async () => {
-  const file = await makeTrack('Nocturne.m4a');
+test('the gallery page never shows the music button, even with a track picked', async () => {
+  // นี่คือของใหม่ทั้งหมด — เดิมเทสต์นี้เช็คว่า "ต้องมี" ปุ่ม ตอนนี้กลับด้าน
+  await makeTrack('Nocturne.m4a');
   setSetting('gallery_music', 'wedding/Nocturne.m4a');
 
   const html = await galleryHtml();
-  // ต้องไม่มี autoplay ไม่ว่ารูปแบบไหน และต้องไม่โหลดไฟล์มารอไว้ก่อนถูกกด
-  assert.match(html, /id="music-player"/);
-  assert.match(html, /preload="none"/);
-  assert.ok(!/autoplay/i.test(html), 'มี autoplay — แขกพันคนจะโดนดึงไฟล์เสียงโดยไม่ได้ขอ');
-  assert.match(html, /id="music-toggle"/);
+  assert.ok(!html.includes('music-toggle'), 'ปุ่มเปิด/ปิดเพลงถูกถอดไปแล้ว แต่ยังโผล่ในหน้า');
+  assert.ok(!html.includes('music-player'), 'เครื่องเล่นถูกถอดไปแล้ว แต่ยังโผล่ในหน้า');
+});
+
+test('the chosen track is still served whole through the route, even with no button pointing at it', async () => {
+  const file = await makeTrack('Nocturne.m4a');
+  setSetting('gallery_music', 'wedding/Nocturne.m4a');
 
   const response = await fetch(`${app.baseUrl}/music/track`);
   assert.equal(response.status, 200);
@@ -84,25 +92,28 @@ test('the player can jump into the middle of a track', async () => {
   assert.equal((await response.arrayBuffer()).byteLength, 100);
 });
 
-test('changing the track changes the address the browser asks for', async () => {
-  const html = await galleryHtml();
-  const first = html.match(/src="(\/music\/track\?v=[\w-]+)"/)[1];
+test('changing the track changes its version, so a cached browser would not reuse the old one', async () => {
+  // เดิมเทสต์นี้อ่านที่อยู่จาก <audio src> ในหน้า HTML — ตอนนี้ไม่มี element
+  // ให้อ่านแล้ว จึงเรียก galleryMusic() ตรง ๆ (ตัวเดียวกับที่ route ใช้จริง)
+  await makeTrack('Nocturne.m4a');
+  setSetting('gallery_music', 'wedding/Nocturne.m4a');
+  const first = (await galleryMusic()).version;
 
+  // เพลงคนละเพลงย่อมคนละขนาด — เวอร์ชันจึงต่างกัน มือถือที่เคยเปิดจะไม่เล่นของเก่าจากแคช
   await makeTrack('Waltz.m4a', { hz: 660, seconds: 2 });
-  // เพลงคนละเพลงย่อมคนละขนาด — ที่อยู่จึงต่างกัน มือถือที่เคยเปิดจะไม่เล่นของเก่าจากแคช
   setSetting('gallery_music', 'wedding/Waltz.m4a');
+  const second = (await galleryMusic()).version;
 
-  const second = (await galleryHtml()).match(/src="(\/music\/track\?v=[\w-]+)"/)[1];
   assert.notEqual(first, second);
 });
 
-test('a track that was deleted from disk takes the button with it', async () => {
+test('a track that was deleted from disk becomes a dead route', async () => {
+  await makeTrack('Waltz.m4a', { hz: 660, seconds: 2 });
   setSetting('gallery_music', 'wedding/Waltz.m4a');
   await fs.rm(path.join(LIBRARY, 'Waltz.m4a'));
   await fs.rm(path.join(LIBRARY, 'Waltz.m4a.json'), { force: true });
 
-  const html = await galleryHtml();
-  assert.ok(!html.includes('music-toggle'), 'ไฟล์หายแล้วแต่ยังมีปุ่มให้กด');
+  assert.equal(await galleryMusic(), null, 'ไฟล์หายแล้วแต่ galleryMusic() ยังคืนค่าเดิม');
   assert.equal((await fetch(`${app.baseUrl}/music/track`)).status, 404);
 });
 

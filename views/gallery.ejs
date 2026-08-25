@@ -3,21 +3,6 @@
 <section class="hero">
   <h1 class="hero__title"><%= t('site.welcome') %></h1>
   <p class="hero__text"><%= t('site.share_hint') %></p>
-
-  <%# เพลงคลอ — ต้องกดเอง ไม่เล่นเองแม้แต่แบบเงียบ
-      เหตุผลที่ไม่เล่นอัตโนมัติ: เบราว์เซอร์บล็อกเสียงที่เล่นเองอยู่แล้ว และแขกพันคน
-      คูณไฟล์หลายเมกะไบต์คือแบนด์วิดท์ขาออกของบ้านที่ต้องแบ่งกับ "การอัพรูป"
-      ซึ่งเป็นงานหลักของระบบ · preload="none" ไฟล์จึงถูกโหลดเฉพาะคนที่กดจริง %>
-  <% if (music) { %>
-    <button type="button" class="hero__music" id="music-toggle"
-            data-play="<%= t('gallery.music_play') %>"
-            data-pause="<%= t('gallery.music_pause') %>"
-            aria-pressed="false">
-      <span class="hero__music-icon" aria-hidden="true">♪</span>
-      <span id="music-label"><%= t('gallery.music_play') %></span>
-    </button>
-    <audio id="music-player" src="<%= music.url %>" preload="none" loop></audio>
-  <% } %>
 </section>
 
 <% if (uploadsOpen) { %>

@@ -53,9 +53,7 @@
     "anonymous": "A guest",
     "download_item": "Download this file",
     "prev": "Previous",
-    "next": "Next",
-    "music_play": "Play music",
-    "music_pause": "Pause music"
+    "next": "Next"
   },
   "guestbook": {
     "heading": "Guest book",
