@@ -48,11 +48,21 @@ tar xzf "$TARBALL" --strip-components=1
 chmod +x scripts/*.sh
 say "แตกไฟล์เรียบร้อย"
 
+# ตรวจ GPU หลังแตกไฟล์ เพราะ lib-compose.sh เพิ่งมากับ tarball รอบนี้เอง
+. ./scripts/lib-compose.sh
+
 if [ "$RECREATE" = "1" ]; then
-  say "สร้างคอนเทนเนอร์ใหม่ (อ่าน .env ใหม่)"
-  docker compose up -d
+  FILES="$(compose_files)"
+  case "$FILES" in
+    *gpu*) say "สร้างคอนเทนเนอร์ใหม่ (อ่าน .env ใหม่) · เปิด GPU ให้ด้วย" ;;
+    *)     say "สร้างคอนเทนเนอร์ใหม่ (อ่าน .env ใหม่) · โหมด CPU" ;;
+  esac
+  # ตั้งใจไม่ใส่ "" ครอบ — ต้องให้เชลล์แยกเป็นหลายอาร์กิวเมนต์
+  # shellcheck disable=SC2086
+  docker compose $FILES up -d
 else
   # โค้ด bind-mount ไว้ รีสตาร์ทก็พอ ไม่ต้องสร้างคอนเทนเนอร์ใหม่
+  # (restart ไม่ได้อ่านไฟล์ compose ใหม่ จึงไม่ต้องเลือกไฟล์ตรงนี้)
   say "รีสตาร์ทให้โหลดโค้ดใหม่"
   docker compose restart
 fi

@@ -242,6 +242,44 @@ test('a file the browser cannot preview still shows its name and can still be re
   await page.close();
 });
 
+test('the send button is brought into view, not left somewhere the guest never looks', async (t) => {
+  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+
+  // ถ้าแขกเลือกรูปเสร็จแล้วไม่เห็นปุ่ม "ส่ง N ไฟล์" จะเดินจากไปโดยคิดว่าส่งแล้ว
+  // เงียบ ไม่มี error ไม่มีใครรู้ทั้งงาน ซึ่งทำลายจุดประสงค์ทั้งหมดของระบบ
+  const file = await makeJpeg(path.join(dataDir, 'scroll.jpg'));
+
+  const page = await browser.newPage({ viewport: { width: 390, height: 700 } });
+  await page.goto(`${app.baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#file-input', { state: 'attached' });
+
+  // ทำให้หน้ายาวพอจะเลื่อนได้จริงก่อน — งานจริงแกลลอรี่มีรูปเป็นร้อยใบต่อท้ายอยู่แล้ว
+  // แต่ในเทสต์มีไม่กี่ใบ ถ้าไม่ยืดหน้าให้ยาว เลื่อนยังไงแผงอัพโหลดก็ยังอยู่ในจอ
+  // แล้วเทสต์จะผ่านโดยไม่ได้ทดสอบอะไรเลย
+  await page.evaluate(() => {
+    const filler = document.createElement('div');
+    filler.style.height = '4000px';
+    document.body.appendChild(filler);
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+
+  const before = await page.locator('#upload-confirm').boundingBox();
+  assert.ok(before === null || before.y > page.viewportSize().height,
+    'ปุ่มยังอยู่ในจอตั้งแต่ก่อนเลือกไฟล์ — เทสต์นี้จะผ่านโดยไม่ได้ทดสอบอะไร');
+
+  await page.setInputFiles('#file-input', [file]);
+  await page.waitForSelector('#upload-review:not([hidden])');
+  await page.waitForTimeout(1200); // เผื่อ smooth scroll เดินให้จบ
+
+  const box = await page.locator('#upload-confirm').boundingBox();
+  const height = page.viewportSize().height;
+  assert.ok(box, 'ไม่เจอปุ่มยืนยัน');
+  assert.ok(box.y + box.height > 0 && box.y < height,
+    `ปุ่มยืนยันอยู่นอกจอ (y=${box.y}, จอสูง ${height}) — แขกจะไม่รู้ว่าต้องกดอะไรต่อ`);
+
+  await page.close();
+});
+
 test('nothing in the uploader still reaches for the old send-on-pick path', async () => {
   const js = await fs.readFile(new URL('../public/js/upload.js', import.meta.url), 'utf8');
 

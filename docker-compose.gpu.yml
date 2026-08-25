@@ -1,0 +1,27 @@
+# ส่วนเสริม GPU — ต้องสั่ง -f เองเท่านั้น ไม่ถูกโหลดอัตโนมัติ
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# ⚠️ ห้ามเปลี่ยนชื่อไฟล์นี้เป็น docker-compose.override.yml — Compose โหลดชื่อนั้น
+# อัตโนมัติทุกครั้ง ซึ่งจะทำให้ `docker compose up -d` เปล่า ๆ กลายเป็นคำขอ GPU
+# แบบบังคับอีกครั้ง คือกลับหัวกลับหางกับเหตุผลที่แยกไฟล์นี้ออกมาพอดี
+#
+# ปกติไม่ต้องสั่งเอง — scripts/update.sh กับ scripts/ensure-up.sh ตรวจก่อนว่า
+# GPU ใช้ได้จริงไหม (ด้วยการลองสร้างคอนเทนเนอร์ที่ขอ GPU จริง ๆ ไม่ใช่เดาจาก
+# /dev/nvidia*) แล้วค่อยใส่ไฟล์นี้เข้าไปให้เอง ใช้ไม่ได้ก็ขึ้นด้วย CPU ตามเดิม
+#
+# ต้องใช้คู่กับค่าใน .env — ดูบทที่ 7 หัวข้อ GPU
+#   VIDEO_ENCODER=h264_nvenc
+#   VIDEO_ENCODER_ARGS=-preset p4 -cq 24
+#   FILM_ENCODER_ARGS=-preset p4 -cq 20
+#   VIDEO_DECODER_ARGS=-hwaccel cuda
+
+services:
+  wedding-share:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -272,8 +272,21 @@
     reviewGrid.innerHTML = '';
     staged.forEach((file, index) => reviewGrid.appendChild(tileFor(file, index)));
 
+    const wasHidden = reviewBox.hidden;
     reviewBox.hidden = staged.length === 0;
     confirmButton.textContent = t('upload.confirm_send', { n: staged.length });
+
+    // เลื่อนปุ่มยืนยันเข้ามาให้เห็น "เฉพาะจังหวะที่แผงเพิ่งโผล่"
+    //
+    // แขกเลือกรูปเสร็จ เบราว์เซอร์เด้งกลับมาที่หน้าเว็บ ถ้าไม่เห็นปุ่ม "ส่ง N ไฟล์"
+    // ก็จะเดินจากไปโดยคิดว่าส่งแล้ว — เงียบ ไม่มี error ไม่มีใครรู้ทั้งงาน
+    // ซึ่งทำลายจุดประสงค์ทั้งหมดของระบบ
+    //
+    // ทำเฉพาะตอนเปลี่ยนจากซ่อนเป็นแสดง ไม่ใช่ทุกครั้งที่วาดใหม่ ไม่งั้นกด ✕
+    // ทีหน้าจอกระโดดที ซึ่งน่ารำคาญกว่าไม่ช่วยอะไร
+    if (wasHidden && !reviewBox.hidden) {
+      confirmButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
 
   function stageFiles(fileList) {

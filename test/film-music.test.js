@@ -282,10 +282,16 @@ test('old clips are thrown away when the encoder changes under them', async () =
 // encoder รองรับสลับผ่าน .env มาตั้งแต่ก่อนหน้านี้แล้ว ที่ขาดจริง ๆ มีจุดเดียว: ไม่มีที่ไหน
 // ขอสิทธิ์อุปกรณ์ GPU จาก Docker daemon เข้าไปให้คอนเทนเนอร์เลย ทดสอบจริงกับ GPU จริง
 // ในเทสต์อัตโนมัติทำไม่ได้ (เครื่องที่รันเทสต์ไม่มี GPU) จึงตรวจแค่ว่า "ขอสิทธิ์" ไว้แล้ว
-test('the live container asks Docker for the GPU device', async () => {
-  const compose = await fs.readFile(new URL('../docker-compose.yml', import.meta.url), 'utf8');
-  assert.match(compose, /driver:\s*nvidia/);
-  assert.match(compose, /capabilities:\s*\[gpu\]/);
+test('the live container can be given the GPU, without needing it to start', async () => {
+  // GPU อยู่ในไฟล์เสริมที่ต้องสั่ง -f เอง ไม่ใช่ในไฟล์หลัก — เพราะ device reservation
+  // ของ Compose เป็นคำขอแบบบังคับ หา GPU ไม่เจอเมื่อไรคอนเทนเนอร์ไม่ขึ้นเลย
+  // รายละเอียดทั้งหมดกับเทสต์ที่เฝ้าโครงนี้อยู่ใน test/compose-gpu.test.js
+  const addon = await fs.readFile(new URL('../docker-compose.gpu.yml', import.meta.url), 'utf8');
+  assert.match(addon, /driver:\s*nvidia/);
+  assert.match(addon, /capabilities:\s*\[gpu\]/);
+
+  const base = await fs.readFile(new URL('../docker-compose.yml', import.meta.url), 'utf8');
+  assert.ok(!base.includes('driver: nvidia'), 'ไฟล์ที่ต้องขึ้นได้เสมอกลับไปขอ GPU แบบบังคับ');
 });
 
 test('the standalone film-export container asks for the GPU too, without touching the live one', async () => {

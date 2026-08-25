@@ -61,17 +61,15 @@ services:
     # ตัวคุมภาระ CPU จริง ๆ คือ FFMPEG_THREADS ใน .env
     cpu_shares: 512
     mem_limit: 1g
-    # GPU NVIDIA (GTX 1050 Ti) — ยืนยันแล้วว่า nvidia-container-toolkit ใช้ได้จริง
-    # ดูเอกสารบทที่ 7 หัวข้อ GPU ก่อนเปิดใช้: นี่คือคำขอแบบ "บังคับ" ไม่ใช่ "มีก็ดี"
-    # ถ้า GPU หายไปกะทันหัน คอนเทนเนอร์นี้จะสร้างไม่ขึ้นเลย — มีขั้นตอนถอยกลับ CPU
-    # เขียนไว้ในเอกสารแล้ว (ลบบล็อกนี้ทั้งก้อน + แก้ VIDEO_ENCODER ใน .env)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # GPU ไม่ได้อยู่ในไฟล์นี้โดยตั้งใจ — ดู docker-compose.gpu.yml
+    #
+    # `deploy.resources.reservations.devices` ของ Compose เป็นคำขอแบบ "บังคับ"
+    # ถ้า Docker หา GPU ไม่เจอตอนสร้าง/สตาร์ท คอนเทนเนอร์นี้จะไม่ขึ้นเลย = เว็บล่มทั้งเว็บ
+    # ซึ่งเกิดได้จริงเมื่อ NAS รีบูตแล้ว nvidia.ko ไม่โหลด (Xpenology ไม่ใช่ฮาร์ดแวร์แท้)
+    #
+    # สิ่งที่ GPU ไปช่วยคือคิวแปลง HEVC เบื้องหลังที่ไม่มีแขกคนไหนรออยู่ — เอาความเสี่ยง
+    # ล่มทั้งเว็บไปแลกกับงานที่ไม่มีใครรอคือแลกผิดฝั่ง ไฟล์นี้จึงต้องขึ้นได้เสมอ
+    # ส่วน GPU เป็นของที่ update.sh/ensure-up.sh เปิดให้เองเมื่อตรวจแล้วว่าใช้ได้จริง
     logging:
       driver: json-file
       options:
