@@ -124,6 +124,48 @@ case "$MOUNT_CHECK" in
     ;;
 esac
 
+# ── 3.6 คลังเพลงอ่านได้จากในคอนเทนเนอร์ไหม ──────────────────────────────────
+step "3.6 คลังเพลง (/app/data/music/library) อ่านได้จากในคอนเทนเนอร์ไหม"
+
+# fetch-music.sh ต้องรันด้วย sudo (เขียนลงโฟลเดอร์ที่เจ้าของเป็น PUID:PGID ของ
+# คอนเทนเนอร์ ไม่ใช่ root) ถ้าลืม chown ให้ตรงกัน ไฟล์จะเป็นของ root:root และ
+# fs.readdir() ในคอนเทนเนอร์ (ซึ่งรันเป็น PUID:PGID ไม่ใช่ root) จะเจอ EACCES
+# แล้วคืนคลังเพลงว่างเปล่าในหน้าเว็บ ทั้งที่ไฟล์อยู่ครบบนดิสก์จริง — เจอเคสนี้มาแล้ว
+MUSIC_CHECK="$(docker exec wedding-share node -e '
+  const fs = require("fs");
+  try {
+    const themes = fs.readdirSync("/app/data/music/library", { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith("."));
+    console.log("OK " + themes.length);
+  } catch (e) {
+    console.log("ERR " + e.code);
+  }
+' 2>/dev/null)"
+
+MUSIC_PUID=""
+MUSIC_PGID=""
+if [ -f .env ]; then
+  MUSIC_PUID="$(grep '^PUID=' .env | head -1 | cut -d= -f2)"
+  MUSIC_PGID="$(grep '^PGID=' .env | head -1 | cut -d= -f2)"
+fi
+
+case "$MUSIC_CHECK" in
+  "OK "*)
+    ok "อ่านได้ — เจอ $(printf '%s' "$MUSIC_CHECK" | cut -d' ' -f2) กลุ่มเพลง"
+    ;;
+  "ERR ENOENT")
+    info "ยังไม่มีโฟลเดอร์คลังเพลง — ยังไม่ได้รัน sudo ./scripts/fetch-music.sh (ปกติ)"
+    ;;
+  ERR*)
+    bad "อ่านคลังเพลงไม่ได้: $(printf '%s' "$MUSIC_CHECK" | cut -d' ' -f2) — คลังเพลงจะว่างเปล่าในหน้าเว็บ"
+    info "มักเกิดจากไฟล์เป็นของ root (รัน fetch-music.sh ด้วย sudo แต่ยังไม่ chown)"
+    info "แก้: sudo chown -R ${MUSIC_PUID:-1026}:${MUSIC_PGID:-100} /volume1/wedding/music"
+    ;;
+  *)
+    info "ตรวจไม่ได้ (คอนเทนเนอร์ไม่ได้รันอยู่?)"
+    ;;
+esac
+
 # ── 4. nginx ของ DSM ยังขึ้นอยู่ไหม ─────────────────────────────────────────
 step "4. nginx ของ DSM"
 

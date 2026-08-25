@@ -99,7 +99,14 @@ export async function listLibrary() {
   let themes;
   try {
     themes = await fs.readdir(libraryRoot(), { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    // ENOENT = ยังไม่เคยโหลดเพลงเลย เป็นสภาพปกติ ไม่ต้องขึ้น log ทุก 20 วินาที
+    // ที่หน้าแอดมิน poll — error อื่น (เช่น EACCES จากไฟล์เป็นของ root หลังรัน
+    // fetch-music.sh ด้วย sudo) ต้องขึ้น log เพราะหน้าเว็บจะว่างเปล่าเหมือน ENOENT
+    // เป๊ะ โดยไม่มีร่องรอยอะไรให้สืบต่อได้เลยถ้าไม่ log ตรงนี้
+    if (error.code !== 'ENOENT') {
+      console.error('[music] อ่านคลังเพลงไม่ได้:', libraryRoot(), error);
+    }
     return [];
   }
 
@@ -110,7 +117,10 @@ export async function listLibrary() {
     let names;
     try {
       names = await fs.readdir(path.join(libraryRoot(), entry.name));
-    } catch {
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.error('[music] อ่านกลุ่มเพลงไม่ได้:', entry.name, error);
+      }
       continue;
     }
 

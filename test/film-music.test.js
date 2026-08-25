@@ -138,6 +138,44 @@ test('only tracks the owner uploaded can be deleted from the web', async () => {
   assert.equal(await music.deleteTrack('../../.env'), false);
 });
 
+// เจอจริงบน NAS: fetch-music.sh รายงานว่าโหลดครบ 22 เพลง sudo ls เห็นไฟล์ครบ
+// แต่ listLibrary() ในคอนเทนเนอร์ยังคืน [] เพราะไฟล์เป็นของ root ไม่ใช่ PUID:PGID
+// ของคอนเทนเนอร์ — ก่อนแก้ไม่มี log อะไรเลยให้สืบต่อได้จาก docker compose logs
+test('a permission error on the library is logged instead of vanishing silently', async () => {
+  const libraryDir = path.join(config.paths.music, 'library');
+  await fs.rm(libraryDir, { recursive: true, force: true });
+  // บังคับ ENOTDIR แทนการพึ่งสิทธิ์จริง (เทสต์อาจรันเป็น root ซึ่งไม่มี EACCES ให้เห็น)
+  // ENOTDIR ก็ไม่ใช่ ENOENT เหมือนกัน คือ "ผิดปกติจริง" ไม่ใช่ "ยังไม่เคยโหลดเพลง"
+  await fs.writeFile(libraryDir, 'ไม่ใช่โฟลเดอร์');
+
+  const original = console.error;
+  const calls = [];
+  console.error = (...args) => calls.push(args);
+  try {
+    assert.deepEqual(await music.listLibrary(), []);
+  } finally {
+    console.error = original;
+    await fs.rm(libraryDir, { force: true });
+  }
+  assert.ok(calls.length > 0, 'อ่านคลังเพลงไม่ได้ทั้งที่ไม่ใช่ ENOENT แต่ไม่ log อะไรเลย');
+  assert.match(calls[0].join(' '), /อ่านคลังเพลงไม่ได้/);
+});
+
+test('a library folder that was never downloaded yet stays silent', async () => {
+  const libraryDir = path.join(config.paths.music, 'library');
+  await fs.rm(libraryDir, { recursive: true, force: true });
+
+  const original = console.error;
+  const calls = [];
+  console.error = (...args) => calls.push(args);
+  try {
+    assert.deepEqual(await music.listLibrary(), []);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(calls.length, 0, 'ENOENT คือสภาพปกติ ไม่ควร log ทุกครั้งที่หน้าแอดมิน poll');
+});
+
 /* ---------- เตียงเสียงจากหลายเพลง ---------- */
 
 test('the bed comes out exactly as long as the film asked for', async () => {
@@ -291,6 +329,23 @@ test('the fetch script retries the transient failures archive.org actually retur
 
   // -m เป็นเพดานต่อการลองหนึ่งครั้ง ต้องคงไว้ ไม่งั้นโหนดที่ค้างจะแขวนสคริปต์ทิ้งไว้
   assert.match(line, /-m 300/);
+});
+
+test('the fetch script sets file ownership to match the container, without letting a chown failure fail the run', async () => {
+  const script = await fs.readFile(new URL('../scripts/fetch-music.sh', import.meta.url), 'utf8');
+
+  // ไฟล์ที่โหลดมาด้วย sudo เป็นของ root:root เสมอ ต่างจากคอนเทนเนอร์ที่รันเป็น
+  // PUID:PGID (docker-compose.yml) — ไม่ chown ให้ตรงกัน fs.readdir() ในคอนเทนเนอร์
+  // จะเจอ EACCES แล้วคลังเพลงว่างเปล่าในหน้าเว็บทั้งที่ไฟล์อยู่ครบ — เจอเคสนี้มาแล้วจริง
+  assert.match(script, /PUID="\$\(grep '\^PUID=' \.env/);
+  assert.match(script, /PGID="\$\(grep '\^PGID=' \.env/);
+  assert.match(script, /chown -R "\$\{PUID:-1026\}:\$\{PGID:-100\}" "\$LIBRARY"/);
+
+  // เพลงที่โหลดสำเร็จแล้วต้องยังนับว่าสำเร็จ แม้ chown จะทำไม่ได้ (เช่น รันไม่ครบสิทธิ์)
+  const chownIndex = script.indexOf('chown -R');
+  const nextFewLines = script.slice(chownIndex, chownIndex + 400).split('\n').slice(0, 4).join('\n');
+  assert.ok(!/exit 1/.test(nextFewLines),
+    'chown ล้มแล้วต้องแค่เตือน ไม่ใช่ทำให้สคริปต์ทั้งตัวออกด้วย error');
 });
 
 test.after(() => fs.rm(WORK, { recursive: true, force: true }));

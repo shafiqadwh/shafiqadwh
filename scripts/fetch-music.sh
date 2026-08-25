@@ -163,6 +163,18 @@ read -r TOTAL GOT SKIPPED FAILED < "$COUNTS"
 printf '\n  รวม %d เพลง · โหลดใหม่ %d · มีอยู่แล้ว %d · ไม่สำเร็จ %d\n' \
   "$TOTAL" "$GOT" "$SKIPPED" "$FAILED"
 
+# สคริปต์นี้ต้องรันด้วย sudo (เขียนลง /volume1/wedding ซึ่งเจ้าของเป็น PUID:PGID
+# ของคอนเทนเนอร์ ไม่ใช่ root) ไฟล์ที่ curl/mv สร้างขึ้นจึงเป็นของ root:root เสมอ
+# แอปรันเป็น PUID:PGID (docker-compose.yml) ไม่ใช่ root — ถ้าไม่ chown ให้ตรงกัน
+# fs.readdir() ในคอนเทนเนอร์จะเจอ EACCES แล้วคลังเพลงจะว่างเปล่าในหน้าเว็บ
+# ทั้งที่สคริปต์นี้เพิ่งบอกว่าโหลดสำเร็จครบทุกเพลง — เจอเคสนี้มาแล้วจริงบน NAS
+PUID="$(grep '^PUID=' .env | head -1 | cut -d= -f2)"
+PGID="$(grep '^PGID=' .env | head -1 | cut -d= -f2)"
+if [ -d "$LIBRARY" ] && ! chown -R "${PUID:-1026}:${PGID:-100}" "$LIBRARY" 2>/dev/null; then
+  printf '  ⚠ ตั้งเจ้าของไฟล์ไม่สำเร็จ — คลังเพลงอาจว่างเปล่าในหน้าเว็บ\n' >&2
+  printf '    แก้เอง: sudo chown -R %s:%s %s\n' "${PUID:-1026}" "${PGID:-100}" "$LIBRARY" >&2
+fi
+
 if [ "$FAILED" -gt 0 ]; then
   echo "  ลองรันซ้ำอีกครั้ง เพลงที่โหลดสำเร็จแล้วจะถูกข้าม" >&2
   exit 1

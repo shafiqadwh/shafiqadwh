@@ -47,6 +47,27 @@ exit 0
 `);
 fs.chmodSync(path.join(BIN, 'nginx'), 0o755);
 
+// docker ปลอมที่ตอบเฉพาะ "docker exec wedding-share node -e <สคริปต์ที่มี music/library>"
+// ตาม MOCK_MUSIC · คำสั่ง docker อื่น ๆ (inspect, exec ที่ไม่ใช่ตัวตรวจเพลง) ล้มเงียบ ๆ
+// เหมือนไม่มีคอนเทนเนอร์รันอยู่ — ตรงกับสภาพเครื่องที่รันเทสต์จริง (ไม่มี docker/คอนเทนเนอร์)
+fs.writeFileSync(path.join(BIN, 'docker'), `#!/bin/sh
+if [ "\${1:-}" = "exec" ]; then
+  for a in "\$@"; do LAST="\$a"; done
+  case "\$LAST" in
+    *music/library*)
+      case "\${MOCK_MUSIC:-}" in
+        ok) echo "OK 4"; exit 0 ;;
+        enoent) echo "ERR ENOENT"; exit 0 ;;
+        eacces) echo "ERR EACCES"; exit 0 ;;
+        *) exit 1 ;;
+      esac
+      ;;
+  esac
+fi
+exit 1
+`);
+fs.chmodSync(path.join(BIN, 'docker'), 0o755);
+
 function dumpFile(name, body) {
   const file = path.join(WORK, name);
   fs.writeFileSync(file, body);
@@ -128,7 +149,7 @@ function serveTls(reply) {
   });
 }
 
-async function diagnose({ dump, fail = false, publicPort = 1, ca = null, host = HOST }) {
+async function diagnose({ dump, fail = false, publicPort = 1, ca = null, host = HOST, music }) {
   const env = {
     ...process.env,
     PATH: `${BIN}:${process.env.PATH}`,
@@ -137,6 +158,7 @@ async function diagnose({ dump, fail = false, publicPort = 1, ca = null, host = 
     no_proxy: '*',
   };
   if (ca) env.CURL_CA_BUNDLE = ca;
+  if (music) env.MOCK_MUSIC = music;
 
   // สคริปต์ออกด้วยรหัส 0 เสมอ (มันรายงาน ไม่ใช่ตัดสิน) แต่ดักไว้เผื่อวันหนึ่งเปลี่ยน
   const { stdout } = await run('sh', [SCRIPT,
@@ -189,6 +211,32 @@ test('a failing nginx -T is reported as unknown, never as a pass', async () => {
   const section = out.slice(out.indexOf('▸ 6.5'), out.indexOf('▸ 7.'));
   assert.match(section, /ยังสรุปข้อนี้ไม่ได้/);
   assert.ok(!section.includes('✓'), 'ตรวจไม่ได้ แต่ขึ้น ✓');
+});
+
+/* ---------- ข้อ 3.6 · คลังเพลงอ่านได้จากในคอนเทนเนอร์ไหม ---------- */
+//
+// เกิดจากของจริงเหมือนกัน: sudo ./scripts/fetch-music.sh รายงานว่าโหลดครบ 22 เพลง
+// docker exec เข้าไปเรียก listLibrary() ตรง ๆ ก็ยังได้ [] — สาเหตุคือไฟล์ที่ curl/mv
+// สร้างด้วย sudo เป็นของ root:root แต่คอนเทนเนอร์รันเป็น PUID:PGID (docker-compose.yml)
+// fs.readdir() จึงเจอ EACCES แล้วคลังเพลงว่างเปล่าในหน้าเว็บโดยไม่มีร่องรอยอะไรเลย
+
+test('a readable library is reported with its theme count', async () => {
+  const out = await diagnose({ dump: RULE_PRESENT, music: 'ok' });
+  assert.match(out, /✓ อ่านได้ — เจอ 4 กลุ่มเพลง/);
+});
+
+test('no library folder yet is informational, not a failure', async () => {
+  const out = await diagnose({ dump: RULE_PRESENT, music: 'enoent' });
+  const section = out.slice(out.indexOf('▸ 3.6'), out.indexOf('▸ 4.'));
+  assert.match(section, /ยังไม่มีโฟลเดอร์คลังเพลง/);
+  assert.ok(!section.includes('✗'), 'ยังไม่เคยรัน fetch-music.sh ถือเป็นสภาพปกติ ไม่ใช่ ✗');
+});
+
+test('a permission error on the library names the real cause and the fix', async () => {
+  const out = await diagnose({ dump: RULE_PRESENT, music: 'eacces' });
+  assert.match(out, /✗ อ่านคลังเพลงไม่ได้: EACCES/);
+  assert.match(out, /ไฟล์เป็นของ root/);
+  assert.match(out, /sudo chown -R 1026:100 \/volume1\/wedding\/music/);
 });
 
 /* ---------- ข้อ 8 · ใครเป็นคนตอบ ---------- */
