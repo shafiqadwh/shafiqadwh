@@ -277,6 +277,35 @@ test('old clips are thrown away when the encoder changes under them', async () =
   assert.match(source, /rm\(workDir, \{ recursive: true/);
 });
 
+// GPU (GTX 1050 Ti) ใช้งานได้จริงแล้ว ยืนยันถึงระดับคอนเทนเนอร์ (nvidia-container-toolkit
+// ลงทะเบียน driver กับ Docker daemon แล้ว, ffmpeg มี nvenc มาให้อยู่แล้วจริง) — โค้ดที่เลือก
+// encoder รองรับสลับผ่าน .env มาตั้งแต่ก่อนหน้านี้แล้ว ที่ขาดจริง ๆ มีจุดเดียว: ไม่มีที่ไหน
+// ขอสิทธิ์อุปกรณ์ GPU จาก Docker daemon เข้าไปให้คอนเทนเนอร์เลย ทดสอบจริงกับ GPU จริง
+// ในเทสต์อัตโนมัติทำไม่ได้ (เครื่องที่รันเทสต์ไม่มี GPU) จึงตรวจแค่ว่า "ขอสิทธิ์" ไว้แล้ว
+test('the live container asks Docker for the GPU device', async () => {
+  const compose = await fs.readFile(new URL('../docker-compose.yml', import.meta.url), 'utf8');
+  assert.match(compose, /driver:\s*nvidia/);
+  assert.match(compose, /capabilities:\s*\[gpu\]/);
+});
+
+test('the standalone film-export container asks for the GPU too, without touching the live one', async () => {
+  const script = await fs.readFile(new URL('../scripts/export-film.sh', import.meta.url), 'utf8');
+  assert.match(script, /--gpus/);
+  // ต้องยังเป็นคอนเทนเนอร์ชั่วคราวแยกจาก wedding-share เหมือนเดิม — ถ้า GPU พังตอน
+  // export ต้องไม่มีทางกระทบเว็บที่แขกกำลังใช้งานอยู่ (คนละคอนเทนเนอร์ คนละชื่อ)
+  assert.match(script, /--name wedding-film/);
+  assert.ok(!script.includes('--name wedding-share'), 'ต้องไม่แตะคอนเทนเนอร์เว็บจริง');
+  assert.match(script, /docker run --rm/, 'ต้องยังเป็นคอนเทนเนอร์ชั่วคราวที่ลบตัวเองทิ้ง');
+});
+
+test('picking GPU in .env is documented exactly once, not two conflicting copies', async () => {
+  const example = await fs.readFile(new URL('../.env.example', import.meta.url), 'utf8');
+  // เคยมีคอมเมนต์อธิบายชุดเดียวกันซ้ำสองที่ในไฟล์นี้ ตกค้างจากคนละรอบแก้ — คนละคำ
+  // แต่บอกเรื่องเดียวกัน ทำให้ไม่รู้ว่าอันไหนคือของจริง
+  const count = (example.match(/h264_nvenc/g) ?? []).length;
+  assert.equal(count, 1, `บล็อกอธิบาย GPU ซ้ำกัน ${count} ที่ในไฟล์ ควรมีที่เดียว`);
+});
+
 /* ---------- แคตตาล็อกเพลงที่มากับโปรแกรม ---------- */
 
 test('every catalogued track names its licence, its source and its hash', async () => {

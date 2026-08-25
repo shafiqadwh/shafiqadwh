@@ -46,6 +46,7 @@ echo
 exec docker run --rm -i \
   --name wedding-film \
   --cpu-shares 512 \
+  --gpus all \
   --env-file .env \
   -e DATA_DIR=/app/data \
   --user "${PUID:-1026}:${PGID:-100}" \

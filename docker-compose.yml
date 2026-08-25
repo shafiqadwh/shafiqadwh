@@ -61,6 +61,17 @@ services:
     # ตัวคุมภาระ CPU จริง ๆ คือ FFMPEG_THREADS ใน .env
     cpu_shares: 512
     mem_limit: 1g
+    # GPU NVIDIA (GTX 1050 Ti) — ยืนยันแล้วว่า nvidia-container-toolkit ใช้ได้จริง
+    # ดูเอกสารบทที่ 7 หัวข้อ GPU ก่อนเปิดใช้: นี่คือคำขอแบบ "บังคับ" ไม่ใช่ "มีก็ดี"
+    # ถ้า GPU หายไปกะทันหัน คอนเทนเนอร์นี้จะสร้างไม่ขึ้นเลย — มีขั้นตอนถอยกลับ CPU
+    # เขียนไว้ในเอกสารแล้ว (ลบบล็อกนี้ทั้งก้อน + แก้ VIDEO_ENCODER ใน .env)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     logging:
       driver: json-file
       options:
