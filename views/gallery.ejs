@@ -40,6 +40,20 @@
       </p>
     </div>
 
+    <%# ตรวจก่อนส่ง — เลือกไฟล์แล้วยังไม่ส่งอะไรจนกว่าจะกดยืนยัน
+        คลังภาพในมือถือเรียงตามเวลา รูปที่ไม่ได้ตั้งใจส่งจึงมักอยู่ติดกับรูปที่ตั้งใจส่งพอดี
+        แผงนี้โชว์รูปย่อ "ของจริง" ไม่ใช่ชื่อไฟล์ เพราะ IMG_4823.HEIC บอกไม่ได้เลย
+        ว่าเป็นรูปไหน ซึ่งคือทั้งหมดที่ฟีเจอร์นี้มีไว้กัน %>
+    <section class="review" id="upload-review" hidden>
+      <h3 class="review__title"><%= t('upload.review_title') %></h3>
+      <p class="review__hint"><%= t('upload.review_hint') %></p>
+      <div class="review__grid" id="review-grid"></div>
+      <div class="review__actions">
+        <button type="button" class="button button--primary" id="upload-confirm"></button>
+        <button type="button" class="button button--ghost" id="upload-cancel"><%= t('upload.cancel_all') %></button>
+      </div>
+    </section>
+
     <ul class="queue" id="upload-queue" hidden></ul>
     <p class="notice" id="upload-status" role="status" hidden></p>
   </section>

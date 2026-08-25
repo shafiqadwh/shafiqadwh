@@ -416,6 +416,109 @@ a:focus-visible {
   font-size: 12px;
 }
 
+/* ---------- ตรวจก่อนส่ง ---------- */
+
+.review {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.review__title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.review__hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.review__grid {
+  display: grid;
+  /* auto-fill + minmax ทำให้จอแคบได้ 3 คอลัมน์ จอกว้างได้มากขึ้นเอง
+     โดยไม่ต้องมี breakpoint ให้ต้องมาตามแก้ */
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.review__tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--blush);
+}
+
+.review__tile img,
+.review__tile video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ไฟล์ที่เบราว์เซอร์เรนเดอร์รูปย่อไม่ได้ (เช่น HEIC บน Android) ต้องได้กล่องชื่อไฟล์
+   ไม่ใช่ไอคอนรูปแตก ซึ่งอ่านแล้วเหมือนไฟล์เสียทั้งที่ไฟล์ปกติดี */
+.review__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--ink-soft);
+  word-break: break-all;
+  overflow: hidden;
+}
+
+.review__badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(8, 6, 4, 0.62);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 32×32 ขั้นต่ำ — แขกยืนถือมือถือมือเดียว ปุ่มที่เล็กกว่านี้กดไม่โดน */
+.review__remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 0 10px 0 10px;
+  background: rgba(8, 6, 4, 0.62);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  line-height: 32px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.review__remove:hover {
+  background: var(--danger);
+}
+
+.review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .queue {
   list-style: none;
   margin: 0;
