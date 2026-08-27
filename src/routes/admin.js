@@ -24,7 +24,7 @@ import {
   stats,
 } from '../repo.js';
 import { formatBytes, randomName } from '../lib/media.js';
-import { deleteFilm, filmPath, jobStatus, listFilms, startJob } from '../lib/film-job.js';
+import { deleteFilm, filmPath, jobStatus, startJob } from '../lib/film-job.js';
 import { deleteTrack, listLibrary, resolveTracks, totalSeconds, trackPath } from '../lib/music.js';
 import { buildTimeline, dedupe, planLength } from '../lib/film-plan.js';
 import { readDeck } from '../lib/film-plan.js';
@@ -32,7 +32,6 @@ import {
   KINDS as PAPER_KINDS,
   deletePaper,
   jobStatus as paperStatus,
-  listPapers,
   paperPath,
   startJob as startPaperJob,
 } from '../lib/paper-job.js';

@@ -38,16 +38,16 @@ galleryRouter.get('/', async (req, res) => {
   const who = typeof req.query.who === 'string' ? normaliseName(req.query.who) : null;
   const guest = who === null ? null : listGuests().find((one) => one.key === who);
 
-  // ไฟล์เพลงหายไปแล้ว (ถูกลบจาก File Station) = ไม่ต้องมีปุ่มให้กดแล้วเงียบ
-  const track = await galleryMusic();
-
+  // ไม่เรียก galleryMusic() ตรงนี้แล้ว — ปุ่มเพลงถูกถอดออกจากหน้าแขกไปก่อน
+  // (ดู views/gallery.ejs) การหาความยาวเพลงคือ stat ไฟล์ + อ่าน sidecar ทุกครั้ง
+  // ที่มีคนเปิดหน้าแรก ซึ่งเป็นหน้าที่แขกพันคนเปิดกันทั้งงาน — เสียเปล่าล้วน ๆ
+  // เพราะไม่มีอะไรในหน้าเอาค่านี้ไปใช้ · เส้นทาง /music/track ยังทำงานเหมือนเดิม
   res.render('gallery', {
     page: 'gallery',
     uploadsOpen: uploadsOpen(),
     total: countItems({ who }),
     who,
     guestName: guest && (guest.anonymous ? req.t('gallery.anonymous') : guest.name),
-    music: track && { title: track.title, url: `/music/track?v=${track.version}` },
   });
 });
 

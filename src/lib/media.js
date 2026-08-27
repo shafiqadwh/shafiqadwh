@@ -70,6 +70,17 @@ const CPU_ENCODER = Object.freeze({
 
 let encoderPromise = null;
 
+/** เข้ารหัสจริงหนึ่งเฟรมด้วยชุดอาร์กิวเมนต์ที่จะใช้จริง */
+async function canEncode(videoEncoder, args) {
+  await run(FFMPEG, [
+    '-v', 'error',
+    '-f', 'lavfi', '-i', 'color=c=black:s=128x128:d=0.1',
+    '-c:v', videoEncoder,
+    ...args,
+    '-f', 'null', '-',
+  ], { timeout: 30000 });
+}
+
 async function probeEncoder() {
   const configured = {
     videoEncoder: config.media.videoEncoder,
@@ -78,25 +89,32 @@ async function probeEncoder() {
     decoderArgs: config.media.decoderArgs,
   };
 
-  // libx264 อยู่ในตัว ffmpeg เสมอ ไม่ต้องเสียเวลาตรวจทุกครั้งที่บูต
-  if (configured.videoEncoder === CPU_ENCODER.videoEncoder) return configured;
+  // ไม่ได้ตั้งอะไรเองเลย = เป็นค่าเริ่มต้นที่ ffmpeg ทุกตัวทำได้อยู่แล้ว ไม่ต้องเสียเวลาตรวจ
+  const untouched = configured.videoEncoder === CPU_ENCODER.videoEncoder
+    && configured.encoderArgs.join(' ') === CPU_ENCODER.encoderArgs.join(' ')
+    && configured.filmEncoderArgs.join(' ') === CPU_ENCODER.filmEncoderArgs.join(' ')
+    && configured.decoderArgs.length === 0;
+  if (untouched) return configured;
 
-  try {
-    await run(FFMPEG, [
-      '-v', 'error',
-      '-f', 'lavfi', '-i', 'color=c=black:s=128x128:d=0.1',
-      '-c:v', configured.videoEncoder,
-      ...configured.encoderArgs,
-      '-f', 'null', '-',
-    ], { timeout: 30000 });
-    return configured;
-  } catch (error) {
-    console.error(
-      `[media] ตัวเข้ารหัส ${configured.videoEncoder} ใช้งานไม่ได้ — ถอยไปใช้ ${CPU_ENCODER.videoEncoder} แทน`,
-      `(${String(error.stderr || error.message).trim().split('\n').slice(-2).join(' ')})`,
-    );
-    return CPU_ENCODER;
+  // ต้องตรวจ **ทั้งสองชุด** — คิวแปลงวิดีโอใช้ encoderArgs ส่วนหนังใช้ filmEncoderArgs
+  // ตรวจแค่ชุดเดียวแล้วผ่านคือช่องโหว่จริง: ตั้ง VIDEO_ENCODER_ARGS ถูกแต่ลืมแก้
+  // FILM_ENCODER_ARGS ให้เข้าคู่กัน (เช่น libx264 ที่ยังค้าง `-cq 20` ของ nvenc อยู่)
+  // จะผ่านการตรวจไปทั้งที่หนังจะล้มทุกคลิปด้วย "Unrecognized option 'cq'"
+  for (const [label, args] of [['VIDEO_ENCODER_ARGS', configured.encoderArgs],
+    ['FILM_ENCODER_ARGS', configured.filmEncoderArgs]]) {
+    try {
+      await canEncode(configured.videoEncoder, args);
+    } catch (error) {
+      const why = String(error.stderr || error.message).trim().split('\n').slice(-2).join(' ');
+      console.error(
+        `[media] ${configured.videoEncoder} + ${label} ใช้งานไม่ได้ — ถอยไปใช้ ${CPU_ENCODER.videoEncoder} ทั้งชุด (${why})`,
+      );
+      // ถอยทั้งชุด ไม่ใช่เฉพาะชุดที่ล้ม — ตัวเข้ารหัสกับอาร์กิวเมนต์ต้องเข้าคู่กันเสมอ
+      return CPU_ENCODER;
+    }
   }
+
+  return configured;
 }
 
 /** ผลการตรวจถูกจำไว้ ตรวจครั้งเดียวต่อการรันหนึ่งครั้งของโปรเซส */
