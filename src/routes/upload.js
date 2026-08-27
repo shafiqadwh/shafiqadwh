@@ -127,7 +127,22 @@ uploadRouter.post('/api/upload', uploadCeiling, uploadLimiter, (req, res) => {
     return res.status(507).json({ error: req.t('errors.storage_full') });
   }
 
-  upload.array('files', config.limits.filesPerRequest)(req, res, async (uploadError) => {
+  // multer เรียก callback นี้แล้ว **ทิ้ง Promise ที่ได้กลับมา** — ถ้าปล่อยให้เป็น
+  // async แล้วมันโยน error ออกมา จะกลายเป็น unhandled rejection ซึ่ง Node 22
+  // ฆ่าทั้งโปรเซส (ทดสอบแล้ว) เว็บดับทั้งงานเพราะแขกคนเดียวอัพไฟล์ที่มีปัญหา
+  //
+  // ingestFile() ดักไว้เกือบหมดแล้ว แต่ readMagic() กับ fs.rm() สามตัวแรกอยู่
+  // นอก try ของมัน — ดิสก์เต็มหรือสิทธิ์ไฟล์เพี้ยนเมื่อไรก็หลุดออกมาได้จริง
+  upload.array('files', config.limits.filesPerRequest)(req, res, (uploadError) => {
+    void ingestBatch(req, res, uploadError).catch((error) => {
+      console.error('[upload] ชุดอัพโหลดล้มทั้งชุด:', error);
+      if (!res.headersSent) res.status(500).json({ error: req.t('errors.server_error') });
+    });
+  });
+});
+
+async function ingestBatch(req, res, uploadError) {
+  {
     if (uploadError) {
       const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';
       return res.status(tooLarge ? 413 : 400).json({
@@ -157,8 +172,8 @@ uploadRouter.post('/api/upload', uploadCeiling, uploadLimiter, (req, res) => {
       pending: status === 'pending',
       errors,
     });
-  });
-});
+  }
+}
 
 /** Shared with the guest book, which accepts a single optional attachment. */
 export const singleAttachment = upload.single('attachment');

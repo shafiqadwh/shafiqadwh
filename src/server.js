@@ -80,6 +80,23 @@ export function createApp() {
 
 export async function start() {
   assertConfig();
+
+  /*
+   * ตาข่ายชั้นสุดท้าย — Promise ที่ถูก reject โดยไม่มีใครรับ ต้องไม่ฆ่าเว็บทั้งงาน
+   *
+   * ค่าเริ่มต้นของ Node 22 คือ **จบโปรเซสทันที** เมื่อเจอ unhandled rejection
+   * (ทดสอบแล้วบน Express 4: handler ที่โยน error ทำให้เซิร์ฟเวอร์ดับจริง)
+   * บนเครื่องจริง Docker ยกกลับมาให้ในสิบกว่าวินาที แต่ถ้าสาเหตุยังอยู่ เช่นดิสก์เต็ม
+   * คำขอถัดไปก็ฆ่าซ้ำได้เรื่อย ๆ จนกลายเป็นเว็บที่ล่ม ๆ ติด ๆ ตลอดงาน
+   *
+   * route ทุกเส้นห่อด้วย wrap() ให้ error ไหลเข้า error middleware อยู่แล้ว
+   * ตรงนี้จึงมีไว้รับเฉพาะของที่หลุดจากนอกเส้นทางคำขอ (งานเบื้องหลัง คิว ตัวจับเวลา)
+   * ซึ่งดับเว็บทิ้งไม่ได้เด็ดขาด — บันทึกไว้ให้สืบทีหลัง แล้วให้เว็บวิ่งต่อ
+   */
+  process.on('unhandledRejection', (reason) => {
+    console.error('[fatal] มี Promise ที่ไม่มีใครรับ error — เว็บยังทำงานต่อ:', reason);
+  });
+
   await ensureDirs();
   resumeQueue();
   startLimiterCleanup();

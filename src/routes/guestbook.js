@@ -53,7 +53,18 @@ guestbookRouter.get('/api/messages', (req, res) => {
 });
 
 guestbookRouter.post('/api/messages', messageCeiling, messageLimiter, (req, res) => {
-  singleAttachment(req, res, async (uploadError) => {
+  // เหตุผลเดียวกับ /api/upload — multer ทิ้ง Promise ที่ callback คืนมา
+  // rejection จึงหลุดเป็น unhandled แล้ว Node 22 ฆ่าทั้งโปรเซส
+  singleAttachment(req, res, (uploadError) => {
+    void postMessage(req, res, uploadError).catch((error) => {
+      console.error('[guestbook] บันทึกคำอวยพรล้ม:', error);
+      if (!res.headersSent) res.status(500).json({ error: req.t('errors.server_error') });
+    });
+  });
+});
+
+async function postMessage(req, res, uploadError) {
+  {
     if (uploadError) {
       const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';
       return res.status(tooLarge ? 413 : 400).json({
@@ -83,5 +94,5 @@ guestbookRouter.post('/api/messages', messageCeiling, messageLimiter, (req, res)
 
     const message = insertMessage({ author, body, itemId, status });
     res.status(201).json({ id: message.id, pending: status === 'pending', errors });
-  });
-});
+  }
+}

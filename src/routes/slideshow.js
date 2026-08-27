@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { listItems, listMessages } from '../repo.js';
 import { qrDataUrl, shareUrl } from '../lib/qr.js';
 import { toPublicItem } from './gallery.js';
+import { wrap } from '../lib/async-route.js';
 
 export const slideshowRouter = express.Router();
 
@@ -51,7 +52,7 @@ slideshowRouter.get('/slideshow/menu', (req, res) => {
   });
 });
 
-slideshowRouter.get('/slideshow', async (req, res) => {
+slideshowRouter.get('/slideshow', wrap(async (req, res) => {
   const url = shareUrl(req);
   res.render('slideshow', {
     page: 'slideshow',
@@ -59,7 +60,7 @@ slideshowRouter.get('/slideshow', async (req, res) => {
     qrImage: await qrDataUrl(url, { width: 640 }),
     settings: config.slideshow,
   });
-});
+}));
 
 slideshowRouter.get('/api/slideshow', (req, res) => {
   const since = Number(req.query.since) || 0;

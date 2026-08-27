@@ -41,6 +41,7 @@ import { qrDataUrl, qrPngBuffer, shareUrl } from '../lib/qr.js';
 import { streamArchive } from '../lib/zip.js';
 import { createLimiter } from '../lib/ratelimit.js';
 import { uploadsOpen } from './gallery.js';
+import { wrap } from '../lib/async-route.js';
 
 export const adminRouter = express.Router();
 
@@ -75,7 +76,7 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ error: req.t('admin.wrong_password') });
 }
 
-adminRouter.get('/admin', async (req, res) => {
+adminRouter.get('/admin', wrap(async (req, res) => {
   if (!isAdmin(req)) {
     return res.render('admin-login', { page: 'admin', error: null });
   }
@@ -115,7 +116,7 @@ adminRouter.get('/admin', async (req, res) => {
     // ลิงก์ค้าง (กู้คืนไปแล้วก่อนหน้า หรือถูกกวาดทิ้งถาวรไปแล้ว) แบนเนอร์แค่ไม่ขึ้น ไม่ error
     undoItems: getTrashedByIds(String(req.query.undo ?? '').split(',')),
   });
-});
+}));
 
 adminRouter.post('/admin/login', loginLimiter, express.urlencoded({ extended: false }), (req, res) => {
   if (!passwordMatches(req.body?.password)) {
@@ -189,7 +190,7 @@ async function purgeExpiredTrash() {
   }
 }
 
-adminRouter.post('/admin/items/:id/:action', requireAdmin, async (req, res) => {
+adminRouter.post('/admin/items/:id/:action', requireAdmin, wrap(async (req, res) => {
   const row = getItem(Number(req.params.id));
   if (!row) return res.status(404).json({ error: req.t('errors.not_found') });
 
@@ -217,7 +218,7 @@ adminRouter.post('/admin/items/:id/:action', requireAdmin, async (req, res) => {
     return res.redirect(`/admin${undo}`);
   }
   return res.json({ ok: true });
-});
+}));
 
 /** ids จากฟอร์ม — checkbox เดียวส่งมาเป็นสตริง หลายอันส่งมาเป็นอาร์เรย์ ต้องรวมให้เป็นแบบเดียวเสมอ */
 function idsFromBody(body) {
@@ -256,7 +257,7 @@ adminRouter.get('/admin/zip', requireAdmin, (req, res) => {
   });
 });
 
-adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/qr', requireAdmin, wrap(async (req, res) => {
   const url = shareUrl(req);
   // The printed card carries every language at once — guests do not get to
   // pick a language before they have scanned anything.
@@ -300,7 +301,7 @@ adminRouter.get('/admin/qr', requireAdmin, async (req, res) => {
     showVenue,
     sheet,
   });
-});
+}));
 
 // ── หนังงานแต่ง: สั่งทำ ดูสถานะ เล่น และดาวน์โหลด จากหน้าเว็บ ────────────────
 
@@ -320,15 +321,15 @@ const musicUpload = multer({
  * เก็บใน data/music/ ไม่ใช่ใน uploads/ เพราะไฟล์ใน uploads คือของที่แขกส่งมา
  * ซึ่งจะถูกเอาไปทำสไลด์โชว์ ทำ ZIP และเข้าหนัง เพลงไม่ควรหลุดไปอยู่ในนั้น
  */
-adminRouter.get('/admin/film/status', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/film/status', requireAdmin, wrap(async (req, res) => {
   const status = await jobStatus();
   res.json({
     ...status,
     films: status.films.map((film) => ({ ...film, size: formatBytes(film.bytes) })),
   });
-});
+}));
 
-adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
+adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extended: false }), wrap(async (req, res) => {
   // ตัวเลขจากฟอร์มต้องผ่านการตรวจก่อน ไม่ใช่ส่งตรงเข้า ffmpeg — ค่าติดลบหรือ
   // ค่าที่ไม่ใช่ตัวเลขจะทำให้ตัวกรองของ ffmpeg พังกลางทางแบบอ่าน error ไม่รู้เรื่อง
   const clamp = (raw, fallback, low, high) => {
@@ -358,7 +359,7 @@ adminRouter.post('/admin/film/start', requireAdmin, express.urlencoded({ extende
     res.status(error.code === 'BUSY' || error.code === 'LOCKED' ? 409 : 500)
       .json({ error: error.message });
   }
-});
+}));
 
 adminRouter.post('/admin/film/music', requireAdmin, (req, res) => {
   musicUpload.single('music')(req, res, async (uploadError) => {
@@ -452,7 +453,7 @@ async function serveFilm(req, res, next, download) {
  * ตัวเลขที่คำนวณไว้ก่อนกดปุ่ม — กี่วินาทีต่อรูป หนังจะยาวเท่าไร ต้องใช้เพลงยาวรวมเท่าไร
  * อ่านอย่างเดียว ไม่เริ่มเรนเดอร์อะไรทั้งนั้น
  */
-adminRouter.get('/admin/film/plan', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/film/plan', requireAdmin, wrap(async (req, res) => {
   const deck = readDeck();
 
   // ต้องตัดไฟล์ซ้ำแบบเดียวกับตอนเรนเดอร์จริง (`runExport`) ไม่งั้นงานที่แขกอัพรูปซ้ำ
@@ -472,12 +473,12 @@ adminRouter.get('/admin/film/plan', requireAdmin, async (req, res) => {
     pickedSeconds: picked,
     library: await listLibrary(),
   });
-});
+}));
 
-adminRouter.post('/admin/film/track/delete', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
+adminRouter.post('/admin/film/track/delete', requireAdmin, express.urlencoded({ extended: false }), wrap(async (req, res) => {
   const removed = await deleteTrack(req.body.id);
   res.status(removed ? 200 : 404).json({ ok: removed });
-});
+}));
 
 adminRouter.get('/admin/film/:id/video', requireAdmin, (req, res, next) =>
   serveFilm(req, res, next, false));
@@ -485,20 +486,20 @@ adminRouter.get('/admin/film/:id/video', requireAdmin, (req, res, next) =>
 adminRouter.get('/admin/film/:id/download', requireAdmin, (req, res, next) =>
   serveFilm(req, res, next, true));
 
-adminRouter.post('/admin/film/:id/delete', requireAdmin, async (req, res) => {
+adminRouter.post('/admin/film/:id/delete', requireAdmin, wrap(async (req, res) => {
   const removed = await deleteFilm(req.params.id);
   res.status(removed ? 200 : 404).json({ ok: removed });
-});
+}));
 
-adminRouter.get('/admin/paper/status', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/paper/status', requireAdmin, wrap(async (req, res) => {
   const status = await paperStatus();
   res.json({
     ...status,
     papers: status.papers.map((paper) => ({ ...paper, size: formatBytes(paper.bytes) })),
   });
-});
+}));
 
-adminRouter.post('/admin/paper/start', requireAdmin, express.urlencoded({ extended: false }), async (req, res) => {
+adminRouter.post('/admin/paper/start', requireAdmin, express.urlencoded({ extended: false }), wrap(async (req, res) => {
   try {
     const status = await startPaperJob({
       // ชนิดต้องอยู่ในรายการที่รู้จักเท่านั้น ค่าที่ส่งมาเองจะถูกปฏิเสธ ไม่ใช่เดาให้
@@ -512,7 +513,7 @@ adminRouter.post('/admin/paper/start', requireAdmin, express.urlencoded({ extend
     const code = { BUSY: 409, LOCKED: 409, BAD_KIND: 400 }[error.code] ?? 500;
     res.status(code).json({ error: error.message });
   }
-});
+}));
 
 async function servePaper(req, res, next, download) {
   const target = paperPath(req.params.id);
@@ -537,11 +538,11 @@ adminRouter.get('/admin/paper/:id/view', requireAdmin, (req, res, next) =>
 adminRouter.get('/admin/paper/:id/download', requireAdmin, (req, res, next) =>
   servePaper(req, res, next, true));
 
-adminRouter.post('/admin/paper/:id/delete', requireAdmin, async (req, res) => {
+adminRouter.post('/admin/paper/:id/delete', requireAdmin, wrap(async (req, res) => {
   const removed = await deletePaper(req.params.id);
   res.status(removed ? 200 : 404).json({ ok: removed });
-});
+}));
 
-adminRouter.get('/admin/qr.png', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/qr.png', requireAdmin, wrap(async (req, res) => {
   res.type('png').send(await qrPngBuffer(shareUrl(req), { width: 1200 }));
-});
+}));
