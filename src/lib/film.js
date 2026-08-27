@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import { config } from '../config.js';
@@ -52,7 +53,43 @@ const FONTS = {
 // ช่วงอักษรอาหรับพื้นฐาน บวกส่วนขยายที่ใช้จริงในข้อความทั่วไป
 const ARABIC = /[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]/;
 
+/**
+ * ฟอนต์หายต้องล้มพร้อมบอกเหตุ ไม่ใช่เงียบแล้วได้กล่องสี่เหลี่ยม
+ *
+ * sharp ส่ง `fontfile` ที่ไม่มีอยู่จริงให้ Pango แล้ว Pango **ไม่ error** —
+ * มันตกไปใช้ฟอนต์ระบบตัวใดก็ได้ที่หาเจอ ซึ่งบนอิมเมจ node:slim ไม่มีอักษรไทย
+ * ผลคือได้หนังและ PDF ที่ข้อความไทยเป็น □□□ ทั้งหมด โดยไม่มีอะไรเตือนสักบรรทัด
+ *
+ * เกิดขึ้นจริงแล้ว: `assets/` ไม่ได้อยู่ทั้งใน Dockerfile และใน docker-compose.yml
+ * หนังที่สร้างจากหน้าแอดมินจึงมีชื่อร้านเป็นกล่องสี่เหลี่ยม (เส้นทาง export-film.sh
+ * ไม่เป็น เพราะมันmount assets เอง) — กว่าจะรู้ก็ตอนเปิดหนังดูแล้ว
+ *
+ * ล้มตรงนี้แปลว่างานสร้างหนัง/PDF รายงานข้อผิดพลาดขึ้นหน้าแอดมินให้เห็น
+ * ส่วนเว็บที่แขกใช้ยังทำงานปกติ เพราะไม่ได้เรียกทางนี้
+ */
+let fontsChecked = false;
+
+function assertFonts() {
+  if (fontsChecked) return;
+  const missing = [];
+  for (const face of Object.values(FONTS)) {
+    for (const file of [face.regular, face.bold]) {
+      if (!fsSync.existsSync(file)) missing.push(file);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `ไม่พบไฟล์ฟอนต์ ${missing.length} ไฟล์ — ข้อความไทย/อาหรับจะกลายเป็นกล่องสี่เหลี่ยม\n`
+      + `  ${missing.join('\n  ')}\n`
+      + '  ตรวจว่า docker-compose.yml mount ./assets:/app/assets:ro ไว้แล้ว '
+      + 'จากนั้น sudo ./scripts/update.sh --env',
+    );
+  }
+  fontsChecked = true;
+}
+
 export function fontFor(text) {
+  assertFonts();
   return ARABIC.test(String(text ?? '')) ? FONTS.arabic : FONTS.latin;
 }
 

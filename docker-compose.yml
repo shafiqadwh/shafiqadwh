@@ -45,6 +45,12 @@ services:
       - ./views:/app/views:ro
       - ./public:/app/public:ro
       - ./locales:/app/locales:ro
+      # ฟอนต์ไทย/อาหรับสำหรับการ์ดในหนังและ PDF สมุดคำอวยพร
+      #
+      # ⚠️ ขาดบรรทัดนี้แล้ว sharp จะ "ไม่ error" แต่ตกไปใช้ฟอนต์ระบบที่ไม่มีอักษรไทย
+      # ข้อความไทยทั้งหมดจะกลายเป็นสี่เหลี่ยม □□□ ในหนังและใน PDF โดยไม่มีอะไรเตือน
+      # เกิดขึ้นจริงมาแล้ว — เห็นตอนหนังออกมาแล้วชื่อร้านเป็นกล่องสี่เหลี่ยม
+      - ./assets:/app/assets:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

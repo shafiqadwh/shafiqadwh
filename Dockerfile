@@ -35,6 +35,9 @@ COPY src ./src
 COPY views ./views
 COPY public ./public
 COPY locales ./locales
+# ฟอนต์ไทย/อาหรับที่การ์ดในหนังและ PDF สมุดคำอวยพรใช้เรนเดอร์ตัวอักษร
+# ขาดไปแล้ว sharp ไม่ error แต่ตกไปใช้ฟอนต์ระบบที่ไม่มีอักษรไทย ได้ □□□ ทั้งเล่ม
+COPY assets ./assets
 
 RUN mkdir -p /app/data/uploads /app/data/derived /app/data/db /app/data/tmp \
   && chown -R node:node /app/data

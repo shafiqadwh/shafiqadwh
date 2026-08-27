@@ -70,6 +70,13 @@ Hasanah Restaurant (ร้านอาหารฮาซานะห์) Sateng,
 ## 🗓 1 วันก่อนงาน
 
 - [ ] ลบรูปทดสอบทั้งหมดออกจาก `/admin`
+- [ ] **เทถังขยะทิ้งถาวร** เพื่อเริ่มงานด้วยระบบที่สะอาดและคืนพื้นที่ดิสก์
+      (ของที่ลบจะค้างในถังขยะอีก 7 วันโดยยังกินพื้นที่อยู่)
+      ```
+      sudo docker exec wedding-share node /app/src/tools/empty-trash.js
+      sudo docker exec wedding-share node /app/src/tools/empty-trash.js --yes
+      ```
+      คำสั่งแรกแค่รายงานว่ามีอะไรอยู่ · คำสั่งที่สองลบจริง **กู้คืนไม่ได้**
 - [ ] ตั้ง `UPLOAD_WINDOW` (ถ้าใช้) หรือเปิดสวิตช์อัพโหลดไว้
 - [ ] `sudo docker compose ps` — สถานะต้องเป็น `Up (healthy)`
 - [ ] ตั้ง Task Scheduler ของ `ensure-up.sh` ครบ **สองงาน คนละชนิด**
