@@ -16,10 +16,13 @@ export function readDeck() {
   // เขียนทับอะไรแม้โค้ดจะมีบั๊ก
   const db = new Database(config.paths.db, { readonly: true, fileMustExist: true });
   try {
+    // `deleted_at IS NULL` ขาดไม่ได้ และไม่ได้ซ้ำซ้อนกับ status —
+    // การลบรูปไม่ได้แตะ status เลย รูปในถังขยะจึงยังเป็น 'visible' อยู่ทุกใบ
+    // ตกบรรทัดนี้เมื่อไร หนังจะหยิบรูปที่เจ้าภาพตั้งใจลบทิ้งกลับมาใส่ให้ (เจอมาแล้วจริง)
     const items = db.prepare(`
       SELECT id, kind, stored_name, playback_name, thumb_name, bytes, width, height, duration, uploader
       FROM items
-      WHERE status = 'visible'
+      WHERE status = 'visible' AND deleted_at IS NULL
       ORDER BY id ASC
     `).all();
 

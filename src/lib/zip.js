@@ -5,10 +5,13 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { safeOriginalName } from './media.js';
 
+// `deleted_at IS NULL` ขาดไม่ได้ — การลบรูปไม่ได้แตะ status เลย รูปในถังขยะ
+// จึงยังผ่านเงื่อนไข status ทุกใบ ตกบรรทัดนี้แล้วรูปที่เจ้าภาพตั้งใจลบทิ้งจะกลับ
+// เข้าไปอยู่ใน ZIP ที่ดาวน์โหลดเก็บไว้หลังงาน ซึ่งเป็นไฟล์ที่จะอยู่ไปตลอด
 const selectAll = db.prepare(`
   SELECT id, kind, original_name, stored_name, uploader, created_at
   FROM items
-  WHERE status != 'hidden'
+  WHERE status != 'hidden' AND deleted_at IS NULL
   ORDER BY created_at, id
 `);
 
