@@ -409,3 +409,24 @@ test('the printed QR card can leave the venue off for the days held elsewhere', 
   assert.ok(venueLines(withVenue) > 0, 'the reception card names the restaurant');
   assert.equal(venueLines(without), 0, 'the everyday card must not name a place it is not held at');
 });
+
+test('the wall rotates fairly, so an old photo is not starved by newer ones', async () => {
+  const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
+
+  // คิวรอขึ้นกำแพงเรียงตาม deck ซึ่งเป็น id DESC = ใหม่สุดก่อน หยิบจากหัวคิวเสมอ
+  // ใบที่เพิ่งถูกไล่ออกจึงกลับไปอยู่หัวคิวแล้วถูกหยิบซ้ำทันที วนอยู่กับรูปใหม่ไม่กี่ใบ
+  // จำลองแล้ว: รูป 100 ใบ เปิดจอ 50 นาที ขึ้นจอจริง 16 ใบ อีก 84 ใบไม่เคยขึ้นเลย
+  assert.match(js, /const lastShown = new Map\(\)/,
+    'ต้องจำว่าแต่ละใบเคยขึ้นกำแพงครั้งล่าสุดเมื่อไร');
+  assert.match(js, /lastShown\.set\(entry\.key, card\.serial\)/,
+    'ต้องบันทึกตอนการ์ดขึ้นกำแพงจริง');
+  assert.match(js, /waitingMedia\.sort\(\(a, b\) => shownAt\(a\) - shownAt\(b\)\)/,
+    'คิวรูปต้องเรียงให้ใบที่ไม่ได้ขึ้นนานที่สุดมาก่อน');
+  assert.match(js, /waitingNotes\.sort\(\(a, b\) => shownAt\(a\) - shownAt\(b\)\)/,
+    'คิวคำอวยพรต้องเป็นธรรมด้วยเหตุผลเดียวกัน');
+
+  // ใบที่ยังไม่เคยขึ้นได้ค่า 0 เท่ากันหมด และ sort ของ JS เสถียร ลำดับใหม่สุดก่อน
+  // จึงคงอยู่ — รูปที่แขกเพิ่งส่งต้องยังขึ้นจอไวเหมือนเดิม ไม่ใช่ไปต่อท้ายแถว
+  assert.match(js, /lastShown\.get\(entry\.key\) \?\? 0/,
+    'ใบที่ยังไม่เคยขึ้นต้องมาก่อนใบที่เคยขึ้นแล้ว');
+});

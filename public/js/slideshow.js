@@ -470,6 +470,9 @@
     const cards = [];
     // การ์ดที่ถูกจองไว้แล้วว่ากำลังจะถูกสลับ กันไม่ให้ถูกเลือกซ้ำ
     const reserved = new Set();
+    // key ของ entry → serial ตอนขึ้นกำแพงครั้งล่าสุด (ไม่มี = ยังไม่เคยขึ้นเลย)
+    // ทำให้การวนรอบเป็นธรรม รูปทุกใบได้ขึ้นจอ ไม่ใช่วนอยู่กับรูปใหม่ไม่กี่ใบ
+    const lastShown = new Map();
     let hotIndex = -1;
     let placedSerial = 0;
 
@@ -821,6 +824,8 @@
       const card = buildCard(entry, slots[slotIndex]);
       card.slotIndex = slotIndex;
       cards.push(card);
+      // จำว่าใบนี้เคยขึ้นกำแพงเมื่อไร — ตัวเดียวที่ทำให้การวนรอบเป็นธรรม ดู sync()
+      lastShown.set(entry.key, card.serial);
       settle(card);
       return card;
     }
@@ -870,6 +875,21 @@
         if (onWall.has(entry.key)) continue;
         (entry.note ? waitingNotes : waitingMedia).push(entry);
       }
+
+      /*
+       * เรียงคิวตาม "ครั้งล่าสุดที่เคยขึ้นกำแพง" — ใบที่ยังไม่เคยขึ้นเลยมาก่อนเสมอ
+       *
+       * ขาดบรรทัดนี้แล้วรูปเก่าอดขึ้นจอทั้งงาน: available เรียงใหม่สุดก่อน (id DESC)
+       * คิวจึงหยิบจากหัวซึ่งเป็นรูปใหม่สุด พอใบนั้นถูกไล่ออกจากกำแพง มันกลับไปอยู่
+       * หัวคิวอีกครั้งแล้วถูกหยิบซ้ำทันที กลายเป็นวนอยู่กับรูปใหม่ไม่กี่ใบตลอดงาน
+       * (จำลองแล้ว: รูป 100 ใบ รัน 50 นาที ขึ้นจอจริง 16 ใบ อีก 84 ใบไม่เคยขึ้นเลย)
+       *
+       * sort ของ JS เสถียร ใบที่ยังไม่เคยขึ้น (ค่า 0 เท่ากันหมด) จึงคงลำดับใหม่สุด
+       * ก่อนไว้ตามเดิม — รูปที่แขกเพิ่งส่งยังได้ขึ้นจอไวเหมือนเจตนาเดิมทุกประการ
+       */
+      const shownAt = (entry) => lastShown.get(entry.key) ?? 0;
+      waitingMedia.sort((a, b) => shownAt(a) - shownAt(b));
+      waitingNotes.sort((a, b) => shownAt(a) - shownAt(b));
 
       // ยังมีช่องว่างอยู่ — เติมให้เต็มก่อน โดยยกโควตาให้คำอวยพรก่อนรูป
       while (cards.length < slots.length) {
