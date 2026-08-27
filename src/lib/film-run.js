@@ -71,15 +71,26 @@ export function beNice() {
 }
 
 /**
- * ล้างคลิปเก่าทิ้งถ้าตัวเข้ารหัสเปลี่ยนไปจากรอบก่อน
+ * ล้างคลิปเก่าทิ้งถ้ารอบนี้ใช้ค่าคนละชุดกับรอบก่อน
  *
- * `alreadyDone()` ข้ามคลิปที่ทำไว้แล้วเพื่อให้รันซ้ำเร็ว แต่ concat แบบ `-c copy`
- * ต้องการคลิปที่พารามิเตอร์เหมือนกันทุกใบ ถ้าเจ้าของเปลี่ยน VIDEO_ENCODER ใน .env
- * ทั้งที่ยังมีคลิปเก่าค้างอยู่ จะได้หนังที่ภาพค้างกลางเรื่อง โดยไม่มี error สักบรรทัด
+ * `alreadyDone()` ข้ามคลิปที่ทำไว้แล้วเพื่อให้รันซ้ำเร็ว โดยดูแค่ว่า "มีไฟล์ชื่อนี้
+ * อยู่แล้วไหม" ไม่ได้ดูว่ามันถูกเรนเดอร์ด้วยค่าอะไร ลายเซ็นนี้จึงต้องครอบทุกค่า
+ * ที่เปลี่ยนแล้วทำให้คลิปเก่าใช้ต่อไม่ได้
+ *
+ * 1. **ตัวเข้ารหัส** — concat แบบ `-c copy` ต้องการคลิปที่พารามิเตอร์เหมือนกันทุกใบ
+ *    เอาคลิปคนละตัวเข้ารหัสมาต่อกันจะได้หนังที่ภาพค้างกลางเรื่องโดยไม่มี error
+ * 2. **วินาทีต่อรูป** — ค่านี้คิดจากจำนวนรูป (`secondsForPhotos`) จึงขยับเองเมื่อ
+ *    มีรูปเพิ่มเข้ามา งานที่รันค้างไว้ตอนมี 30 ใบ (8 วิ/ใบ) แล้วมารันต่อตอนมี 800 ใบ
+ *    (5 วิ/ใบ) จะได้คลิปยาวไม่เท่ากันปนกัน และหนังจะยาวไม่ตรงกับเพลงที่ตัดไว้
+ * 3. **เพดานความยาววิดีโอ** — เปลี่ยนแล้วคลิปวิดีโอที่ตัดไว้เดิมก็ยาวผิด
  */
-async function dropStaleParts(workDir) {
+async function dropStaleParts(workDir, plan, options) {
   const stampPath = path.join(workDir, 'encoder.json');
-  const now = await encoderSignature();
+  const now = [
+    await encoderSignature(),
+    `seconds=${plan.secondsPerPhoto}`,
+    `maxVideo=${options.maxVideoSeconds}`,
+  ].join(' ');
 
   let before = null;
   try {
@@ -222,8 +233,6 @@ export async function runExport(input = {}, onProgress = () => {}) {
 
     await fs.mkdir(options.work, { recursive: true });
     await fs.mkdir(path.dirname(options.out), { recursive: true });
-    await dropStaleParts(options.work);
-
     const t = translator(config.i18n.default);
     const deck = readDeck();
 
@@ -240,6 +249,10 @@ export async function runExport(input = {}, onProgress = () => {}) {
     // ผู้เรียกส่ง plan เข้ามาได้ เพื่อให้หนังสองแบบจากปุ่มเดียวยาวเท่ากันเป๊ะ
     const plan = options.plan ?? planLength(timeline, options);
     options.seconds = plan.secondsPerPhoto;
+
+    // ต้องอยู่หลังคิดแผนเสร็จ เพราะลายเซ็นรวม "วินาทีต่อรูป" ซึ่งเพิ่งรู้ตรงนี้เอง
+    // (เดิมเรียกก่อนอ่านข้อมูลด้วยซ้ำ จึงเทียบได้แค่ตัวเข้ารหัส)
+    await dropStaleParts(options.work, plan, options);
 
     // กำแพงต้องรู้ว่ารอบ ๆ ใบไฮไลท์มีรูปอะไรบ้าง ใช้รูปย่อเพราะมีสิบกว่าใบต่อเฟรม
     const wall = makeWallPainter(timeline);

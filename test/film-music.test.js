@@ -463,3 +463,21 @@ test('the admin page can delete an uploaded track and shows which film is render
   assert.match(js, /style_of/);
   assert.match(js, /styleTotal/);
 });
+
+test('clips are thrown away when the seconds-per-photo changes, not just the encoder', async () => {
+  const source = await fs.readFile(new URL('../src/lib/film-run.js', import.meta.url), 'utf8');
+
+  // alreadyDone() ตัดสินจากชื่อไฟล์อย่างเดียว ไม่รู้ว่าคลิปถูกเรนเดอร์ที่กี่วินาที
+  // วินาทีต่อรูปคิดจากจำนวนรูป จึงขยับเองเมื่อมีรูปเพิ่ม — งานที่ค้างไว้ตอนมี 30 ใบ
+  // แล้วมาทำต่อตอนมี 800 ใบ จะได้คลิปยาวไม่เท่ากันปนกัน และหนังยาวไม่ตรงกับเพลง
+  assert.match(source, /seconds=\$\{plan\.secondsPerPhoto\}/,
+    'ลายเซ็นต้องรวมวินาทีต่อรูปด้วย');
+  assert.match(source, /maxVideo=\$\{options\.maxVideoSeconds\}/,
+    'ลายเซ็นต้องรวมเพดานความยาววิดีโอด้วย');
+
+  // และต้องเรียกหลังคิดแผนเสร็จ ไม่งั้นยังไม่รู้ค่าที่จะเอามาทำลายเซ็น
+  const planned = source.indexOf('planLength(timeline, options)');
+  const dropped = source.indexOf('await dropStaleParts(options.work');
+  assert.ok(planned > 0 && dropped > planned,
+    'dropStaleParts ต้องถูกเรียกหลังคำนวณแผน');
+});
