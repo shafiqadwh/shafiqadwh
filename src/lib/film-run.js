@@ -79,7 +79,7 @@ export function beNice() {
  */
 async function dropStaleParts(workDir) {
   const stampPath = path.join(workDir, 'encoder.json');
-  const now = encoderSignature();
+  const now = await encoderSignature();
 
   let before = null;
   try {

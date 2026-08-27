@@ -10,14 +10,26 @@
 # GPU ใช้ได้จริงไหม (ด้วยการลองสร้างคอนเทนเนอร์ที่ขอ GPU จริง ๆ ไม่ใช่เดาจาก
 # /dev/nvidia*) แล้วค่อยใส่ไฟล์นี้เข้าไปให้เอง ใช้ไม่ได้ก็ขึ้นด้วย CPU ตามเดิม
 #
-# ต้องใช้คู่กับค่าใน .env — ดูบทที่ 7 หัวข้อ GPU
-#   VIDEO_ENCODER=h264_nvenc
-#   VIDEO_ENCODER_ARGS=-preset p4 -cq 24
-#   FILM_ENCODER_ARGS=-preset p4 -cq 20
-#   VIDEO_DECODER_ARGS=-hwaccel cuda
+# ค่าตัวเข้ารหัสอยู่ในไฟล์นี้ **ไม่ใช่ใน .env** โดยตั้งใจ
+#
+# ถ้า .env สั่ง h264_nvenc ไว้ถาวรแต่คอนเทนเนอร์ถูกยกขึ้นโดยไม่มี GPU ต่ออยู่
+# ffmpeg จะล้มด้วย "Cannot load libnvidia-encode.so.1" ทุกครั้งที่ต้องเข้ารหัส —
+# เว็บยังปกติดีทุกอย่าง แต่คลิปที่แขกส่งมาแปลงไม่ผ่านสักไฟล์ และหนังก็สร้างไม่ได้
+# โดยไม่มีอะไรบอกจนกว่าจะมีคนไปเปิดวิดีโอบน Android แล้วเล่นไม่ได้ (เกิดขึ้นจริงแล้ว)
+#
+# วางไว้ที่นี่แปลว่า "ขอ GPU" กับ "สั่งใช้ nvenc" มาด้วยกันหรือไม่มาด้วยกันเสมอ
+# ไม่มีทางขัดกันได้อีก · environment: มีลำดับเหนือ env_file: ของไฟล์หลัก
+#
+# (แอปยังมีตัวตรวจซ้ำอีกชั้นตอนรัน — ดู activeEncoder() ใน src/lib/media.js
+#  ซึ่งถอยไป libx264 ให้เองถ้าเข้ารหัสจริงแล้วไม่ผ่าน)
 
 services:
   wedding-share:
+    environment:
+      VIDEO_ENCODER: h264_nvenc
+      VIDEO_ENCODER_ARGS: -preset p4 -cq 24
+      FILM_ENCODER_ARGS: -preset p4 -cq 20
+      VIDEO_DECODER_ARGS: -hwaccel cuda
     deploy:
       resources:
         reservations:

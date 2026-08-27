@@ -249,21 +249,25 @@ test('the joins are crossfaded, so a run of tracks has no dead air', async () =>
 
 /* ---------- ตัวเข้ารหัสกับ GPU ---------- */
 
-test('the film encoder comes from config, and defaults to what it always was', async () => {
+test('the film encoder comes from what actually works, and defaults to what it always was', async () => {
   const source = await fs.readFile(new URL('../src/lib/film-encode.js', import.meta.url), 'utf8');
   assert.ok(!/'-c:v', 'libx264'/.test(source), 'ตัวเข้ารหัสต้องไม่ถูกฮาร์ดโค้ดอีก');
-  assert.match(source, /config\.media\.videoEncoder/);
+
+  // ต้องถามตัวที่ตรวจแล้วว่าใช้ได้จริง ไม่ใช่อ่าน .env ตรง ๆ — .env เก็บค่าไว้ถาวร
+  // แต่ GPU ต่อเข้าคอนเทนเนอร์หรือเปล่าเปลี่ยนได้ทุกครั้งที่ยกคอนเทนเนอร์
+  assert.match(source, /activeEncoder\(\)/);
+  assert.ok(!source.includes('config.media.videoEncoder'), 'ยังอ่านค่าจาก .env ตรง ๆ อยู่');
 
   // ค่าเริ่มต้นต้องเท่ากับพฤติกรรมเดิมเป๊ะ ไม่งั้นหนังที่ทำหลังอัปเดตจะคุณภาพเปลี่ยน
   // โดยไม่มีใครสั่ง — เป็นการเปลี่ยนที่มองไม่เห็นจนกว่าจะเอาสองไฟล์มาเทียบกัน
-  assert.equal(encoderSignature(), 'libx264 -preset veryfast -crf 20 -profile:v high -level 4.1');
+  assert.equal(await encoderSignature(), 'libx264 -preset veryfast -crf 20 -profile:v high -level 4.1');
 });
 
 test('the decoder arguments sit before the input they decode', async () => {
   const source = await fs.readFile(new URL('../src/lib/film-encode.js', import.meta.url), 'utf8');
   // -hwaccel ที่วางหลัง -i จะถูก ffmpeg เมินเงียบ ๆ GPU จะไม่ถูกใช้โดยไม่มีใครรู้
   for (const match of source.matchAll(/const inputs = \[([^\]]*)\]/g)) {
-    assert.match(match[1], /^\.\.\.config\.media\.decoderArgs, '-i'/,
+    assert.match(match[1], /^\.\.\.encoder\.decoderArgs, '-i'/,
       'อาร์กิวเมนต์ถอดรหัสต้องมาก่อน -i');
   }
 });
@@ -304,12 +308,23 @@ test('the standalone film-export container asks for the GPU too, without touchin
   assert.match(script, /docker run --rm/, 'ต้องยังเป็นคอนเทนเนอร์ชั่วคราวที่ลบตัวเองทิ้ง');
 });
 
-test('picking GPU in .env is documented exactly once, not two conflicting copies', async () => {
+test('.env.example never hands out a GPU encoder that .env would then pin forever', async () => {
   const example = await fs.readFile(new URL('../.env.example', import.meta.url), 'utf8');
-  // เคยมีคอมเมนต์อธิบายชุดเดียวกันซ้ำสองที่ในไฟล์นี้ ตกค้างจากคนละรอบแก้ — คนละคำ
-  // แต่บอกเรื่องเดียวกัน ทำให้ไม่รู้ว่าอันไหนคือของจริง
-  const count = (example.match(/h264_nvenc/g) ?? []).length;
-  assert.equal(count, 1, `บล็อกอธิบาย GPU ซ้ำกัน ${count} ที่ในไฟล์ ควรมีที่เดียว`);
+
+  // ค่าใน .env อยู่ถาวร แต่ GPU ต่อเข้าคอนเทนเนอร์หรือเปล่าเปลี่ยนได้ทุกครั้งที่ยก
+  // คอนเทนเนอร์ — เคยเป็นคู่มือให้ก็อปไปวางจนสองอย่างไม่ตรงกัน แล้ว ffmpeg ล้มด้วย
+  // "Cannot load libnvidia-encode.so.1" ทุกครั้งที่ต้องเข้ารหัส
+  const active = example.split('\n').filter((line) => /^\s*VIDEO_ENCODER\s*=/.test(line));
+  assert.deepEqual(active, ['VIDEO_ENCODER=libx264'], 'ค่าเริ่มต้นต้องเป็น CPU เท่านั้น');
+  assert.ok(!/^\s*VIDEO_DECODER_ARGS\s*=\s*-hwaccel/m.test(example), 'อย่าตั้ง -hwaccel ค้างไว้ใน .env');
+
+  // ต้องเตือนไว้ด้วย ไม่ใช่แค่ไม่ใส่ค่า — ไม่งั้นคนอ่านจะเติมเองจากเอกสารเก่า
+  assert.match(example, /อย่าตั้ง h264_nvenc/);
+
+  // ค่าจริงของ GPU ต้องอยู่ในไฟล์ที่มาพร้อมกับการขอ GPU เสมอ
+  const addon = await fs.readFile(new URL('../docker-compose.gpu.yml', import.meta.url), 'utf8');
+  assert.match(addon, /VIDEO_ENCODER:\s*h264_nvenc/);
+  assert.match(addon, /VIDEO_DECODER_ARGS:\s*-hwaccel cuda/);
 });
 
 /* ---------- แคตตาล็อกเพลงที่มากับโปรแกรม ---------- */

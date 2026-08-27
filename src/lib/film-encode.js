@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config } from '../config.js';
-import { FFMPEG, FFPROBE, probeVideo } from './media.js';
+import { FFMPEG, FFPROBE, activeEncoder, probeVideo } from './media.js';
 import { FRAME_WIDTH, FRAME_HEIGHT } from './film.js';
 
 const run = promisify(execFile);
@@ -30,12 +30,15 @@ const FPS = 30;
  * `-pix_fmt` กับ `-r` อยู่นอกชุดที่ตั้งเองได้ เพราะ concat แบบ `-c copy` ต้องการคลิป
  * ที่รูปแบบพิกเซลและเฟรมเรตตรงกันทุกใบ ปล่อยให้แก้ได้เมื่อไรก็ได้หนังที่ภาพค้างกลางเรื่อง
  */
-const VIDEO_ARGS = [
-  '-c:v', config.media.videoEncoder,
-  ...config.media.filmEncoderArgs,
-  '-pix_fmt', 'yuv420p',
-  '-r', String(FPS),
-];
+async function videoArgs() {
+  const encoder = await activeEncoder();
+  return [
+    '-c:v', encoder.videoEncoder,
+    ...encoder.filmEncoderArgs,
+    '-pix_fmt', 'yuv420p',
+    '-r', String(FPS),
+  ];
+}
 
 /**
  * ลายเซ็นของตัวเข้ารหัสที่ใช้อยู่ — เขียนกำกับไว้ในโฟลเดอร์งาน
@@ -44,8 +47,12 @@ const VIDEO_ARGS = [
  * encoder ใน `.env` ทั้งที่ยังมีคลิปเก่าค้างอยู่ มันจะเอาคลิปคนละชนิดมาต่อกัน
  * แล้ว `-c copy` จะได้ไฟล์ที่ภาพค้างกลางเรื่องโดยไม่มี error ให้เห็นเลยสักบรรทัด
  */
-export function encoderSignature() {
-  return [config.media.videoEncoder, ...config.media.filmEncoderArgs, ...config.media.decoderArgs].join(' ');
+export async function encoderSignature() {
+  const encoder = await activeEncoder();
+  // ต้องเป็นตัวที่ "ใช้จริง" ไม่ใช่ตัวที่ตั้งไว้ — ถ้า GPU หายไประหว่างทาง คลิปครึ่งแรก
+  // ที่เข้ารหัสด้วย nvenc กับครึ่งหลังที่เป็น libx264 ต้องถูกนับว่าคนละชนิด ไม่งั้น
+  // concat แบบ -c copy จะเอามาต่อกันแล้วได้หนังที่ภาพค้างกลางเรื่อง
+  return [encoder.videoEncoder, ...encoder.filmEncoderArgs, ...encoder.decoderArgs].join(' ');
 }
 const AUDIO_ARGS = ['-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2'];
 const SILENCE = ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000'];
@@ -102,13 +109,14 @@ export async function stillClip(framePath, outPath, { seconds = 6, motion = fals
       ]
     : [fades(seconds)];
 
+  const video = await videoArgs();
   await atomically(outPath, (partial) => ffmpeg([
     '-y',
     '-loop', '1', '-i', framePath,
     ...SILENCE,
     '-t', String(seconds),
     '-vf', filters.join(','),
-    ...VIDEO_ARGS,
+    ...video,
     ...AUDIO_ARGS,
     '-shortest',
     partial,
@@ -146,11 +154,13 @@ export async function videoClip(sourcePath, outPath, { seconds = 30, captionPath
 
   // อาร์กิวเมนต์ถอดรหัส (เช่น -hwaccel cuda) ต้องมาก่อน -i ของไฟล์ที่จะถอด
   // วางหลัง -i แล้ว ffmpeg จะเมินเงียบ ๆ ไม่เตือนอะไรเลย
-  const inputs = [...config.media.decoderArgs, '-i', sourcePath];
+  const encoder = await activeEncoder();
+  const inputs = [...encoder.decoderArgs, '-i', sourcePath];
   if (!hasAudio) inputs.push(...SILENCE);
   else inputs.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
   if (captionPath) inputs.push('-i', captionPath);
 
+  const video = await videoArgs();
   await atomically(outPath, (partial) => ffmpeg([
     '-y',
     ...inputs,
@@ -158,7 +168,7 @@ export async function videoClip(sourcePath, outPath, { seconds = 30, captionPath
     '-filter_complex', chain.join(';'),
     '-map', '[v]',
     '-map', hasAudio ? '0:a:0' : '1:a:0',
-    ...VIDEO_ARGS,
+    ...video,
     ...AUDIO_ARGS,
     '-threads', String(config.media.ffmpegThreads),
     partial,
@@ -191,11 +201,13 @@ export async function wallVideoClip(sourcePath, outPath, { framePath, window, se
     `[under][2:v]overlay=0:0,fps=${FPS},${fades(limit)},format=yuv420p[v]`,
   ];
 
-  const inputs = [...config.media.decoderArgs, '-i', sourcePath];
+  const encoder = await activeEncoder();
+  const inputs = [...encoder.decoderArgs, '-i', sourcePath];
   if (!hasAudio) inputs.push(...SILENCE);
   else inputs.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
   inputs.push('-i', framePath);
 
+  const video = await videoArgs();
   await atomically(outPath, (partial) => ffmpeg([
     '-y',
     ...inputs,
@@ -203,7 +215,7 @@ export async function wallVideoClip(sourcePath, outPath, { framePath, window, se
     '-filter_complex', chain.join(';'),
     '-map', '[v]',
     '-map', hasAudio ? '0:a:0' : '1:a:0',
-    ...VIDEO_ARGS,
+    ...video,
     ...AUDIO_ARGS,
     '-threads', String(config.media.ffmpegThreads),
     partial,

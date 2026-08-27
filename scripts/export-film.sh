@@ -41,13 +41,43 @@ echo "ข้อมูล: $DATA_HOST"
 echo "ผลลัพธ์จะอยู่ที่ $DATA_HOST/export/wedding-film.mp4"
 echo
 
+# GPU ต่อให้ก็ต่อเมื่อใช้ได้จริง — `--gpus all` บนเครื่องที่ไม่มี GPU ทำให้
+# `docker run` ล้มตั้งแต่ยังไม่ได้เริ่มเรนเดอร์ ซึ่งไม่ควรเป็นเหตุให้ทำหนังไม่ได้เลย
+# (แอปยังมี activeEncoder() ตรวจซ้ำอีกชั้นตอนรัน ถ้า nvenc ใช้ไม่ได้ก็ถอยไป libx264)
+. ./scripts/lib-compose.sh
+
+# ค่าตัวเข้ารหัสส่งผ่านไฟล์ ไม่ใช่ต่อสตริง -e เอง เพราะค่าอย่าง "-preset p4 -cq 24"
+# มีช่องว่าง พอปล่อยให้เชลล์แยกคำมันจะกลายเป็นอาร์กิวเมนต์ของ docker คนละตัว
+GPU_ENV_FILE="$(mktemp)"
+trap 'rm -f "$GPU_ENV_FILE"' EXIT
+
+if gpu_ready; then
+  echo "▸ ใช้ GPU เร่งการเรนเดอร์"
+  GPU_ARGS="--gpus all"
+  cat > "$GPU_ENV_FILE" <<'GPUENV'
+VIDEO_ENCODER=h264_nvenc
+VIDEO_ENCODER_ARGS=-preset p4 -cq 24
+FILM_ENCODER_ARGS=-preset p4 -cq 20
+VIDEO_DECODER_ARGS=-hwaccel cuda
+GPUENV
+else
+  echo "▸ ไม่มี GPU ที่ใช้ได้ — เรนเดอร์ด้วย CPU (ช้ากว่า แต่ได้หนังเหมือนกัน)"
+  GPU_ARGS=""
+  : > "$GPU_ENV_FILE"
+fi
+
 # cpu-shares ต่ำกว่าปกติ (ค่ามาตรฐานคือ 1024) เพราะงานนี้กิน CPU ยาวหลายสิบนาที
 # ปล่อยไว้เฉย ๆ จะไปแย่งเครื่องจนบริการอื่นบน NAS อืดไปด้วย
-exec docker run --rm -i \
+#
+# ไม่ใช้ exec เพราะต้องให้ trap ได้เก็บไฟล์ชั่วคราวทิ้งหลังจบ
+# ตั้งใจไม่ใส่ "" ครอบ $GPU_ARGS — ต้องให้เชลล์แยกเป็นสองอาร์กิวเมนต์
+# shellcheck disable=SC2086
+docker run --rm -i \
   --name wedding-film \
   --cpu-shares 512 \
-  --gpus all \
+  $GPU_ARGS \
   --env-file .env \
+  --env-file "$GPU_ENV_FILE" \
   -e DATA_DIR=/app/data \
   --user "${PUID:-1026}:${PGID:-100}" \
   -v "$DATA_HOST:/app/data" \

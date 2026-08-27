@@ -48,6 +48,63 @@ const MOV_BRANDS = new Set(['qt  ']);
  * Identify a file from its leading bytes. Extensions are attacker-controlled,
  * so nothing downstream is allowed to trust them.
  */
+/**
+ * ตัวเข้ารหัสที่ "ใช้ได้จริงตอนนี้" ไม่ใช่ที่เขียนไว้ใน .env
+ *
+ * `.env` เก็บค่าไว้ถาวร ส่วน GPU ต่อเข้าคอนเทนเนอร์หรือเปล่าเป็นเรื่องที่เปลี่ยนได้
+ * ทุกครั้งที่ยกคอนเทนเนอร์ (ดู docker-compose.gpu.yml) สองอย่างนี้จึงไม่ตรงกันได้
+ * และเมื่อไม่ตรง ffmpeg จะล้มด้วย "Cannot load libnvidia-encode.so.1" — เกิดขึ้น
+ * จริงมาแล้ว: เว็บยังปกติดีทุกอย่าง แต่คลิปที่แขกส่งมาแปลงไม่ผ่านสักไฟล์
+ * โดยไม่มีอะไรบอกจนกว่าจะมีคนไปเปิดวิดีโอบน Android แล้วเล่นไม่ได้
+ *
+ * จึงตรวจด้วยการ **เข้ารหัสจริงหนึ่งเฟรม** ครั้งเดียวตอนใช้ครั้งแรก แล้วจำผลไว้
+ * ถ้าใช้ไม่ได้ก็ถอยไป libx264 ซึ่งมีติดมากับ ffmpeg ทุกตัว — หนังช้าลง แต่ได้หนัง
+ */
+const CPU_ENCODER = Object.freeze({
+  videoEncoder: 'libx264',
+  encoderArgs: ['-preset', 'veryfast', '-crf', '24', '-profile:v', 'high'],
+  filmEncoderArgs: ['-preset', 'veryfast', '-crf', '20', '-profile:v', 'high', '-level', '4.1'],
+  // -hwaccel cuda ก็พังด้วยเหตุผลเดียวกัน ต้องทิ้งไปพร้อมกัน ไม่ใช่ทิ้งแค่ฝั่งเข้ารหัส
+  decoderArgs: [],
+});
+
+let encoderPromise = null;
+
+async function probeEncoder() {
+  const configured = {
+    videoEncoder: config.media.videoEncoder,
+    encoderArgs: config.media.encoderArgs,
+    filmEncoderArgs: config.media.filmEncoderArgs,
+    decoderArgs: config.media.decoderArgs,
+  };
+
+  // libx264 อยู่ในตัว ffmpeg เสมอ ไม่ต้องเสียเวลาตรวจทุกครั้งที่บูต
+  if (configured.videoEncoder === CPU_ENCODER.videoEncoder) return configured;
+
+  try {
+    await run(FFMPEG, [
+      '-v', 'error',
+      '-f', 'lavfi', '-i', 'color=c=black:s=128x128:d=0.1',
+      '-c:v', configured.videoEncoder,
+      ...configured.encoderArgs,
+      '-f', 'null', '-',
+    ], { timeout: 30000 });
+    return configured;
+  } catch (error) {
+    console.error(
+      `[media] ตัวเข้ารหัส ${configured.videoEncoder} ใช้งานไม่ได้ — ถอยไปใช้ ${CPU_ENCODER.videoEncoder} แทน`,
+      `(${String(error.stderr || error.message).trim().split('\n').slice(-2).join(' ')})`,
+    );
+    return CPU_ENCODER;
+  }
+}
+
+/** ผลการตรวจถูกจำไว้ ตรวจครั้งเดียวต่อการรันหนึ่งครั้งของโปรเซส */
+export function activeEncoder() {
+  if (!encoderPromise) encoderPromise = probeEncoder();
+  return encoderPromise;
+}
+
 export function sniffType(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 12) return null;
 
@@ -363,7 +420,7 @@ export async function processVideo(tmpPath, sniffed) {
  * ของเดิมบีบอัดใหม่ทุกไฟล์ที่ไม่ใช่ .mp4 รวมถึงพวกที่เป็น H.264 อยู่แล้ว
  * เท่ากับเผา CPU ของ NAS ทิ้งเพื่อให้ได้ภาพที่แย่ลงกว่าเดิม
  */
-function encodePlan(probed) {
+function encodePlan(probed, encoder) {
   const videoCopy = probed.codec === 'h264';
   // aac คือของที่เบราว์เซอร์ทุกตัวเล่นได้ ส่วน .mov จากกล้องบางรุ่นเป็น pcm
   const audioCopy = !probed.audioCodec || probed.audioCodec === 'aac';
@@ -373,8 +430,8 @@ function encodePlan(probed) {
     video: videoCopy
       ? ['-c:v', 'copy']
       : [
-          '-c:v', config.media.videoEncoder,
-          ...config.media.encoderArgs,
+          '-c:v', encoder.videoEncoder,
+          ...encoder.encoderArgs,
           '-pix_fmt', 'yuv420p',
           '-vf', "scale='min(1920,iw)':-2",
         ],
@@ -389,11 +446,12 @@ export async function transcodeVideo(storedName) {
   const output = path.join(config.paths.derived, playbackName);
   const partial = `${output}.part.mp4`;
 
-  const plan = encodePlan(await probeVideo(input));
+  const encoder = await activeEncoder();
+  const plan = encodePlan(await probeVideo(input), encoder);
 
   await run(FFMPEG, [
     '-y',
-    ...config.media.decoderArgs,
+    ...encoder.decoderArgs,
     '-i', input,
     '-map', '0:v:0',
     '-map', '0:a:0?',
