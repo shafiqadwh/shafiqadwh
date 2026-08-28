@@ -14,7 +14,7 @@ const HOST = 'wedding.shafiq-lap.com';
 
 // เซิร์ฟเวอร์จำลองของ Cloudflare — จำทุกคำขอไว้ จะได้ยืนยันได้ว่า
 // "ไม่ได้แก้อะไร" หมายถึงไม่ได้ยิง PATCH จริง ๆ ไม่ใช่แค่ข้อความบนจอ
-function mockCloudflare({ record }) {
+function mockCloudflare({ record, tokenRevoked = false, zoneHidden = false }) {
   const calls = [];
   const state = { record: record ? { ...record } : null };
 
@@ -38,11 +38,20 @@ function mockCloudflare({ record }) {
       const wrap = (result) => ({ result, success: true, errors: [], messages: [] });
 
       if (url.pathname === '/user/tokens/verify') {
+        if (tokenRevoked) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, errors: [{ code: 1000, message: 'Invalid API Token' }] }));
+        }
         if (req.headers.authorization === `Bearer ${TOKEN}`) return send(wrap({ status: 'active' }));
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, errors: [{ code: 6111, message: 'Invalid format for Authorization header' }] }));
       }
       if (url.pathname === '/zones') {
+        if (tokenRevoked) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, errors: [{ code: 9109, message: 'Unauthorized to access requested resource' }] }));
+        }
+        if (zoneHidden) return send(wrap([]));
         const name = url.searchParams.get('name');
         return send(wrap(name === 'shafiq-lap.com'
           ? [{ id: 'ZONE123', name: 'shafiq-lap.com' }]
@@ -305,5 +314,37 @@ test('a failure in --quiet still reaches the log, with a timestamp', async () =>
     const run = await call(['--quiet', '--ip', '192.168.2.2']);
     assert.equal(run.code, 1);
     assert.match(run.stderr, /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\]/);
+  });
+});
+
+test('names a revoked token instead of blaming a missing zone', async () => {
+  // อาการจริงบน NAS: โทเคนถูกเพิกถอนไปแล้วแต่ .env ยังเก็บตัวเก่าไว้
+  // เดิมลูปหาโซน continue เงียบ ๆ ทุกครั้งที่ไม่ใช่ 200 ข้อความที่ได้จึงเป็น
+  // "หาโซนไม่เจอ" ซึ่งพาไปไล่ผิดทางทั้งที่สาเหตุอยู่คนละเรื่องกันเลย
+  await withMock({ record: { ...RECORD }, tokenRevoked: true }, async ({ call, mock }) => {
+    const run = await call(['--ip', '203.0.113.7']);
+    assert.notEqual(run.code, 0);
+    assert.match(run.stderr, /ไม่รับโทเคน/);
+    assert.match(run.stderr, /--setup/, 'ต้องบอกวิธีใส่โทเคนใหม่');
+    assert.match(run.stderr, /ด้วยมือ/, 'ต้องบอกทางแก้ที่ไม่ต้องรอโทเคนด้วย');
+    assert.equal(mock.calls.filter((c) => c.method === 'PATCH').length, 0, 'ห้ามแตะระเบียน');
+  });
+});
+
+test('tells a working token apart from one that cannot list zones', async () => {
+  await withMock({ record: { ...RECORD }, zoneHidden: true }, async ({ call }) => {
+    const run = await call(['--ip', '203.0.113.7']);
+    assert.notEqual(run.code, 0);
+    assert.match(run.stderr, /โทเคนใช้ได้/);
+    assert.match(run.stderr, /--zone-id/, 'ต้องเสนอทางลัดที่ข้ามการลิสต์โซนไปเลย');
+  });
+});
+
+test('--zone-id skips the zone lookup a narrow token cannot do', async () => {
+  await withMock({ record: { ...RECORD }, zoneHidden: true }, async ({ call, mock }) => {
+    const run = await call(['--zone-id', 'ZONE123', '--ip', '203.0.113.7']);
+    assert.equal(run.code, 0, run.stderr);
+    assert.equal(mock.state.record.content, '203.0.113.7');
+    assert.equal(mock.calls.filter((c) => c.path === '/zones').length, 0, 'ไม่ต้องถามรายชื่อโซนเลย');
   });
 });

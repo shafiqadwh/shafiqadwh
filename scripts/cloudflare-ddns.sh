@@ -30,6 +30,7 @@ HOST=""
 FORCED_IP=""
 TOKEN_FILE=""
 ZONE=""
+ZONE_ID_ARG=""
 TTL=""
 MODE="update"
 QUIET="0"
@@ -42,6 +43,7 @@ while [ $# -gt 0 ]; do
     --quiet) QUIET="1"; shift ;;
     --host)  HOST="$2"; shift 2 ;;
     --zone)  ZONE="$2"; shift 2 ;;
+    --zone-id) ZONE_ID_ARG="$2"; shift 2 ;;
     --ttl)   TTL="$2"; shift 2 ;;
     --ip)    FORCED_IP="$2"; shift 2 ;;
     -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -225,7 +227,14 @@ ok "$WAN"
 say "2. โซนบน Cloudflare ของ $HOST"
 
 ZONE_ID=""
-if [ -n "$ZONE" ]; then
+
+# ระบุ zone id มาเองได้ — ทางลัดเมื่อโทเคนแก้ DNS ได้แต่ "ลิสต์โซน" ไม่ได้
+# (เลข zone id อยู่ที่มุมขวาล่างของหน้า Overview ของโดเมนบน Cloudflare)
+if [ -n "$ZONE_ID_ARG" ]; then
+  ZONE_ID="$ZONE_ID_ARG"
+  ZONE="${ZONE:-$HOST}"
+  CANDIDATES=""
+elif [ -n "$ZONE" ]; then
   CANDIDATES="$ZONE"
 else
   # ไล่จากชื่อยาวสุดไปสั้นสุด กันเคสโดเมนแบบ .co.th ที่เดาจากสองพยางค์ท้ายไม่ได้
@@ -238,18 +247,38 @@ else
   done
 fi
 
+LAST_CODE=""
+LAST_BODY=""
 for CAND in $CANDIDATES; do
   RESP="$(cf GET "$API/zones?name=$CAND")"
-  [ "$(http_code "$RESP")" = "200" ] || continue
-  BODY="$(payload "$RESP")"
-  case "$BODY" in *'"result":[]'*) continue ;; esac
-  ZONE_ID="$(json_str id "$BODY")"
+  LAST_CODE="$(http_code "$RESP")"
+  LAST_BODY="$(payload "$RESP")"
+  [ "$LAST_CODE" = "200" ] || continue
+  case "$LAST_BODY" in *'"result":[]'*) continue ;; esac
+  ZONE_ID="$(json_str id "$LAST_BODY")"
   [ -n "$ZONE_ID" ] && { ZONE="$CAND"; break; }
 done
 
-[ -n "$ZONE_ID" ] || die "หาโซนของ $HOST บน Cloudflare ไม่เจอ
-    ถ้าโทเคนถูกจำกัดไว้เฉพาะโซนเดียว ต้องมีสิทธิ์ Zone → DNS → Edit ของโซนนั้น
-    หรือระบุเอง: --zone shafiq-lap.com"
+# แยกให้ออกว่า "โทเคนใช้ไม่ได้" กับ "ไม่มีโซนนั้นจริง ๆ" — เดิมสองกรณีนี้ให้ข้อความ
+# เดียวกันเป๊ะ เพราะลูปข้างบน continue เงียบ ๆ ทุกครั้งที่ไม่ใช่ 200 คนอ่านจึงไล่ผิดทาง
+# ทั้งที่สาเหตุที่พบบ่อยที่สุดคือโทเคนถูกเพิกถอนไปแล้วแต่ .env ยังเก็บตัวเก่าไว้
+if [ -z "$ZONE_ID" ]; then
+  VERIFY="$(cf GET "$API/user/tokens/verify")"
+  case "$(payload "$VERIFY")" in
+    *'"success":true'*)
+      die "โทเคนใช้ได้ แต่มองไม่เห็นโซนของ $HOST
+    Cloudflare ตอบ HTTP ${LAST_CODE:-?} ตอนขอรายชื่อโซน
+    $(printf '%s' "$LAST_BODY" | head -c 200)
+    ถ้าโทเคนมีสิทธิ์แก้ DNS แต่ไม่มีสิทธิ์ลิสต์โซน ให้ใส่เลขโซนเอง:
+      sudo ./scripts/cloudflare-ddns.sh --zone-id ZONE_ID_จากหน้า_Overview" ;;
+    *)
+      die "Cloudflare ไม่รับโทเคนใน .env แล้ว (HTTP $(http_code "$VERIFY"))
+    เกือบทุกครั้งแปลว่าโทเคนถูกเพิกถอนหรือหมดอายุ แต่ .env ยังเก็บตัวเก่าไว้
+    สร้างโทเคนใหม่แล้วบันทึกด้วย: sudo ./scripts/cloudflare-ddns.sh --setup
+    ต้องแก้เดี๋ยวนี้โดยไม่รอโทเคน: เข้าหน้าเว็บ Cloudflare แล้วแก้ระเบียน A ของ
+    $HOST ให้เป็น $WAN ด้วยมือ ได้ผลเหมือนกันทุกประการ" ;;
+  esac
+fi
 ok "$ZONE"
 
 # ── 3. ระเบียน A ตอนนี้ ────────────────────────────────────────────────────
