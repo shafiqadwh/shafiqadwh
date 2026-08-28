@@ -16,6 +16,9 @@
 
     <string name="connecting">กำลังเชื่อมต่อ…</string>
     <string name="retrying">เชื่อมต่อไม่ได้ กำลังลองใหม่…</string>
+    <!-- โค้ด error ดิบ ๆ จาก WebView เช่น net::ERR_NAME_NOT_RESOLVED
+         ไม่แปลเป็นไทย เพราะนี่คือข้อความที่เอาไปค้นหรือส่งต่อเพื่อหาสาเหตุได้จริง -->
+    <string name="error_reason">สาเหตุ: %1$s</string>
     <string name="settings_title">ที่อยู่ของสไลด์โชว์</string>
     <string name="settings_hint">https://…</string>
     <string name="save">บันทึกแล้วเปิดใหม่</string>
