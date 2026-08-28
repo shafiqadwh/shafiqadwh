@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.TextView;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -157,6 +158,7 @@ public class Driver {
             for (Runnable r : due) r.run();
         }
 
+        System.out.println("status:" + String.valueOf(TextView.LAST_TEXT).replace('\n', '|'));
         System.out.println("web-visible:" + (web.getVisibility() == View.VISIBLE));
         System.out.println("web-paused:" + web.paused);
 

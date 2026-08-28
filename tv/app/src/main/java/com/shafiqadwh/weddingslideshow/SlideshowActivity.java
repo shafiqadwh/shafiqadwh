@@ -68,6 +68,8 @@ public class SlideshowActivity extends Activity {
     private boolean attemptFailed = false;
     private int failStreak = 0;
     private String lastError = null;
+    /** ที่อยู่ที่เพิ่งล้มไป — คนละตัวกับที่อยู่ที่กำลังจะลองต่อ */
+    private String lastFailedUrl = null;
     private long lastBackPress = 0;
 
     @Override
@@ -139,6 +141,7 @@ public class SlideshowActivity extends Activity {
                 loaded = true;
                 failStreak = 0;
                 lastError = null;
+                lastFailedUrl = null;
                 retryDelay = RETRY_START_MS;
                 // เปิดหน้าเว็บให้เห็นตอนนี้เท่านั้น — ก่อนหน้านี้ WebView ถูกซ่อนไว้
                 // จอจึงไม่เคยโชว์หน้า error ของ WebView ให้แขกเห็นเลยแม้แต่วินาทีเดียว
@@ -248,6 +251,8 @@ public class SlideshowActivity extends Activity {
         if (attemptFailed) return;
         attemptFailed = true;
         lastError = reason;
+        // ต้องจำไว้ **ก่อน** scheduleRetry() เพราะในนั้นจะเลื่อนไปที่อยู่ถัดไปแล้ว
+        lastFailedUrl = currentUrl();
         scheduleRetry();
     }
 
@@ -279,13 +284,25 @@ public class SlideshowActivity extends Activity {
         web.setVisibility(View.INVISIBLE);
 
         status.setVisibility(View.VISIBLE);
+
+        /*
+         * ⚠️ ต้องแยกให้ชัดว่า "ที่อยู่ไหนล้ม" กับ "กำลังจะลองที่อยู่ไหนต่อ"
+         *
+         * เดิมพิมพ์สาเหตุคู่กับ currentUrl() ซึ่งตอนนั้นถูกเลื่อนไปเป็น **ที่อยู่ถัดไป**
+         * แล้ว คนอ่านจอจึงเห็นสาเหตุแปะอยู่กับที่อยู่ที่ยังไม่ได้ลองด้วยซ้ำ แล้วสรุปผิด
+         * ว่าที่อยู่นั้นเป็นตัวมีปัญหา — เจอจากสกรีนช็อตหน้างานจริง บรรทัดที่ตั้งใจทำไว้
+         * ให้ช่วยหาสาเหตุกลับพาไปผิดทางเสียเอง
+         */
         StringBuilder text = new StringBuilder(getString(R.string.retrying));
-        // บอกสาเหตุด้วย — บนทีวีเปิด DevTools ไม่ได้ บรรทัดนี้คือหลักฐานชิ้นเดียว
-        // ที่บอกได้ว่าเป็นที่ DNS, ที่พอร์ต, ที่ใบรับรอง หรือที่ตัวเซิร์ฟเวอร์
+        if (!TextUtils.isEmpty(lastFailedUrl)) {
+            text.append('\n').append(lastFailedUrl);
+        }
+        // บนทีวีเปิด DevTools ไม่ได้ บรรทัดนี้คือหลักฐานชิ้นเดียวที่บอกได้ว่า
+        // เป็นที่ DNS, ที่พอร์ต, ที่ใบรับรอง หรือที่ตัวเซิร์ฟเวอร์
         if (!TextUtils.isEmpty(lastError)) {
             text.append('\n').append(getString(R.string.error_reason, lastError));
         }
-        text.append('\n').append(currentUrl())
+        text.append("\n\n").append(getString(R.string.next_try, currentUrl()))
                 .append("\n\n").append(getString(R.string.settings_hint_line));
         status.setText(text.toString());
 
@@ -394,6 +411,7 @@ public class SlideshowActivity extends Activity {
         attemptFailed = false;
         failStreak = 0;
         lastError = null;
+        lastFailedUrl = null;
         retryDelay = RETRY_START_MS;
         handler.removeCallbacksAndMessages(null);
         web.setVisibility(View.INVISIBLE);

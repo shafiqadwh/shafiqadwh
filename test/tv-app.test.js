@@ -72,14 +72,19 @@ function build() {
   };
   walk(src);
 
-  execFileSync('javac', ['-nowarn', '-d', out, ...sources], { stdio: 'pipe' });
+  // บังคับ locale เป็น UTF-8 — เครื่องที่รันเทสต์ไม่ได้ตั้ง LANG ไว้ Java จึงอ่าน
+  // อาร์กิวเมนต์และพิมพ์ออกเป็น ASCII ทำให้ข้อความไทยกลายเป็น ??? ทั้งหมด
+  const utf8 = { ...process.env, LANG: 'C.utf8', LC_ALL: 'C.utf8' };
+
+  execFileSync('javac', ['-nowarn', '-encoding', 'UTF-8', '-d', out, ...sources], { stdio: 'pipe', env: utf8 });
 
   return (scenario, rounds = 12) => {
     const stdout = execFileSync(
       'java',
-      ['-cp', out, 'com.shafiqadwh.weddingslideshow.Driver', scenario, String(rounds),
+      ['-Dfile.encoding=UTF-8', '-cp', out,
+        'com.shafiqadwh.weddingslideshow.Driver', scenario, String(rounds),
         ...strings.map(([, value]) => value)],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: utf8 },
     );
     const lines = stdout.split('\n').filter(Boolean);
     return {
@@ -173,6 +178,29 @@ test('the TV app', { skip: hasJavac ? false : 'ไม่มี javac บนเ�
         `ห้ามโหลด about:blank เข้าประวัติ\n${result.lines.join('\n')}`,
       );
     }
+  });
+
+  await t.test('says which address failed, separately from the one it will try next', () => {
+    const { lines } = run('keys', 4);
+    const status = lines.find((line) => line.startsWith('status:')).slice('status:'.length);
+
+    // ⚠️ บั๊กที่เจอจากสกรีนช็อตหน้างานจริง: บรรทัดสาเหตุถูกพิมพ์คู่กับที่อยู่ที่
+    // **ยังไม่ได้ลอง** เพราะตอนนั้นเลื่อนไปที่อยู่ถัดไปแล้ว คนอ่านจอจึงสรุปผิดว่า
+    // ที่อยู่นั้นคือตัวที่มีปัญหา — บรรทัดที่ทำไว้ช่วยหาสาเหตุกลับพาไปผิดทางเสียเอง
+    const rows = status.split('|');
+    const failed = rows.findIndex((row) => row === HTTPS || row === LAN);
+    const reason = rows.findIndex((row) => row.includes('net::ERR_CONNECTION_TIMED_OUT'));
+    const next = rows.findIndex((row) => row.startsWith('กำลังจะลอง: '));
+
+    assert.ok(failed >= 0, `ต้องบอกที่อยู่ที่ล้มเป็นบรรทัดของตัวเอง\n${status}`);
+    assert.ok(reason > failed, `สาเหตุต้องอยู่ใต้ที่อยู่ที่ล้ม\n${status}`);
+    assert.ok(next > reason, `ที่อยู่ถัดไปต้องแยกบรรทัดและอยู่หลังสุด\n${status}`);
+
+    // หัวใจของข้อนี้: สองที่อยู่นี้ต้องเป็นคนละตัวกัน ไม่งั้นก็กลับไปเป็นบั๊กเดิม
+    assert.notEqual(
+      rows[next].slice('กำลังจะลอง: '.length), rows[failed],
+      `ที่อยู่ที่ล้มกับที่อยู่ที่จะลองต่อ ต้องไม่ใช่ตัวเดียวกัน\n${status}`,
+    );
   });
 
   await t.test('opens settings with OK only while the status screen is up', () => {
