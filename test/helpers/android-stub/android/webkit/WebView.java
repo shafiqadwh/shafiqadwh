@@ -15,6 +15,8 @@ public class WebView extends ViewGroup {
   public WebSettings getSettings() { return new WebSettings(); }
   public void setWebViewClient(WebViewClient value) { client = value; }
   public void loadUrl(String value) { url = value; LOADED.add(value); }
+  public boolean stopped = false;
+  public void stopLoading() { stopped = true; }
   public boolean canGoBack() { return false; }
   public void goBack() {}
   public boolean paused = false;

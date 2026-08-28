@@ -20,6 +20,7 @@
          ไม่แปลเป็นไทย เพราะนี่คือข้อความที่เอาไปค้นหรือส่งต่อเพื่อหาสาเหตุได้จริง -->
     <string name="error_reason">สาเหตุ: %1$s</string>
     <!-- แยกจากที่อยู่ที่เพิ่งล้ม ไม่งั้นคนอ่านจอสรุปผิดว่าที่อยู่นี้คือตัวมีปัญหา -->
+    <string name="timed_out">รอเกิน %1$d วินาทีแล้วไม่มีการตอบกลับ</string>
     <string name="next_try">กำลังจะลอง: %1$s</string>
     <string name="settings_title">ที่อยู่ของสไลด์โชว์</string>
     <string name="settings_hint">https://…</string>

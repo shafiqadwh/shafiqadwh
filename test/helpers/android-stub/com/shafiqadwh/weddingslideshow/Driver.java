@@ -63,6 +63,7 @@ public class Driver {
         Set<Integer> forcedFailures = new HashSet<>();
         boolean sslInstead = false;
         boolean httpErrorInstead = false;
+        boolean silentInstead = false;
 
         switch (scenario) {
             case "fiveg":
@@ -89,6 +90,10 @@ public class Driver {
             case "duplicate-saved":
                 // เจ้าภาพตั้งค่าเป็นที่อยู่เดียวกับค่าเริ่มต้นพอดี — ต้องไม่ลองซ้ำสองรอบ
                 SharedPreferences.STORE.put("url", HTTPS);
+                break;
+            case "silent":
+                // พอร์ตเปิดค้างแล้วเงียบ แพ็กเก็ตถูกดรอปทิ้ง — WebView ไม่เรียก callback ใด ๆ เลย
+                silentInstead = true;
                 break;
             case "keys":
                 // ทุกที่อยู่ล้ม → จอสถานะขึ้นค้าง ซึ่งเป็นตอนที่ปุ่ม OK ต้องเปิดหน้าตั้งค่าได้
@@ -127,9 +132,12 @@ public class Driver {
                 web.client.onPageFinished(web, url);
             } else {
                 boolean ok = reachable.contains(url) && !forcedFailures.contains(attempt) && !sslInstead;
+                if (silentInstead) System.out.println("silent:" + url);
                 System.out.println((ok ? "serve:ok:" : "serve:fail:") + url);
 
-                if (ok) {
+                if (silentInstead) {
+                    // ไม่ยิง callback อะไรเลย ปล่อยให้ตัวจับเวลาของแอปจัดการ
+                } else if (ok) {
                     web.client.onPageFinished(web, url);
                 } else if (sslInstead) {
                     SslErrorHandler sslHandler = new SslErrorHandler();
@@ -158,9 +166,10 @@ public class Driver {
             for (Runnable r : due) r.run();
         }
 
-        System.out.println("status:" + String.valueOf(TextView.LAST_TEXT).replace('\n', '|'));
+        for (String shown : TextView.ALL_TEXTS) System.out.println("status:" + shown.replace('\n', '|'));
         System.out.println("web-visible:" + (web.getVisibility() == View.VISIBLE));
         System.out.println("web-paused:" + web.paused);
+        System.out.println("web-stopped:" + web.stopped);
 
         if (scenario.startsWith("keys")) {
             // ปุ่ม OK ต้องเปิดหน้าตั้งค่าได้เฉพาะตอนจอสถานะขึ้นอยู่ ตอนสไลด์โชว์ทำงานปกติ

@@ -55,6 +55,16 @@ public class SlideshowActivity extends Activity {
      */
     private static final int FAILS_BEFORE_SWITCH = 2;
 
+    /**
+     * รอหน้าเว็บนานสุดเท่าไรก่อนถือว่าล้ม
+     *
+     * WebView **ไม่ยอมแพ้เอง** ถ้าปลายทางเปิดพอร์ตค้างไว้แล้วเงียบ (แพ็กเก็ตถูกดรอปทิ้ง
+     * ไม่ได้ถูกปฏิเสธ) มันจะรอไปเรื่อย ๆ โดยไม่เรียกทั้ง onPageFinished และ onReceivedError
+     * แอปจึงค้างอยู่ที่ "กำลังเชื่อมต่อ…" ไม่ขยับไปไหนเลย ไม่ลองที่อยู่ถัดไปด้วย
+     * — เจอจากสกรีนช็อตหน้างานจริงตอนทีวีต่อ 5G
+     */
+    private static final long LOAD_TIMEOUT_MS = 20000;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private WebView web;
@@ -71,6 +81,13 @@ public class SlideshowActivity extends Activity {
     /** ที่อยู่ที่เพิ่งล้มไป — คนละตัวกับที่อยู่ที่กำลังจะลองต่อ */
     private String lastFailedUrl = null;
     private long lastBackPress = 0;
+
+    /** ตัวจับเวลาว่าหน้าเว็บใช้เวลานานเกินไป — ต้องยกเลิกทุกครั้งที่รู้ผลแล้ว */
+    private final Runnable loadTimeout = () -> {
+        if (attemptFailed) return;
+        web.stopLoading();
+        fail(getString(R.string.timed_out, LOAD_TIMEOUT_MS / 1000));
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,6 +155,7 @@ public class SlideshowActivity extends Activity {
             public void onPageFinished(WebView v, String url) {
                 if (attemptFailed) return;
 
+                handler.removeCallbacks(loadTimeout);
                 loaded = true;
                 failStreak = 0;
                 lastError = null;
@@ -243,6 +261,11 @@ public class SlideshowActivity extends Activity {
     private void load() {
         attemptFailed = false;
         status.setVisibility(View.VISIBLE);
+        status.setText(getString(R.string.connecting) + "\n" + currentUrl()
+                + "\n\n" + getString(R.string.settings_hint_line));
+
+        handler.removeCallbacks(loadTimeout);
+        handler.postDelayed(loadTimeout, LOAD_TIMEOUT_MS);
         web.loadUrl(currentUrl());
     }
 
@@ -250,6 +273,7 @@ public class SlideshowActivity extends Activity {
     private void fail(String reason) {
         if (attemptFailed) return;
         attemptFailed = true;
+        handler.removeCallbacks(loadTimeout);
         lastError = reason;
         // ต้องจำไว้ **ก่อน** scheduleRetry() เพราะในนั้นจะเลื่อนไปที่อยู่ถัดไปแล้ว
         lastFailedUrl = currentUrl();

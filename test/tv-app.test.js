@@ -180,9 +180,32 @@ test('the TV app', { skip: hasJavac ? false : 'ไม่มี javac บนเ�
     }
   });
 
+  await t.test('gives up on an address that answers with silence', () => {
+    const { lines, loaded } = run('silent', 6);
+
+    // อาการที่เจอจริงบนทีวี: ค้างที่ "กำลังเชื่อมต่อ…" ไม่ขยับไปไหนเลย
+    // ปลายทางเปิดพอร์ตค้างไว้แล้วเงียบ (แพ็กเก็ตถูกดรอปทิ้ง ไม่ได้ถูกปฏิเสธ)
+    // WebView จึงไม่เรียกทั้ง onPageFinished และ onReceivedError — ไม่มีอะไรมาปลุกแอปเลย
+    assert.ok(lines.includes('web-stopped:true'), 'ต้องสั่งหยุดโหลดเมื่อรอนานเกินไป');
+    assert.ok(
+      loaded.length > 1,
+      `รอเกินเวลาแล้วต้องไปลองที่อยู่ถัดไป ไม่ใช่รอต่อไปเรื่อย ๆ\n${lines.join('\n')}`,
+    );
+    assert.ok(loaded.includes(HTTPS) && loaded.includes(LAN), 'ต้องได้ลองครบทุกที่อยู่');
+
+    // จอสถานะเปลี่ยนหลายรอบ ต้องดูทุกข้อความที่เคยขึ้น ไม่ใช่แค่ตัวสุดท้าย
+    assert.ok(
+      lines.some((line) => line.startsWith('status:') && line.includes('รอเกิน 20 วินาที')),
+      `ต้องบอกบนจอว่าหมดเวลารอ ไม่ใช่ค้างเงียบ ๆ\n${lines.join('\n')}`,
+    );
+  });
+
   await t.test('says which address failed, separately from the one it will try next', () => {
     const { lines } = run('keys', 4);
-    const status = lines.find((line) => line.startsWith('status:')).slice('status:'.length);
+    // เอาจอ "เชื่อมต่อไม่ได้" ไม่ใช่จอ "กำลังเชื่อมต่อ" ที่ขึ้นทับทีหลังตอนเริ่มลองรอบใหม่
+    const status = lines
+      .filter((line) => line.startsWith('status:') && line.includes('เชื่อมต่อไม่ได้'))
+      .at(-1).slice('status:'.length);
 
     // ⚠️ บั๊กที่เจอจากสกรีนช็อตหน้างานจริง: บรรทัดสาเหตุถูกพิมพ์คู่กับที่อยู่ที่
     // **ยังไม่ได้ลอง** เพราะตอนนั้นเลื่อนไปที่อยู่ถัดไปแล้ว คนอ่านจอจึงสรุปผิดว่า

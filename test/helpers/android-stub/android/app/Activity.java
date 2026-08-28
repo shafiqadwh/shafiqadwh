@@ -23,9 +23,10 @@ public class Activity extends Context {
   public void setContentView(View v) {}
   public String getString(int id) { return STRINGS[id]; }
   public String getString(int id, Object... args) {
-    // แทนที่ %1$s ตัวเดียวก็พอ — เทสต์สนใจแค่ว่าสาเหตุถูกเอามาต่อในข้อความหรือเปล่า
+    // ใช้ String.format เหมือน Android ของจริง — ตัวแทนที่แบบง่าย ๆ เคยพลาด %1$d
+    // แล้วเทสต์หาข้อความไม่เจอทั้งที่แอปถูก
     String value = STRINGS[id];
-    return args.length == 0 ? value : value.replace("%1$s", String.valueOf(args[0]));
+    return args.length == 0 ? value : String.format(value, args);
   }
   public SharedPreferences getSharedPreferences(String name, int mode) { return new SharedPreferences(); }
   public boolean finished = false;

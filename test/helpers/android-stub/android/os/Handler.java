@@ -11,5 +11,6 @@ public class Handler {
   public Handler(Looper l) {}
   public boolean post(Runnable r) { PENDING.add(r); return true; }
   public boolean postDelayed(Runnable r, long delay) { PENDING.add(r); return true; }
+  public void removeCallbacks(Runnable r) { PENDING.remove(r); }
   public void removeCallbacksAndMessages(Object token) { PENDING.clear(); }
 }
