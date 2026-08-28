@@ -22,9 +22,13 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- configChanges ยาวโดยตั้งใจ: ทุกอย่างที่ไม่ได้ประกาศไว้ทำให้ Android
+             **สร้างหน้าจอใหม่ทั้งอัน** ซึ่งแปลว่าสไลด์โชว์เริ่มนับหนึ่งใหม่กลางงาน
+             หน้าจอนี้เป็น WebView เต็มจอที่สร้างด้วยโค้ด ปรับตามขนาด/ความหนาแน่นได้เอง
+             อยู่แล้ว จึงรับมือการเปลี่ยนแปลงพวกนี้เองได้โดยไม่ต้องสร้างใหม่ -->
         <activity
             android:name=".SlideshowActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode|density|fontScale|locale|layoutDirection|navigation|keyboard|touchscreen"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"

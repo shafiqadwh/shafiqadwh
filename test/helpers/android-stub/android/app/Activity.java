@@ -14,6 +14,8 @@ public class Activity extends Context {
   private final Window window = new Window();
 
   protected void onCreate(Bundle b) {}
+  protected void onPause() {}
+  protected void onResume() {}
   protected void onDestroy() {}
   public void onWindowFocusChanged(boolean hasFocus) {}
   public boolean onKeyDown(int keyCode, KeyEvent event) { return false; }
@@ -26,5 +28,6 @@ public class Activity extends Context {
     return args.length == 0 ? value : value.replace("%1$s", String.valueOf(args[0]));
   }
   public SharedPreferences getSharedPreferences(String name, int mode) { return new SharedPreferences(); }
-  public void finish() {}
+  public boolean finished = false;
+  public void finish() { finished = true; }
 }

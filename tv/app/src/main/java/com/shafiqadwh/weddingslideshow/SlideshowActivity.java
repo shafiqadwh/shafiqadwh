@@ -9,10 +9,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceError;
@@ -80,6 +82,8 @@ public class SlideshowActivity extends Activity {
 
         web = new WebView(this);
         web.setBackgroundColor(Color.BLACK);
+        // ซ่อนไว้จนกว่าหน้าแรกจะโหลดขึ้นจริง กันจอขาววาบและกันหน้า error โผล่ให้แขกเห็น
+        web.setVisibility(View.INVISIBLE);
         configureWeb(web);
         root.addView(web, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -130,12 +134,15 @@ public class SlideshowActivity extends Activity {
              */
             @Override
             public void onPageFinished(WebView v, String url) {
-                if (attemptFailed || "about:blank".equals(url)) return;
+                if (attemptFailed) return;
 
                 loaded = true;
                 failStreak = 0;
                 lastError = null;
                 retryDelay = RETRY_START_MS;
+                // เปิดหน้าเว็บให้เห็นตอนนี้เท่านั้น — ก่อนหน้านี้ WebView ถูกซ่อนไว้
+                // จอจึงไม่เคยโชว์หน้า error ของ WebView ให้แขกเห็นเลยแม้แต่วินาทีเดียว
+                web.setVisibility(View.VISIBLE);
                 status.setVisibility(View.GONE);
                 goFullscreen();
             }
@@ -198,15 +205,36 @@ public class SlideshowActivity extends Activity {
      */
     private void buildUrlList() {
         urls.clear();
-        String saved = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_URL, null);
+        String saved = normaliseUrl(getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_URL, null));
         if (!TextUtils.isEmpty(saved)) urls.add(saved);
-        urls.add(getString(R.string.default_url));
-        urls.add(getString(R.string.fallback_url));
+        // ไม่ใส่ที่อยู่ซ้ำ — ถ้าเจ้าภาพตั้งค่าเป็นตัวเดียวกับที่อยู่เริ่มต้นพอดี
+        // รายการจะมีสองบรรทัดเหมือนกัน แล้วรอบวนหาที่อยู่จะเสียเที่ยวไปหนึ่งครั้งทุกรอบ
+        addUnique(getString(R.string.default_url));
+        addUnique(getString(R.string.fallback_url));
         urlIndex = 0;
     }
 
+    private void addUnique(String url) {
+        if (!urls.contains(url)) urls.add(url);
+    }
+
+    /**
+     * เติม https:// ให้ที่อยู่ที่พิมพ์มาแบบไม่มีชื่อโปรโตคอล
+     *
+     * พิมพ์ `wedding.shafiq-lap.com/slideshow` ด้วยรีโมตแล้วกดบันทึก WebView จะโหลด
+     * ไม่ขึ้นเลยเพราะไม่รู้จักว่าเป็นที่อยู่เว็บ และค่านั้นถูกบันทึกถาวร — ทีวีจะเสีย
+     * เที่ยวลองที่อยู่ที่ใช้ไม่ได้ทุกรอบไปจนกว่าจะมีคนเข้าไปลบทิ้ง
+     */
+    static String normaliseUrl(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return null;
+        if (trimmed.matches("(?i)^[a-z][a-z0-9+.-]*://.*")) return trimmed;
+        return "https://" + trimmed;
+    }
+
     private String currentUrl() {
-        return urls.get(urlIndex % urls.size());
+        return urls.get(urlIndex);
     }
 
     private void load() {
@@ -230,14 +258,25 @@ public class SlideshowActivity extends Activity {
         // เคยใช้ได้แล้วแต่ล้มติดกันหลายครั้ง → ยอมสลับ (ที่อยู่ที่เคยดีอาจตายไปแล้วจริง ๆ
         // เช่นย้ายทีวีออกจากวง LAN มาต่อ 5G) — ข้อนี้คือตัวกันอาการติดแหง็กถาวร
         if (!loaded || failStreak >= FAILS_BEFORE_SWITCH) {
-            urlIndex += 1;
+            urlIndex = (urlIndex + 1) % urls.size();
             loaded = false;
             failStreak = 0;
         }
 
-        // ล้างหน้า error ของ WebView ทิ้งเป็นจอดำ ไม่งั้นมันบังข้อความสถานะไว้เต็มจอ
-        // แล้วคนหน้างานจะเห็นแต่ "ERR_..." ภาษาอังกฤษ ไม่เห็นว่าแอปกำลังลองใหม่อยู่
-        handler.post(() -> web.loadUrl("about:blank"));
+        /*
+         * ซ่อน WebView ไว้ ไม่ใช่สั่งให้มันโหลดหน้าเปล่าทับ
+         *
+         * เคยแก้ด้วย loadUrl("about:blank") ซึ่ง **ผิด** — loadUrl ทุกครั้งเพิ่มรายการ
+         * ลงประวัติการเข้าชม ปุ่มย้อนกลับบนรีโมตจึงพาย้อนไปหน้าเปล่าทีละหน้า
+         * แทนที่จะพากลับไปหน้าเมนู และ "กดย้อนกลับสองครั้งเพื่อออก" ก็ใช้ไม่ได้ไปด้วย
+         * เน็ตสะดุดกี่ครั้งก็สะสมขยะในประวัติเพิ่มไปเรื่อย ๆ ตลอดงาน
+         *
+         * ซ่อนแทนได้ผลตาเหมือนกันเป๊ะ (พื้นหลังของ root เป็นสีดำอยู่แล้ว) ไม่แตะประวัติ
+         * ไม่ต้องโหลดอะไรเพิ่ม และได้ของแถม: View ที่ถูกซ่อนรับโฟกัสไม่ได้ ปุ่ม OK
+         * บนรีโมตจึงตกมาถึง onKeyDown ของหน้าจอนี้ กลายเป็นทางเปิดหน้าตั้งค่าที่ใช้ได้
+         * กับรีโมตที่ไม่มีปุ่ม MENU (ซึ่งคือรีโมต Google TV เกือบทุกรุ่น)
+         */
+        web.setVisibility(View.INVISIBLE);
 
         status.setVisibility(View.VISIBLE);
         StringBuilder text = new StringBuilder(getString(R.string.retrying));
@@ -271,9 +310,30 @@ public class SlideshowActivity extends Activity {
         if (hasFocus) goFullscreen();
     }
 
+    /** จอสถานะกำลังขึ้นอยู่ไหม (= ยังต่อไม่ติด หน้าเว็บถูกซ่อนไว้) */
+    private boolean showingStatus() {
+        return web.getVisibility() != View.VISIBLE;
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+        /*
+         * ทางเข้าหน้าตั้งค่า — ต้องมีมากกว่าปุ่ม MENU
+         *
+         * รีโมตของ Google TV/Chromecast **ไม่มีปุ่ม MENU** ข้อความบนจอที่บอกให้กด MENU
+         * จึงชี้ไปยังปุ่มที่ไม่มีอยู่จริงบนรีโมตส่วนใหญ่ และเมื่อที่อยู่ที่บันทึกไว้ผิด
+         * ก็ไม่เหลือทางแก้เลยนอกจากเข้าไปล้างข้อมูลแอปในหน้า Settings ของทีวี
+         *
+         * ปุ่ม OK ใช้ได้เฉพาะตอนจอสถานะขึ้นอยู่ ซึ่งเป็นตอนที่หน้าเว็บถูกซ่อน (รับโฟกัส
+         * ไม่ได้) ปุ่มจึงตกมาถึงตรงนี้ · ตอนสไลด์โชว์ทำงานปกติ OK ยังเป็นของหน้าเว็บ
+         * เหมือนเดิม ไม่ไปแย่งการกดเลือกในหน้าเมนู
+         */
+        boolean openSettings = keyCode == KeyEvent.KEYCODE_MENU
+                || keyCode == KeyEvent.KEYCODE_SETTINGS
+                || keyCode == KeyEvent.KEYCODE_INFO
+                || (showingStatus()
+                    && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER));
+        if (openSettings) {
             showUrlDialog();
             return true;
         }
@@ -282,17 +342,23 @@ public class SlideshowActivity extends Activity {
             // อยู่ในสไลด์โชว์ → ย้อนกลับไปหน้าเมนูให้เลือกแบบใหม่
             // อยู่ที่หน้าเมนูอยู่แล้ว → ต้องกดสองครั้งถึงจะออกจากแอป
             // กันกดโดนโดยไม่ตั้งใจกลางงานแล้วจอดับไปเฉย ๆ
-            if (web.canGoBack()) {
+            //
+            // ระหว่างที่ยังต่อไม่ติดไม่ต้องย้อนไปไหน หน้าที่ค้างในประวัติก็เข้าไม่ได้อยู่ดี
+            if (!showingStatus() && web.canGoBack()) {
                 web.goBack();
                 return true;
             }
 
-            long now = System.currentTimeMillis();
+            // ใช้นาฬิกาที่นับตั้งแต่เครื่องบูต ไม่ใช่นาฬิกาโลก — ทีวีหลายรุ่นไม่มีนาฬิกา
+            // สำรอง เวลาจึงกระโดดตอนซิงก์ NTP หลังบูตเสร็จ ซึ่งเป็นจังหวะเดียวกับที่แอปนี้
+            // เพิ่งเปิดขึ้นมาพอดี ถ้าเวลากระโดดถอยหลัง ผลลบจะน้อยกว่า 2000 เสมอ
+            // แล้วกดย้อนกลับ **ครั้งเดียว** จะออกจากแอปทันทีกลางงาน
+            long now = SystemClock.elapsedRealtime();
             if (now - lastBackPress < 2000) {
                 finish();
             } else {
                 lastBackPress = now;
-                Toast.makeText(this, "กดย้อนกลับอีกครั้งเพื่อออก", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.back_again_to_exit, Toast.LENGTH_SHORT).show();
             }
             return true;
         }
@@ -305,13 +371,15 @@ public class SlideshowActivity extends Activity {
         input.setHint(R.string.settings_hint);
         input.setText(currentUrl());
 
-        new AlertDialog.Builder(this)
+        // ธีมของแอปเป็นธีมดำรุ่นเก่า (Theme.Black.NoTitleBar.Fullscreen) ถ้าปล่อยให้
+        // กล่องข้อความใช้ธีมตาม จะได้หน้าตาสมัย Android 2 ที่ตัวหนังสือเล็กจนอ่านจากโซฟาไม่ออก
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle(R.string.settings_title)
                 .setView(input)
                 .setPositiveButton(R.string.save, (dialog, which) -> {
-                    String value = input.getText().toString().trim();
+                    String value = normaliseUrl(input.getText().toString());
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                            .putString(KEY_URL, value.isEmpty() ? null : value).apply();
+                            .putString(KEY_URL, value).apply();
                     restart();
                 })
                 .setNegativeButton(R.string.reset, (dialog, which) -> {
@@ -328,13 +396,36 @@ public class SlideshowActivity extends Activity {
         lastError = null;
         retryDelay = RETRY_START_MS;
         handler.removeCallbacksAndMessages(null);
+        web.setVisibility(View.INVISIBLE);
         buildUrlList();
         load();
+    }
+
+    /*
+     * หยุดหน้าเว็บเมื่อแอปไม่ได้อยู่หน้าจอ แล้วปลุกกลับเมื่อกลับมา
+     *
+     * ถ้าไม่ทำ วิดีโอที่แขกส่งมาจะ **เล่นเสียงต่อ** หลังกดปุ่ม Home ออกไปแล้ว
+     * เสียงจากคลิปงานแต่งจะดังทับสิ่งที่เจ้าของเปิดดูต่อ โดยไม่มีทางปิดนอกจากปิดแอปทิ้ง
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        web.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        web.onResume();
     }
 
     @Override
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        // ต้องถอด WebView ออกจากหน้าจอก่อนทำลาย ตามที่เอกสารของ Android กำหนด
+        // ทำลายทั้งที่ยังติดอยู่ทำให้บาง WebView เวอร์ชันพังตอนปิดแอป
+        ViewGroup parent = (ViewGroup) web.getParent();
+        if (parent != null) parent.removeView(web);
         web.destroy();
         super.onDestroy();
     }

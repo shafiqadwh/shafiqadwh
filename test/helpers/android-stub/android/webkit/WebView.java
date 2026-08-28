@@ -17,5 +17,8 @@ public class WebView extends ViewGroup {
   public void loadUrl(String value) { url = value; LOADED.add(value); }
   public boolean canGoBack() { return false; }
   public void goBack() {}
+  public boolean paused = false;
+  public void onPause() { paused = true; }
+  public void onResume() { paused = false; }
   public void destroy() {}
 }

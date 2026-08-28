@@ -23,5 +23,8 @@
     <string name="settings_hint">https://…</string>
     <string name="save">บันทึกแล้วเปิดใหม่</string>
     <string name="reset">กลับไปใช้ค่าเริ่มต้น</string>
-    <string name="settings_hint_line">กดปุ่ม MENU บนรีโมตเพื่อเปลี่ยนที่อยู่</string>
+    <!-- ข้อความนี้ขึ้นเฉพาะตอนจอสถานะโชว์อยู่ ซึ่งเป็นตอนที่หน้าเว็บถูกซ่อนและปุ่ม OK
+         ตกมาถึงแอป · บอกปุ่ม OK ไว้ก่อน เพราะรีโมต Google TV เกือบทุกรุ่นไม่มีปุ่ม MENU -->
+    <string name="settings_hint_line">กดปุ่ม OK (หรือ MENU) บนรีโมตเพื่อเปลี่ยนที่อยู่</string>
+    <string name="back_again_to_exit">กดย้อนกลับอีกครั้งเพื่อออก</string>
 </resources>

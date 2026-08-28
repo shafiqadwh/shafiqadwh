@@ -157,6 +157,93 @@ test('the TV app', { skip: hasJavac ? false : 'ไม่มี javac บนเ�
     );
   });
 
+  await t.test('never leaves the WebView error page where a guest can see it', () => {
+    const failing = run('fiveg');
+    const working = run('blip');
+
+    // ระหว่างลองใหม่ หน้าเว็บต้องถูกซ่อน เหลือแต่จอดำกับข้อความสถานะทับอยู่
+    // และเมื่อขึ้นได้แล้วต้องกลับมาเห็นหน้าเว็บ
+    assert.ok(working.lines.includes('web-visible:true'), 'โหลดขึ้นแล้วต้องเห็นหน้าเว็บ');
+
+    // ⚠️ ห้ามซ่อนด้วยการสั่งโหลด about:blank ทับ — loadUrl ทุกครั้งเพิ่มรายการลง
+    // ประวัติการเข้าชม ปุ่มย้อนกลับจะพาย้อนไปหน้าเปล่าทีละหน้าแทนที่จะกลับหน้าเมนู
+    for (const result of [failing, working]) {
+      assert.ok(
+        !result.loaded.includes('about:blank'),
+        `ห้ามโหลด about:blank เข้าประวัติ\n${result.lines.join('\n')}`,
+      );
+    }
+  });
+
+  await t.test('opens settings with OK only while the status screen is up', () => {
+    const stuck = run('keys', 6);
+    const playing = run('keys-loaded');
+
+    // รีโมต Google TV เกือบทุกรุ่นไม่มีปุ่ม MENU — ตอนต่อไม่ติดจึงต้องเปิดด้วยปุ่ม OK ได้
+    assert.ok(stuck.lines.includes('web-visible:false'));
+    assert.ok(stuck.lines.includes('dialog-after-ok:1'), 'ต่อไม่ติดแล้วกด OK ต้องเปิดหน้าตั้งค่า');
+
+    // แต่ตอนสไลด์โชว์ทำงานปกติ OK ต้องเป็นของหน้าเว็บ (ใช้กดเลือกในหน้าเมนู)
+    assert.ok(playing.lines.includes('web-visible:true'));
+    assert.ok(playing.lines.includes('dialog-after-ok:0'), 'ห้ามแย่งปุ่ม OK จากหน้าเมนู');
+
+    // ปุ่ม MENU ยังใช้ได้ทั้งสองสถานะเหมือนเดิม
+    assert.ok(stuck.lines.includes('dialog-after-menu:1'));
+    assert.ok(playing.lines.includes('dialog-after-menu:1'));
+  });
+
+  await t.test('adds https:// to an address typed without one', () => {
+    const { lines } = run('normalise', 1);
+    const map = Object.fromEntries(
+      lines.filter((line) => line.startsWith('normalise:'))
+        .map((line) => line.slice('normalise:'.length).split(' -> ')),
+    );
+
+    // พิมพ์ที่อยู่ด้วยรีโมตแล้วลืมใส่ https:// — WebView จะโหลดไม่ขึ้นเลย
+    // และค่านั้นถูกบันทึกถาวร ทีวีเสียเที่ยวลองทุกรอบจนกว่าจะมีคนไปล้างข้อมูลแอป
+    assert.equal(map['wedding.shafiq-lap.com/slideshow'], 'https://wedding.shafiq-lap.com/slideshow');
+    assert.equal(map['  https://a.example/x  '], 'https://a.example/x', 'ต้องตัดช่องว่างหัวท้าย');
+    assert.equal(map['http://192.168.2.2:18090/'], 'http://192.168.2.2:18090/', 'ห้ามแตะที่อยู่ที่ครบอยู่แล้ว');
+    assert.equal(map['HTTPS://A.EXAMPLE/'], 'HTTPS://A.EXAMPLE/', 'ชื่อโปรโตคอลตัวพิมพ์ใหญ่ก็นับ');
+    assert.equal(map['   '], 'null', 'ช่องว่างล้วน = ไม่ได้ตั้งค่า');
+  });
+
+  await t.test('does not waste a round on an address listed twice', () => {
+    const { loaded, lines } = run('duplicate-saved', 6);
+
+    // เจ้าภาพตั้งค่าเป็นที่อยู่เดียวกับค่าเริ่มต้นพอดี ถ้าไม่ตัดซ้ำ รายการจะเป็น
+    // [โดเมน, โดเมน, LAN] แล้วทุกรอบวนหาที่อยู่จะเสียเที่ยวไปหนึ่งครั้งเสมอ
+    assert.deepEqual(loaded.slice(0, 3), [HTTPS, LAN, HTTPS], lines.join('\n'));
+  });
+
+  await t.test('needs two quick back presses to quit, not one', () => {
+    const { lines } = run('back-double-press');
+
+    assert.ok(lines.includes('finished-after-one:false'), 'กดครั้งเดียวต้องไม่ออกจากแอป');
+    assert.ok(lines.includes('finished-after-late-second:false'), 'กดห่างกันสิบวินาทีก็ยังไม่ออก');
+    assert.ok(lines.includes('finished-after-quick-second:true'), 'กดซ้ำเร็ว ๆ ถึงจะออก');
+  });
+
+  await t.test('measures the back-press gap with a clock that cannot jump', () => {
+    // ทีวีหลายรุ่นไม่มีนาฬิกาสำรอง เวลาโลกจึงกระโดดตอนซิงก์ NTP หลังบูตเสร็จ
+    // ซึ่งเป็นจังหวะเดียวกับที่แอปนี้เพิ่งเปิดขึ้นมาพอดี ถ้าเวลากระโดด **ถอยหลัง**
+    // ผลลบจะน้อยกว่า 2000 เสมอ แล้วกดย้อนกลับครั้งเดียวจะออกจากแอปทันทีกลางงาน
+    // ข้อนี้ยืนยันจากซอร์สได้อย่างเดียว เพราะตัวรับประกันคือ Android ไม่ใช่โค้ดเรา
+    const source = fs.readFileSync(activityPath, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+    assert.ok(source.includes('SystemClock.elapsedRealtime()'), 'ต้องใช้นาฬิกาที่นับตั้งแต่บูต');
+    assert.ok(!source.includes('System.currentTimeMillis()'), 'ห้ามใช้นาฬิกาโลกวัดช่วงเวลา');
+  });
+
+  await t.test('stops the page when the app leaves the screen', () => {
+    // ไม่หยุด = เสียงจากคลิปที่แขกส่งมาดังต่อหลังกด Home ออกไปแล้ว
+    // ทับสิ่งที่เจ้าของเปิดดูต่อ โดยไม่มีทางปิดนอกจากปิดแอปทิ้ง
+    const source = fs.readFileSync(activityPath, 'utf8');
+    assert.match(source, /protected void onPause\(\)[\s\S]{0,120}web\.onPause\(\)/);
+    assert.match(source, /protected void onResume\(\)[\s\S]{0,120}web\.onResume\(\)/);
+  });
+
   await t.test('never bypasses certificate checks anywhere in the source', () => {
     // กันคนแก้ทีหลัง (หรือคำแนะนำจากอินเทอร์เน็ต) เปลี่ยน cancel() เป็น proceed()
     // เพื่อ "ให้มันขึ้นไว ๆ" ซึ่งเปลี่ยนจอกลางงานให้ใครก็ตามบนเส้นทางเน็ตยัดของได้

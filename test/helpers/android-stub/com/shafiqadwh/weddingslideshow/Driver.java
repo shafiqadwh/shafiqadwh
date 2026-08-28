@@ -3,7 +3,11 @@ package com.shafiqadwh.weddingslideshow;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.net.http.SslError;
+import android.app.AlertDialog;
 import android.os.Handler;
+import android.os.SystemClock;
+import android.view.KeyEvent;
+import android.view.View;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -42,6 +46,18 @@ public class Driver {
         Handler.PENDING.clear();
         SharedPreferences.STORE.clear();
 
+        // สถานการณ์ที่ไม่ต้องจำลองเครือข่ายเลย ตอบแล้วจบ
+        if ("normalise".equals(scenario)) {
+            String[] samples = {
+                "wedding.shafiq-lap.com/slideshow", "  https://a.example/x  ",
+                "http://192.168.2.2:18090/", "HTTPS://A.EXAMPLE/", "   ", null,
+            };
+            for (String sample : samples) {
+                System.out.println("normalise:" + sample + " -> " + SlideshowActivity.normaliseUrl(sample));
+            }
+            return;
+        }
+
         Set<String> reachable = new HashSet<>();
         Set<Integer> forcedFailures = new HashSet<>();
         boolean sslInstead = false;
@@ -68,6 +84,19 @@ public class Driver {
             case "ssl":
                 reachable.add(HTTPS);
                 sslInstead = true;
+                break;
+            case "duplicate-saved":
+                // เจ้าภาพตั้งค่าเป็นที่อยู่เดียวกับค่าเริ่มต้นพอดี — ต้องไม่ลองซ้ำสองรอบ
+                SharedPreferences.STORE.put("url", HTTPS);
+                break;
+            case "keys":
+                // ทุกที่อยู่ล้ม → จอสถานะขึ้นค้าง ซึ่งเป็นตอนที่ปุ่ม OK ต้องเปิดหน้าตั้งค่าได้
+                break;
+            case "keys-loaded":
+                reachable.add(HTTPS);
+                break;
+            case "back-double-press":
+                reachable.add(HTTPS);
                 break;
             case "http-error":
                 // เซิร์ฟเวอร์ตอบ แต่ตอบ 502 (คอนเทนเนอร์กำลังรีสตาร์ท)
@@ -126,6 +155,35 @@ public class Driver {
                 // ปล่อยให้วนต่อ แล้วยิงใส่ที่อยู่เดิมที่แอปเปิดค้างไว้
             }
             for (Runnable r : due) r.run();
+        }
+
+        System.out.println("web-visible:" + (web.getVisibility() == View.VISIBLE));
+        System.out.println("web-paused:" + web.paused);
+
+        if (scenario.startsWith("keys")) {
+            // ปุ่ม OK ต้องเปิดหน้าตั้งค่าได้เฉพาะตอนจอสถานะขึ้นอยู่ ตอนสไลด์โชว์ทำงานปกติ
+            // ปุ่มนี้ต้องเป็นของหน้าเว็บ (ใช้กดเลือกในหน้าเมนู) ห้ามแอปแย่งไป
+            AlertDialog.SHOWN = 0;
+            activity.onKeyDown(KeyEvent.KEYCODE_DPAD_CENTER, null);
+            System.out.println("dialog-after-ok:" + AlertDialog.SHOWN);
+
+            AlertDialog.SHOWN = 0;
+            activity.onKeyDown(KeyEvent.KEYCODE_MENU, null);
+            System.out.println("dialog-after-menu:" + AlertDialog.SHOWN);
+        }
+
+        if ("back-double-press".equals(scenario)) {
+            SystemClock.NOW = 5_000_000;
+            activity.onKeyDown(KeyEvent.KEYCODE_BACK, null);
+            System.out.println("finished-after-one:" + activity.finished);
+
+            SystemClock.NOW += 10_000;   // ปล่อยไว้สิบวินาที = คนละครั้งกัน
+            activity.onKeyDown(KeyEvent.KEYCODE_BACK, null);
+            System.out.println("finished-after-late-second:" + activity.finished);
+
+            SystemClock.NOW += 500;      // กดซ้ำเร็ว ๆ = ตั้งใจออกจริง
+            activity.onKeyDown(KeyEvent.KEYCODE_BACK, null);
+            System.out.println("finished-after-quick-second:" + activity.finished);
         }
 
         for (String url : WebView.LOADED) System.out.println("load:" + url);

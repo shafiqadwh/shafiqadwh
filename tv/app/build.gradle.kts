@@ -11,10 +11,11 @@ android {
         // Android 5.0 — ครอบ Google TV และกล่อง Android TV เก่า ๆ ที่ยังใช้กันอยู่
         minSdk = 21
         targetSdk = 34
-        // 1.1 = แก้อาการติดแหง็กอยู่กับไอพีในวง LAN เมื่อทีวีต่อเน็ตมือถือ
+        // 1.2 = แก้อาการติดแหง็กอยู่กับไอพีในวง LAN เมื่อทีวีต่อเน็ตมือถือ
+        //       + ผลตรวจบั๊กรอบสอง (ประวัติการเข้าชม, เสียงค้างหลังออกจากแอป, ปุ่ม OK)
         // เลขนี้ดูได้ที่ Settings → Apps → Wedding Slideshow บนทีวี ใช้ยืนยันว่าลง APK ใหม่แล้วจริง
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     buildTypes {
