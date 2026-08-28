@@ -14,7 +14,7 @@ const HOST = 'wedding.shafiq-lap.com';
 
 // เซิร์ฟเวอร์จำลองของ Cloudflare — จำทุกคำขอไว้ จะได้ยืนยันได้ว่า
 // "ไม่ได้แก้อะไร" หมายถึงไม่ได้ยิง PATCH จริง ๆ ไม่ใช่แค่ข้อความบนจอ
-function mockCloudflare({ record, tokenRevoked = false, zoneHidden = false }) {
+function mockCloudflare({ record, tokenRevoked = false, zoneHidden = false, cname = null }) {
   const calls = [];
   const state = { record: record ? { ...record } : null };
 
@@ -58,6 +58,9 @@ function mockCloudflare({ record, tokenRevoked = false, zoneHidden = false }) {
           : []));
       }
       if (url.pathname === '/zones/ZONE123/dns_records' && req.method === 'GET') {
+        if (url.searchParams.get('type') === 'CNAME') {
+          return send(wrap(cname ? [{ id: 'CN1', type: 'CNAME', name: HOST, content: cname }] : []));
+        }
         return send(wrap(state.record ? [state.record] : []));
       }
       if (url.pathname === '/zones/ZONE123/dns_records' && req.method === 'POST') {
@@ -346,5 +349,18 @@ test('--zone-id skips the zone lookup a narrow token cannot do', async () => {
     assert.equal(run.code, 0, run.stderr);
     assert.equal(mock.state.record.content, '203.0.113.7');
     assert.equal(mock.calls.filter((c) => c.path === '/zones').length, 0, 'ไม่ต้องถามรายชื่อโซนเลย');
+  });
+});
+
+test('leaves a CNAME alone instead of fighting it with an A record', async () => {
+  // ถ้าเปลี่ยน wedding ให้เป็น CNAME ชี้ไป nas (ซึ่งมีตัวอัปเดตไอพีของมันเองอยู่แล้ว)
+  // สคริปต์นี้ก็หมดหน้าที่ — เดิมมันจะเห็นว่า "ไม่มีระเบียน A" แล้วพยายามสร้างใหม่
+  // ซึ่ง Cloudflare ปฏิเสธ เพราะห้ามมี A กับ CNAME ชื่อเดียวกัน
+  await withMock({ record: null, cname: 'nas.shafiq-lap.com' }, async ({ call, mock }) => {
+    const run = await call(['--ip', '203.0.113.7']);
+    assert.equal(run.code, 0, run.stderr);
+    assert.match(run.stdout, /CNAME/);
+    assert.match(run.stdout, /nas\.shafiq-lap\.com/);
+    assert.equal(mock.calls.filter((c) => c.method === 'POST').length, 0, 'ห้ามพยายามสร้างระเบียน A');
   });
 });

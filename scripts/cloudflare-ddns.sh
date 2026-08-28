@@ -299,6 +299,21 @@ case "$BODY" in
 esac
 
 if [ -z "$REC_ID" ]; then
+  # ชื่อนี้อาจเป็น CNAME ที่ชี้ไปชื่ออื่นซึ่งมีตัวอัปเดตไอพีของมันเองอยู่แล้ว
+  # ถ้าเป็นแบบนั้นสคริปต์นี้ไม่มีหน้าที่อะไรเลย และการยัดระเบียน A ลงไปจะถูก
+  # Cloudflare ปฏิเสธด้วยข้อความที่อ่านไม่รู้เรื่อง (ห้ามมี A กับ CNAME ชื่อเดียวกัน)
+  CRESP="$(cf GET "$API/zones/$ZONE_ID/dns_records?type=CNAME&name=$HOST")"
+  if [ "$(http_code "$CRESP")" = "200" ]; then
+    case "$(payload "$CRESP")" in
+      *'"result":[]'*) ;;
+      *) TARGET="$(json_str content "$(payload "$CRESP")")"
+         ok "$HOST เป็น CNAME ชี้ไป ${TARGET:-?} — ไม่ต้องแก้อะไรที่นี่"
+         info "ไอพีตามชื่อปลายทางเอง สคริปต์นี้จึงไม่มีอะไรต้องทำ"
+         info "ถ้าอยากกลับมาใช้ระเบียน A ให้ลบ CNAME ทิ้งก่อนแล้วรันใหม่"
+         exit 0 ;;
+    esac
+  fi
+
   info "ยังไม่มีระเบียน A ของชื่อนี้เลย"
   if [ "$MODE" = "check" ]; then
     die "ขาดระเบียน A — แขกที่ใช้ 4G/5G จะได้ NXDOMAIN (โหมด --check ไม่แก้ให้)"
