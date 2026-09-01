@@ -338,7 +338,7 @@ test('the wall carries a card naming the couple, since it has no title slide', a
   const js = await fs.readFile(new URL('../public/js/slideshow.js', import.meta.url), 'utf8');
 
   assert.match(js, /key: 'title', title: true/, 'the wall builds a title card of its own');
-  assert.match(js, /event\.coupleNames \|\| event\.title/, 'carrying the names from the event config');
+  assert.match(js, /event\.names \|\| event\.title/, 'carrying the names from the event config');
 
   // ของประจำสองใบต้องไม่ไปกองมุมเดียวกัน ทั้งตอนวางครั้งแรกและตอนย้าย
   assert.match(js, /function spacedSlot/, 'the pinned cards must start at least two steps apart');

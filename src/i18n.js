@@ -33,11 +33,27 @@ function interpolate(template, vars) {
  * Translator for one language. Falls back to the default language, then to the
  * key itself, so a missing string never renders as an empty box on screen.
  */
-export function translator(code) {
+/**
+ * คำที่ต่างกันตามประเภทงาน — หาคีย์ที่ลงท้ายด้วยประเภทงานก่อน แล้วค่อยตกกลับ
+ *
+ * `t('site.welcome')` ในงานวันเกิดจะได้ `site.welcome_birthday` ถ้ามี ไม่มีก็ได้
+ * `site.welcome` ตัวปกติ — ทำที่นี่ที่เดียว จุดที่เรียก t() กว่ายี่สิบแห่งจึงไม่ต้องแก้เลย
+ * และภาษาที่ยังไม่ได้แปลคำเฉพาะของประเภทงานนั้นก็ยังใช้งานได้ ไม่ขึ้นเป็นชื่อคีย์ดิบ
+ */
+function resolve(catalogue, fallback, key, kind) {
+  if (kind && kind !== 'wedding') {
+    const specific = `${key}_${kind}`;
+    const found = lookup(catalogue, specific) ?? lookup(fallback, specific);
+    if (typeof found === 'string') return found;
+  }
+  return lookup(catalogue, key) ?? lookup(fallback, key);
+}
+
+export function translator(code, kind = config.event.kind) {
   const catalogue = catalogues.get(code) ?? catalogues.get(config.i18n.default);
   const fallback = catalogues.get(config.i18n.default);
   return function t(key, vars) {
-    const value = lookup(catalogue, key) ?? lookup(fallback, key);
+    const value = resolve(catalogue, fallback, key, kind);
     return typeof value === 'string' ? interpolate(value, vars) : key;
   };
 }

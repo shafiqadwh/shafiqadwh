@@ -78,7 +78,9 @@ ADMIN_PASSWORD=changeme123 npm start        # http://localhost:3000
 |---|---|---|
 | `ADMIN_PASSWORD` | — | **ต้องตั้ง** อย่างน้อย 8 ตัวอักษร |
 | `BASE_URL` | — | ที่อยู่ที่ฝังใน QR code ต้องเป็น https |
-| `COUPLE_NAMES` / `EVENT_DATE` | — | ชื่อและวันที่บนหัวเว็บและการ์ด |
+| `EVENT_NAMES` / `EVENT_DATE` | — | ชื่อเจ้าของงานและวันที่ บนหัวเว็บและการ์ด (ชื่อเดิม `COUPLE_NAMES` ยังใช้ได้) |
+| `EVENT_KIND` | `wedding` | ประเภทงาน เปลี่ยนคำบนหน้าเว็บ — `wedding`/`engagement`/`birthday`/`graduation`/`office`/`other` |
+| `THEME_ACCENT` ฯลฯ | ว่าง | สีของงาน รับเฉพาะ `#rrggbb` · เว้นว่าง = จานสีทองบนขาวเดิม |
 | `DEFAULT_LANGUAGE` | `th` | ภาษาสำรองเมื่อเดาจากเครื่องแขกไม่ได้ |
 | `MAX_IMAGE_MB` | `25` | ขนาดรูปสูงสุดต่อไฟล์ |
 | `MAX_VIDEO_MB` | `300` | ขนาดวิดีโอสูงสุดต่อไฟล์ |

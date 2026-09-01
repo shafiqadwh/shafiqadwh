@@ -58,6 +58,17 @@ function parseWindows(raw) {
   });
 }
 
+/**
+ * ประเภทงานที่รองรับ — ตัวแรกเป็นค่าเริ่มต้น
+ *
+ * ประเภทงานไม่ได้เปลี่ยนแค่คำบนหน้าเว็บ แต่เป็นตัวบอกว่างานนี้มี "ผู้ร่วมงาน"
+ * กี่คน · งานแต่งกับงานหมั้นมีสองชื่อ ส่วนวันเกิดกับรับปริญญามีชื่อเดียว
+ * — เลิกคิดเป็น "เจ้าบ่าว/เจ้าสาว" ตั้งแต่ตรงนี้
+ */
+export const EVENT_KINDS = Object.freeze([
+  'wedding', 'engagement', 'birthday', 'graduation', 'office', 'other',
+]);
+
 /** "Sofwan & 'Aishah Nadhirah" → "S & A", for the monogram on the printed card. */
 function initialsFrom(names) {
   const letters = names
@@ -65,6 +76,18 @@ function initialsFrom(names) {
     .map((part) => part.trim().replace(/^['’"]+/, '').charAt(0).toUpperCase())
     .filter(Boolean);
   return letters.length >= 2 ? `${letters[0]} & ${letters[1]}` : '';
+}
+
+/**
+ * รับเฉพาะสีในรูปแบบ #rgb / #rrggbb เท่านั้น
+ *
+ * ค่านี้ถูกฉีดลงใน <style> ของทุกหน้า — ถ้าปล่อยให้ใส่อะไรก็ได้ ค่าใน .env
+ * จะกลายเป็นช่องทางแทรกโค้ดลงหน้าเว็บที่แขกพันคนเปิด · ตรวจที่นี่ที่เดียว
+ * แล้วที่เหลือของระบบไม่ต้องระวังอีก
+ */
+function colour(name) {
+  const value = str(name, '').trim();
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : '';
 }
 
 const dataDir = path.resolve(rootDir, str('DATA_DIR', 'data'));
@@ -77,12 +100,29 @@ export const config = {
   baseUrl: str('BASE_URL', '').replace(/\/+$/, ''),
 
   event: {
+    kind: EVENT_KINDS.includes(str('EVENT_KIND', '')) ? str('EVENT_KIND', '') : EVENT_KINDS[0],
     title: str('EVENT_TITLE', 'Our Wedding'),
-    coupleNames: str('COUPLE_NAMES', ''),
+    // EVENT_NAMES คือชื่อใหม่ที่ไม่ผูกกับงานแต่ง · ยังอ่าน COUPLE_NAMES ต่อ
+    // เพราะ .env บนเครื่องจริงใช้ชื่อนั้นอยู่ ห้ามพังตอน deploy รอบถัดไป
+    names: str('EVENT_NAMES', '') || str('COUPLE_NAMES', ''),
     date: str('EVENT_DATE', ''),
     venue: str('EVENT_VENUE', ''),
     time: str('EVENT_TIME', ''),
-    monogram: str('EVENT_MONOGRAM', '') || initialsFrom(str('COUPLE_NAMES', '')),
+    monogram: str('EVENT_MONOGRAM', '')
+      || initialsFrom(str('EVENT_NAMES', '') || str('COUPLE_NAMES', '')),
+  },
+
+  /*
+   * สีของธีม — ฉีดเป็นตัวแปร CSS ตอนเรนเดอร์ ไม่ได้แก้ไฟล์ CSS
+   *
+   * ค่าว่างแปลว่า "ใช้ค่าที่อยู่ในไฟล์ CSS อยู่แล้ว" — งานที่ไม่ตั้งอะไรเลย
+   * จึงได้หน้าตาเดิมเป๊ะทุกพิกเซล ไม่ใช่หน้าตาที่ถูกเขียนทับด้วยค่าเริ่มต้นชุดใหม่
+   */
+  theme: {
+    accent: colour('THEME_ACCENT'),
+    accentDark: colour('THEME_ACCENT_DARK'),
+    paper: colour('THEME_PAPER'),
+    blush: colour('THEME_BLUSH'),
   },
 
   paths: {

@@ -21,7 +21,14 @@
   },
   "site": {
     "welcome": "Selamat datang ke majlis perkahwinan kami",
-    "share_hint": "Kongsikan gambar dan video yang anda rakam hari ini supaya semua orang dapat menikmatinya bersama"
+    "share_hint": "Kongsikan gambar dan video yang anda rakam hari ini supaya semua orang dapat menikmatinya bersama",
+    "welcome_engagement": "Selamat datang ke majlis pertunangan kami",
+    "welcome_birthday": "Selamat datang ke majlis hari jadi",
+    "welcome_graduation": "Selamat datang ke majlis konvokesyen",
+    "welcome_office": "Selamat datang ke majlis kami",
+    "welcome_other": "Selamat datang ke majlis kami",
+    "share_hint_birthday": "Kongsi gambar dan video anda supaya sambutan hari jadi ini dapat dilihat bersama",
+    "share_hint_graduation": "Kongsi gambar dan video anda supaya graduan dapat menyimpannya"
   },
   "upload": {
     "heading": "Kongsi gambar dan video anda",

@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= event.title %> · QR</title>
   <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+<%_ if (themeStyle) { _%>
+  <style><%- themeStyle %></style>
+<%_ } _%>
   <% if (sheet > 1) { %>
     <!-- @page อยู่ตรงนี้ ไม่ใช่ใน app.css เพราะ @page บังคับได้ทั้งเอกสาร สโคปด้วย
          selector ไม่ได้ ถ้าไปวางไว้ในไฟล์รวม การ์ดแบบใบเดียวต่อแผ่น (ค่าเริ่มต้น)
@@ -40,7 +43,7 @@
           <% if (event.monogram) { %>
             <p class="qr-card__monogram"><%= event.monogram %></p>
           <% } %>
-          <p class="qr-card__names"><%= event.coupleNames || event.title %></p>
+          <p class="qr-card__names"><%= event.names || event.title %></p>
           <% if (event.date) { %><p class="qr-card__date"><%= event.date %></p><% } %>
         </header>
 

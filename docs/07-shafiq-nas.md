@@ -241,7 +241,7 @@ sudo ./scripts/diagnose-nas.sh               # ข้อ 4-6.5 ต้องผ�
 
 ```bash
 cd /volume1/docker/wedding-share
-sudo nano .env        # แก้ COUPLE_NAMES, EVENT_DATE, BASE_URL=https://wedding.shafiq-lap.com
+sudo nano .env        # แก้ EVENT_NAMES, EVENT_DATE, BASE_URL=https://wedding.shafiq-lap.com
 sudo ./scripts/deploy-nas.sh        # ไม่ใส่ --lan = กลับไปผูก 127.0.0.1
 ```
 

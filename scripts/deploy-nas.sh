@@ -158,7 +158,7 @@ else
 fi
 
 say ""
-say "  ⚠ อย่าลืมแก้ COUPLE_NAMES, EVENT_DATE และ BASE_URL ใน .env"
+say "  ⚠ อย่าลืมแก้ EVENT_NAMES, EVENT_DATE และ BASE_URL ใน .env"
 say "    ให้เป็นค่าจริงก่อนสั่งพิมพ์การ์ด QR (ดู docs/03-qr-cards.md)"
 
 # ── 5. build และรัน ─────────────────────────────────────────────────────────

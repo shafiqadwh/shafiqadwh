@@ -16,7 +16,8 @@ BASE_URL=https://wedding.shafiq-lap.com
 
 | ค่าใน `.env` | ความหมาย | ค่าที่แนะนำ |
 |---|---|---|
-| `COUPLE_NAMES` | ชื่อบ่าวสาว โผล่บนหัวเว็บและการ์ด | `Sofwan & 'Aishah Nadhirah` |
+| `EVENT_KIND` | ประเภทงาน เปลี่ยนคำบนหน้าเว็บให้เข้ากับงาน | `wedding` |
+| `EVENT_NAMES` | ชื่อเจ้าของงาน โผล่บนหัวเว็บและการ์ด (ชื่อเดิม `COUPLE_NAMES` ยังใช้ได้) | `Sofwan & 'Aishah Nadhirah` |
 | `EVENT_MONOGRAM` | อักษรย่อตัวใหญ่บนการ์ด (เว้นว่าง = ย่อให้เอง) | `S & N` |
 | `EVENT_DATE` | วันที่ โผล่ใต้ชื่อ | `29.08.2026` |
 | `EVENT_VENUE` | สถานที่ พิมพ์ไว้ท้ายการ์ด | `Hasanah Restaurant (ร้านอาหารฮาซานะห์) Sateng, Yala` |

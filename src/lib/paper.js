@@ -86,8 +86,8 @@ async function coverPage(heading, subtitle) {
   blocks.push(await ink(escapeMarkup(heading), {
     size: 66, colour: PAPER.ink, width: COLUMN, align: 'centre', bold: true, lineHeight: 1.2,
   }));
-  if (config.event.coupleNames) {
-    blocks.push(await ink(escapeMarkup(config.event.coupleNames), {
+  if (config.event.names) {
+    blocks.push(await ink(escapeMarkup(config.event.names), {
       size: 40, colour: PAPER.ink, width: COLUMN, align: 'centre', lineHeight: 1.3,
     }));
   }

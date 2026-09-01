@@ -281,7 +281,7 @@
     art.appendChild(flourish());
     title.appendChild(art);
 
-    title.appendChild(el('h1', 'title__names', event.coupleNames || event.title));
+    title.appendChild(el('h1', 'title__names', event.names || event.title));
 
     const meta = [event.date, event.venue].filter(Boolean).join('  ·  ');
     if (meta) title.appendChild(el('p', 'title__meta', meta));
@@ -325,7 +325,7 @@
     const share = el('div', 'share');
 
     if (event.monogram) share.appendChild(el('div', 'title__monogram', event.monogram));
-    share.appendChild(el('h2', 'share__title', event.coupleNames || event.title));
+    share.appendChild(el('h2', 'share__title', event.names || event.title));
 
     const art = el('div', 'title__flourish');
     art.appendChild(flourish());
@@ -640,7 +640,7 @@
         art.appendChild(flourish());
         box.appendChild(art);
 
-        box.appendChild(el('div', 'card__couple', event.coupleNames || event.title || ''));
+        box.appendChild(el('div', 'card__couple', event.names || event.title || ''));
         if (event.venue) box.appendChild(el('div', 'card__venue', event.venue));
 
         media.appendChild(box);
@@ -862,7 +862,7 @@
 
         // การ์ดชื่องานวางห่างจาก QR อย่างน้อยสองก้าว ไม่งั้นของประจำสองใบจะไปกอง
         // อยู่มุมเดียวกัน เหลือกำแพงอีกฝั่งเป็นรูปแขกล้วน ดูไม่สมดุล
-        if (event.coupleNames || event.title) {
+        if (event.names || event.title) {
           titleCard = addCard({ key: 'title', title: true }, spacedSlot([qrSlot]));
           fixed.push(titleCard);
         }

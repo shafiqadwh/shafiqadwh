@@ -370,7 +370,7 @@ export function openingCard() {
   const meta = [config.event.date, config.event.venue].filter(Boolean).join('   ·   ');
   return textCard({
     eyebrow: config.event.monogram,
-    headline: config.event.coupleNames || config.event.title,
+    headline: config.event.names || config.event.title,
     footer: meta,
     big: true,
   });
@@ -380,7 +380,7 @@ export function openingCard() {
 export function closingCard(t) {
   return textCard({
     headline: t('film.thanks'),
-    footer: config.event.coupleNames || config.event.title,
+    footer: config.event.names || config.event.title,
   });
 }
 

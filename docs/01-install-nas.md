@@ -54,7 +54,7 @@ cp .env.example .env
 แก้อย่างน้อย 4 บรรทัดนี้
 
 ```env
-COUPLE_NAMES=Sofwan & 'Aishah Nadhirah
+EVENT_NAMES=Sofwan & 'Aishah Nadhirah
 EVENT_DATE=29.08.2026
 ADMIN_PASSWORD=ตั้งรหัสยาว ๆ อย่างน้อย 8 ตัว
 BASE_URL=https://wedding.xxxx.synology.me     # ที่อยู่จริงจากบทที่ 2 (ตอนนี้ใส่ไว้ก่อนได้)

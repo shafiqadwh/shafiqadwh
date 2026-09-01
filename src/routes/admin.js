@@ -271,7 +271,7 @@ adminRouter.post('/admin/messages/:id/:action', requireAdmin, (req, res) => {
 adminRouter.get('/admin/zip', requireAdmin, (req, res) => {
   streamArchive(res, {
     includeVideos: req.query.videos !== '0',
-    filenamePrefix: (config.event.coupleNames || 'wedding').replace(/[^\w-]+/g, '-').toLowerCase(),
+    filenamePrefix: (config.event.names || 'wedding').replace(/[^\w-]+/g, '-').toLowerCase(),
   });
 });
 

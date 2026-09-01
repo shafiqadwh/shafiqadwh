@@ -21,7 +21,14 @@
   },
   "site": {
     "welcome": "Welcome to our wedding",
-    "share_hint": "Share the photos and videos you take today so everyone can enjoy them together"
+    "share_hint": "Share the photos and videos you take today so everyone can enjoy them together",
+    "welcome_engagement": "Welcome to our engagement",
+    "welcome_birthday": "Welcome to the birthday party",
+    "welcome_graduation": "Welcome to the graduation celebration",
+    "welcome_office": "Welcome to our party",
+    "welcome_other": "Welcome to our celebration",
+    "share_hint_birthday": "Share the photos and videos you take, so the birthday guest of honour can see them all",
+    "share_hint_graduation": "Share the photos and videos you take, so the graduate can keep them"
   },
   "upload": {
     "heading": "Share your photos and videos",

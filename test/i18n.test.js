@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { EVENT_KINDS } from '../src/config.js';
 
 const localesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'locales');
 
@@ -165,6 +166,11 @@ test('no catalogue key is left behind with nothing using it', () => {
   // คีย์ถูกเรียกได้สองแบบ: เขียนเต็ม `t('film.start')` หรือประกอบชื่อเอา
   // เช่น `phase_${status.phase}` และ `theme_${group.theme}` — ต้องรู้จักทั้งสองแบบ
   const prefixes = [...code.matchAll(/[`'"]([a-z_]+_)\$\{/g)].map((m) => m[1]);
+
+  // และแบบที่สาม: คำที่ต่างกันตามประเภทงาน · `translator()` ประกอบคีย์เป็น
+  // `<คีย์>_<ประเภทงาน>` ให้เอง จุดที่เรียกจึงเขียนแค่ `t('site.welcome')`
+  // — คีย์ที่ลงท้ายด้วยประเภทงานที่รู้จักจึงถือว่ามีคนใช้ ส่วนคำลงท้ายอื่นยังถูกจับเหมือนเดิม
+  const kindSuffixes = EVENT_KINDS.map((kind) => `_${kind}`);
   const dead = [];
   for (const [namespace, block] of Object.entries(catalogues.th)) {
     if (namespace === 'lang') continue;
@@ -172,6 +178,7 @@ test('no catalogue key is left behind with nothing using it', () => {
       if (code.includes(`${namespace}.${key}`)) continue;
       if (new RegExp(`['"\`]${key}['"\`]`).test(code)) continue;
       if (prefixes.some((prefix) => key.startsWith(prefix))) continue;
+      if (kindSuffixes.some((suffix) => key.endsWith(suffix))) continue;
       dead.push(`${namespace}.${key}`);
     }
   }

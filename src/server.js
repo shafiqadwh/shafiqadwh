@@ -9,6 +9,7 @@ import { catalogue, languageMiddleware } from './i18n.js';
 import { ensureDirs } from './lib/media.js';
 import { resumeQueue } from './lib/queue.js';
 import { startLimiterCleanup } from './lib/ratelimit.js';
+import { themeStyle } from './lib/theme.js';
 import { adminRouter, isAdmin } from './routes/admin.js';
 import { galleryRouter } from './routes/gallery.js';
 import { guestbookRouter } from './routes/guestbook.js';
@@ -17,6 +18,7 @@ import { uploadRouter } from './routes/upload.js';
 
 export function createApp() {
   const app = express();
+  const pageTheme = themeStyle();
 
   if (config.trustProxy) app.set('trust proxy', true);
   app.set('view engine', 'ejs');
@@ -29,6 +31,8 @@ export function createApp() {
 
   app.use((req, res, next) => {
     res.locals.event = config.event;
+    // คำนวณครั้งเดียวตอนบูตก็พอ ค่ามาจาก .env ที่เปลี่ยนไม่ได้ระหว่างรัน
+    res.locals.themeStyle = pageTheme;
     res.locals.limits = config.limits;
     res.locals.isAdmin = isAdmin(req);
     res.locals.currentPath = req.path;

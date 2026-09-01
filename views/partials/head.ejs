@@ -6,6 +6,10 @@
   <meta name="theme-color" content="#f7f1ea">
   <title><%= event.title %><%= typeof pageTitle !== 'undefined' ? ' · ' + pageTitle : '' %></title>
   <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+<%_ if (themeStyle) { _%>
+  <%# สีต่องานทับตัวแปรใน app.css ตรงนี้ ไม่ได้แก้ไฟล์ CSS — งานที่ไม่ตั้งสีเองจะไม่มีบรรทัดนี้เลย %>
+  <style><%- themeStyle %></style>
+<%_ } _%>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 </head>
 <body data-page="<%= page %>">
@@ -14,7 +18,7 @@
   <header class="site-header">
     <div class="site-header__inner">
       <a class="brand" href="/">
-        <span class="brand__names"><%= event.coupleNames || event.title %></span>
+        <span class="brand__names"><%= event.names || event.title %></span>
         <% if (event.date) { %><span class="brand__date"><%= event.date %></span><% } %>
       </a>
 

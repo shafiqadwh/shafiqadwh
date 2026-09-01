@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= event.title %> · <%= t('nav.slideshow') %></title>
   <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+<%_ if (themeStyle) { _%>
+  <style><%- themeStyle %></style>
+<%_ } _%>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 </head>
 <body class="slideshow-body" data-page="slideshow">
@@ -60,7 +63,7 @@
       shareUrl,
       event: {
         title: event.title,
-        coupleNames: event.coupleNames,
+        names: event.names,
         date: event.date,
         venue: event.venue,
         monogram: event.monogram,
