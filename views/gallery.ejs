@@ -1,9 +1,24 @@
 <%- include('partials/head', { pageTitle: t('nav.gallery') }) %>
 
-<section class="hero">
-  <h1 class="hero__title"><%= t('site.welcome') %></h1>
-  <p class="hero__text"><%= t('site.share_hint') %></p>
-</section>
+<%# ภาพปกกับชื่องานทาบอยู่บนภาพเดียวกัน ไม่ใช่ภาพวางเหนือชื่อ
+    ชื่องานกับคำเชิญกินความสูงของมันเองอยู่แล้ว พอเอาไปทาบบนภาพ ภาพจึงแทบไม่ได้
+    เพิ่มความสูงสุทธิ — ปุ่มอัปโหลดยังอยู่เหนือขอบล่างของจอมือถือเหมือนเดิม
+    ซึ่งเป็นเรื่องเดียวที่หน้านี้ห้ามเสีย %>
+<% if (locals.cover) { %>
+  <section class="hero hero--cover<%= cover.width && cover.height && cover.height > cover.width ? ' hero--tall' : '' %>">
+    <img class="hero__image" src="/host/<%= cover.id %>" alt=""
+         <% if (cover.width && cover.height) { %>width="<%= cover.width %>" height="<%= cover.height %>"<% } %>>
+    <div class="hero__veil">
+      <h1 class="hero__title"><%= t('site.welcome') %></h1>
+      <p class="hero__text"><%= t('site.share_hint') %></p>
+    </div>
+  </section>
+<% } else { %>
+  <section class="hero">
+    <h1 class="hero__title"><%= t('site.welcome') %></h1>
+    <p class="hero__text"><%= t('site.share_hint') %></p>
+  </section>
+<% } %>
 
 <% if (uploadsOpen) { %>
   <section class="uploader" id="uploader">
@@ -64,6 +79,39 @@
   </section>
 <% } %>
 
+<%# การ์ดเชิญ — รูปย่อเล็ก ๆ แตะแล้วเปิดเต็มจอในตัวดูรูปตัวเดิม
+    ไม่วางเต็มใบบนหน้าแรกเพราะการ์ดเชิญเกือบทั้งหมดเป็นแนวตั้งสูง วางเต็มใบแล้ว
+    กินจอทั้งจอเพียงลำพัง และคนที่มางานแล้วส่วนใหญ่เห็นการ์ดมาก่อนแล้ว %>
+<% if (locals.invitations && invitations.length > 0) { %>
+  <section class="host-block">
+    <h2 class="section-title"><%= t('home.invitation') %></h2>
+    <div class="host-strip host-strip--invite" id="invite-strip">
+      <% invitations.forEach(function (one, index) { %>
+        <button type="button" class="host-thumb" data-invite="<%= index %>"
+                aria-label="<%= t('home.invitation_open') %>">
+          <img src="/host/<%= one.id %>?size=thumb" alt="" loading="lazy">
+        </button>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
+<%# รูปงานที่เจ้าภาพอัพไว้ — แถบเลื่อนแนวนอน กินความสูงคงที่ไม่ว่าจะใส่กี่รูป
+    ตารางรูปสิบสองใบกินความสูงมหาศาลบนมือถือแล้วไปเบียดแกลลอรี่ของแขกซึ่งเป็นของหลัก %>
+<% if (locals.hostPhotos && hostPhotos.length > 0) { %>
+  <section class="host-block">
+    <h2 class="section-title"><%= t('home.photos') %></h2>
+    <div class="host-strip" id="host-strip">
+      <% hostPhotos.forEach(function (one, index) { %>
+        <button type="button" class="host-thumb host-thumb--wide" data-host="<%= index %>"
+                aria-label="<%= one.caption || t('home.photos') %>">
+          <img src="/host/<%= one.id %>?size=thumb" alt="<%= one.caption || '' %>" loading="lazy">
+        </button>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
 <section class="gallery">
   <div class="gallery__bar">
     <h2 class="section-title"><%= t('gallery.heading') %></h2>
@@ -114,6 +162,13 @@
     <a class="button button--small" id="lightbox-download" download><%= t('gallery.download_item') %></a>
   </div>
 </div>
+
+<%# รายการรูปของเจ้าภาพให้ JS หยิบไปเปิดในตัวดูรูปตัวเดิม
+    ส่งเป็น JSON ในหน้า ไม่ต้องยิง API เพิ่ม เพราะเป็นรายการสั้นที่รู้ตั้งแต่เรนเดอร์แล้ว %>
+<script type="application/json" id="host-media"><%- JSON.stringify({
+  invitations: (locals.invitations || []).map((one) => ({ url: `/host/${one.id}`, caption: one.caption || '' })),
+  photos: (locals.hostPhotos || []).map((one) => ({ url: `/host/${one.id}`, caption: one.caption || '' })),
+}) %></script>
 
 <script src="/static/js/upload.js?v=<%= assetVersion %>" defer></script>
 <script src="/static/js/gallery.js?v=<%= assetVersion %>" defer></script>

@@ -61,6 +61,28 @@
     "prev": "Sebelum",
     "next": "Seterusnya"
   },
+  "home": {
+    "invitation": "Kad jemputan",
+    "invitation_open": "Ketik untuk lihat kad penuh",
+    "photos": "Gambar daripada tuan rumah",
+    "panel": "Halaman hadapan majlis",
+    "panel_hint": "Gambar di sini muncul pada halaman pertama tetamu. Ia tidak bercampur dengan gambar tetamu, dan tidak masuk ke dalam filem atau fail ZIP.",
+    "cover": "Gambar muka",
+    "cover_hint": "Satu sahaja, nama majlis akan bertindih di atasnya. Muat naik baharu menggantikan yang lama.",
+    "invitation_hint": "Sehingga 3 keping. Tetamu ketik untuk lihat skrin penuh.",
+    "photos_hint": "Sehingga 12 keping, susun dengan anak panah.",
+    "add": "Tambah gambar",
+    "replace": "Ganti gambar muka",
+    "empty": "Belum ada apa-apa di sini",
+    "move_up": "Naik",
+    "move_down": "Turun",
+    "remove": "Buang",
+    "confirm_remove": "Buang gambar ini dari halaman hadapan",
+    "preview": "Buka halaman hadapan sebenar",
+    "full": "Ruang ini sudah penuh. Gambar berlebihan tidak ditambah.",
+    "failed": "Gagal menambah gambar. Sila cuba lagi.",
+    "too_big": "Fail itu lebih besar daripada yang boleh diterima"
+  },
   "guestbook": {
     "heading": "Buku ucapan",
     "intro": "Tinggalkan ucapan untuk pengantin. Anda boleh sertakan gambar atau video sekali.",

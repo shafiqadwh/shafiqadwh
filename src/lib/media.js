@@ -491,3 +491,59 @@ export function formatBytes(bytes) {
   const value = bytes / 1024 ** exponent;
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
+
+/**
+ * รูปที่เจ้าภาพอัพเองสำหรับหน้าแรก — ภาพปก การ์ดเชิญ รูปงาน
+ *
+ * ใช้ท่อเดียวกับรูปของแขกทั้งหมด (แปลง HEIC จาก iPhone ซึ่งเป็นกรณีที่จะเจอบ่อยที่สุด
+ * กับการ์ดเชิญที่ถ่ายมา · หมุนภาพตาม EXIF · ทำรูปย่อ) แล้วเติมสำเนาขนาดพอดีหน้าเว็บ
+ * ให้อีกหนึ่งใบ
+ *
+ * ต่างจากรูปแขกตรงที่ **สร้างสำเนาหน้าเว็บทันทีตอนอัพ ไม่ใช่ตอนมีคนขอครั้งแรก**
+ * เพราะคนที่รออยู่คือเจ้าภาพคนเดียวที่กำลังจัดหน้า ไม่ใช่แขกพันคน — และแขกคนแรก
+ * ที่เปิดเว็บในงานไม่ควรต้องเป็นคนจ่ายเวลาย่อรูปให้คนอื่น
+ */
+export async function processHostImage(tmpPath, sniffed) {
+  const base = await processImage(tmpPath, sniffed);
+
+  const displayName = `${path.parse(base.storedName).name}-host.jpg`;
+  const source = base.playbackName
+    ? path.join(config.paths.derived, base.playbackName)
+    : path.join(config.paths.uploads, base.storedName);
+
+  try {
+    await sharp(source, { failOn: 'none' })
+      .rotate()
+      .resize(config.media.hostImageSize, config.media.hostImageSize, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toFile(path.join(config.paths.derived, displayName));
+  } catch (error) {
+    await removeHostFiles({ stored_name: base.storedName, thumb_name: base.thumbName });
+    throw error;
+  }
+
+  return {
+    storedName: base.storedName,
+    displayName,
+    thumbName: base.thumbName,
+    mime: base.mime,
+    bytes: base.bytes,
+    width: base.width,
+    height: base.height,
+  };
+}
+
+/** ลบไฟล์ทุกใบที่รูปเจ้าภาพหนึ่งแถวสร้างไว้ — ต้นฉบับ สำเนาหน้าเว็บ รูปย่อ และไฟล์แปลง HEIC */
+export async function removeHostFiles(row) {
+  const stem = path.parse(row.stored_name).name;
+  const targets = [
+    path.join(config.paths.uploads, row.stored_name),
+    path.join(config.paths.derived, `${stem}.jpg`),
+    path.join(config.paths.derived, `${stem}-thumb.jpg`),
+    path.join(config.paths.derived, `${stem}-host.jpg`),
+  ];
+  await Promise.all(targets.map((target) => fs.rm(target, { force: true })));
+}

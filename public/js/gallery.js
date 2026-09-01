@@ -25,6 +25,9 @@
   // normalise แล้วเท่านั้นที่ตรงกับที่ API ใช้เทียบ
   const who = document.getElementById('grid')?.dataset.who || '';
   const state = { filter: 'all', items: [], nextBefore: null, maxId: 0, index: -1, loading: false };
+  // รายการที่ตัวดูรูปกำลังเปิดอยู่ — ปกติคือรูปของแขก แต่รูปของเจ้าภาพ
+  // (การ์ดเชิญ รูปงาน) ยืมตัวดูรูปตัวเดียวกันโดยสลับรายการเข้ามาชั่วคราว
+  let viewing = state.items;
 
   function formatDuration(seconds) {
     if (!seconds) return '';
@@ -105,7 +108,7 @@
   /* ---------- lightbox ---------- */
 
   function showSlide(index) {
-    const item = state.items[index];
+    const item = viewing[index];
     if (!item) return;
     state.index = index;
     stage.innerHTML = '';
@@ -125,11 +128,18 @@
       stage.appendChild(img);
     }
 
-    caption.textContent = item.uploader ? t('gallery.by', { name: item.uploader }) : t('gallery.anonymous');
-    downloadLink.href = item.downloadUrl;
+    if (item.hostCaption !== undefined) {
+      caption.textContent = item.hostCaption;
+    } else {
+      caption.textContent = item.uploader ? t('gallery.by', { name: item.uploader }) : t('gallery.anonymous');
+    }
+    // รูปของเจ้าภาพไม่มีปุ่มดาวน์โหลด — เป็นของประกอบหน้าเว็บ ไม่ใช่ของที่แขกมารับ
+    downloadLink.hidden = !item.downloadUrl;
+    if (item.downloadUrl) downloadLink.href = item.downloadUrl;
   }
 
-  function openLightbox(index) {
+  function openLightbox(index, list) {
+    viewing = list || state.items;
     lightbox.hidden = false;
     document.body.style.overflow = 'hidden';
     showSlide(index);
@@ -143,7 +153,7 @@
 
   function step(delta) {
     const next = state.index + delta;
-    if (next >= 0 && next < state.items.length) showSlide(next);
+    if (next >= 0 && next < viewing.length) showSlide(next);
   }
 
   document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
@@ -158,6 +168,38 @@
     if (event.key === 'Escape') closeLightbox();
     if (event.key === 'ArrowLeft') step(-1);
     if (event.key === 'ArrowRight') step(1);
+  });
+
+  /* ---------- รูปของเจ้าภาพ: การ์ดเชิญ และรูปงาน ---------- */
+
+  // รายการมากับหน้าแล้วเป็น JSON ก้อนเล็ก ไม่ต้องยิง API เพิ่ม
+  const hostData = (() => {
+    const tag = document.getElementById('host-media');
+    if (!tag) return { invitations: [], photos: [] };
+    try {
+      return JSON.parse(tag.textContent);
+    } catch {
+      return { invitations: [], photos: [] };
+    }
+  })();
+
+  const asSlides = (list) => list.map((one) => ({
+    kind: 'image',
+    mediaUrl: one.url,
+    hostCaption: one.caption,
+    downloadUrl: null,
+  }));
+
+  document.querySelectorAll('[data-invite]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openLightbox(Number(button.dataset.invite), asSlides(hostData.invitations));
+    });
+  });
+
+  document.querySelectorAll('[data-host]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openLightbox(Number(button.dataset.host), asSlides(hostData.photos));
+    });
   });
 
   /* ---------- filters, polling, refresh ---------- */

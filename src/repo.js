@@ -29,7 +29,30 @@ const statements = {
   visibleSince: db.prepare(
     "SELECT COUNT(*) AS count FROM items WHERE status = 'visible' AND deleted_at IS NULL AND id > ?",
   ),
+
+  // ── รูปของเจ้าภาพบนหน้าแรก (คนละตารางกับรูปแขกโดยตั้งใจ ดู src/db.js) ──
+  insertHostMedia: db.prepare(`
+    INSERT INTO host_media (slot, stored_name, display_name, thumb_name, mime,
+                            bytes, width, height, caption, sort_order)
+    VALUES (@slot, @storedName, @displayName, @thumbName, @mime,
+            @bytes, @width, @height, @caption, @sortOrder)
+  `),
+  getHostMedia: db.prepare('SELECT * FROM host_media WHERE id = ?'),
+  listHostSlot: db.prepare(
+    'SELECT * FROM host_media WHERE slot = ? ORDER BY sort_order, id',
+  ),
+  listAllHostMedia: db.prepare('SELECT * FROM host_media ORDER BY slot, sort_order, id'),
+  countHostSlot: db.prepare('SELECT COUNT(*) AS count FROM host_media WHERE slot = ?'),
+  nextHostOrder: db.prepare(
+    'SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM host_media WHERE slot = ?',
+  ),
+  deleteHostMedia: db.prepare('DELETE FROM host_media WHERE id = ?'),
+  setHostOrder: db.prepare('UPDATE host_media SET sort_order = ? WHERE id = ?'),
+  hostBytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM host_media'),
 };
+
+/** ช่องที่รับได้ กับเพดานจำนวนต่อช่อง — เกินแล้วบอกตรง ๆ ไม่ใช่ตัดทิ้งเงียบ ๆ */
+export const HOST_SLOTS = Object.freeze({ cover: 1, invitation: 3, photo: 12 });
 
 export function insertItem(item) {
   const info = statements.insertItem.run({
@@ -217,7 +240,9 @@ export function stats() {
     videos: byKind.video.count,
     messages: statements.countMessages.get().count,
     pending: statements.countPending.get().count,
-    bytes: statements.totalBytes.get().bytes,
+    // รูปเจ้าภาพกินดิสก์จริงเหมือนรูปแขก ต้องบวกเข้ามาด้วย ไม่งั้นตัวเลขพื้นที่ใช้ไป
+    // ต่ำกว่าความจริง แล้วเพดาน MAX_TOTAL_STORAGE_GB จะกันไม่ทันตอนดิสก์ใกล้เต็ม
+    bytes: statements.totalBytes.get().bytes + statements.hostBytes.get().bytes,
   };
 }
 
@@ -266,3 +291,62 @@ export function listItemsForPaper({ includeHidden = false } = {}) {
     FROM items WHERE ${where} ORDER BY id
   `).all();
 }
+
+/*
+ * ─── รูปของเจ้าภาพบนหน้าแรก ──────────────────────────────────────────────
+ *
+ * ทุกฟังก์ชันในบล็อกนี้แตะเฉพาะตาราง host_media · ไม่มีตัวไหนอ่านหรือเขียน items
+ * และไม่มีฟังก์ชันไหนข้างบนอ่าน host_media — ความแยกขาดนี้คือทั้งหมดที่กันไม่ให้
+ * การ์ดเชิญของเจ้าภาพหลุดไปอยู่ในแกลลอรี่ สไลด์โชว์ หนัง หรือไฟล์ ZIP ของแขก
+ */
+
+export const listHostMedia = (slot) => statements.listHostSlot.all(slot);
+export const listAllHostMedia = () => statements.listAllHostMedia.all();
+export const getHostMedia = (id) => statements.getHostMedia.get(id);
+export const countHostMedia = (slot) => statements.countHostSlot.get(slot).count;
+
+export function insertHostMedia(media) {
+  const info = statements.insertHostMedia.run({
+    slot: media.slot,
+    storedName: media.storedName,
+    displayName: media.displayName ?? null,
+    thumbName: media.thumbName ?? null,
+    mime: media.mime,
+    bytes: media.bytes,
+    width: media.width ?? null,
+    height: media.height ?? null,
+    caption: media.caption ?? null,
+    sortOrder: statements.nextHostOrder.get(media.slot).next,
+  });
+  return statements.getHostMedia.get(info.lastInsertRowid);
+}
+
+export const deleteHostMediaRow = (id) => statements.deleteHostMedia.run(id);
+
+/**
+ * สลับที่กับใบที่อยู่ติดกันในช่องเดียวกัน — ปุ่มขึ้น/ลง ไม่ใช่การลากวาง
+ *
+ * เจ้าภาพจัดหน้านี้จากมือถือ การลากวางบนจอสัมผัสพลาดง่ายและต้องพึ่ง JavaScript
+ * ส่วนปุ่มขึ้น/ลงเป็นฟอร์มธรรมดาที่ทำงานได้แม้ JS พัง — แนวเดียวกับถังขยะ
+ */
+export function moveHostMedia(id, direction) {
+  const row = statements.getHostMedia.get(id);
+  if (!row) return false;
+
+  const siblings = statements.listHostSlot.all(row.slot);
+  const at = siblings.findIndex((one) => one.id === row.id);
+  const to = direction === 'up' ? at - 1 : at + 1;
+  if (at < 0 || to < 0 || to >= siblings.length) return false;
+
+  // เขียนลำดับใหม่ทั้งช่องในทีเดียว — ค่า sort_order ที่ค้างมาจากการลบอาจซ้ำหรือ
+  // ขาดช่วง การสลับเฉพาะสองแถวจึงไม่พอ ต้องไล่ใส่ใหม่ให้เรียง 1..n เสมอ
+  const order = siblings.map((one) => one.id);
+  [order[at], order[to]] = [order[to], order[at]];
+  db.transaction(() => {
+    order.forEach((rowId, index) => statements.setHostOrder.run(index + 1, rowId));
+  })();
+  return true;
+}
+
+/** ไบต์ที่รูปเจ้าภาพกินบนดิสก์ — ต้องบวกเข้าสถิติ ไม่งั้นพื้นที่ใช้ไปต่ำกว่าจริง */
+export const hostMediaBytes = () => statements.hostBytes.get().bytes;

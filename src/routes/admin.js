@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import express from 'express';
@@ -7,8 +8,16 @@ import { config } from '../config.js';
 import { db, getFlag, getSetting, pruneExpiredSessions, setFlag, setSetting } from '../db.js';
 import { catalogue, translator } from '../i18n.js';
 import {
+  HOST_SLOTS,
+  countHostMedia,
+  deleteHostMediaRow,
   deleteItemRow,
   deleteMessageRow,
+  getHostMedia,
+  insertHostMedia,
+  listAllHostMedia,
+  listHostMedia,
+  moveHostMedia,
   getItem,
   getMessage,
   getTrashedByIds,
@@ -23,7 +32,7 @@ import {
   softDeleteItems,
   stats,
 } from '../repo.js';
-import { formatBytes, randomName } from '../lib/media.js';
+import { formatBytes, processHostImage, randomName, removeHostFiles, sniffType } from '../lib/media.js';
 import { deleteFilm, filmPath, jobStatus, startJob } from '../lib/film-job.js';
 import { deleteTrack, listLibrary, resolveTracks, totalSeconds, trackPath } from '../lib/music.js';
 import { buildTimeline, dedupe, planLength } from '../lib/film-plan.js';
@@ -111,10 +120,19 @@ adminRouter.get('/admin', wrap(async (req, res) => {
     // เพลงคลอของหน้าแกลลอรี่ — เลือกจากคลังเดียวกับที่หนังใช้ ไม่ต้องอัพซ้ำ
     galleryMusic: { picked: getSetting('gallery_music', ''), library: await listLibrary() },
     trash: listTrash().map((one) => ({ ...one, size: formatBytes(one.bytes) })),
+    // รูปที่เจ้าภาพอัพเองสำหรับหน้าแรก — แยกเป็นช่อง ๆ ให้ view วนได้ตรง ๆ
+    home: {
+      limits: HOST_SLOTS,
+      cover: listHostMedia('cover'),
+      invitation: listHostMedia('invitation'),
+      photo: listHostMedia('photo'),
+    },
     trashRetentionDays: config.admin.trashRetentionDays,
     // ?undo= มาจาก redirect หลังกดลบ — เอาเฉพาะ id ที่ยังอยู่ในถังขยะจริงเท่านั้น
     // ลิงก์ค้าง (กู้คืนไปแล้วก่อนหน้า หรือถูกกวาดทิ้งถาวรไปแล้ว) แบนเนอร์แค่ไม่ขึ้น ไม่ error
     undoItems: getTrashedByIds(String(req.query.undo ?? '').split(',')),
+    // ?home= มาจาก redirect หลังจัดการรูปหน้าแรก ใช้เลือกข้อความแจ้งผลด้านบนแผง
+    query: req.query,
   });
 }));
 
@@ -302,6 +320,98 @@ adminRouter.get('/admin/qr', requireAdmin, wrap(async (req, res) => {
     sheet,
   });
 }));
+
+// ── หน้าแรกของงาน: ภาพปก การ์ดเชิญ รูปงาน ที่เจ้าภาพอัพเอง ──────────────────
+
+const homeUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, config.paths.tmp),
+    filename: (req, file, cb) => cb(null, randomName('part')),
+  }),
+  limits: { fileSize: config.limits.imageMb * 1024 * 1024, files: HOST_SLOTS.photo },
+});
+
+/**
+ * อัพรูปเข้าช่องใดช่องหนึ่ง — ภาพปกได้ใบเดียวและอัพใหม่ทับของเดิม
+ *
+ * ชนิดไฟล์ตัดสินจากไบต์จริงในไฟล์ ไม่ใช่จากนามสกุลที่ผู้ใช้ส่งมา (เหมือนเส้นทาง
+ * ของแขก) และรับเฉพาะรูป — วิดีโอบนหน้าแรกทำให้หน้าเว็บหนักโดยไม่ได้อะไรกลับมา
+ */
+adminRouter.post('/admin/home/:slot', requireAdmin, (req, res) => {
+  const slot = String(req.params.slot);
+  if (!Object.hasOwn(HOST_SLOTS, slot)) return res.status(404).redirect('/admin');
+
+  homeUpload.array('files', HOST_SLOTS[slot])(req, res, (uploadError) => {
+    void ingestHomeMedia(req, res, slot, uploadError).catch(async (error) => {
+      console.error('[home] อัพรูปหน้าแรกล้ม:', error);
+      await Promise.all((req.files ?? []).map((file) => fs.rm(file.path, { force: true })));
+      if (!res.headersSent) res.redirect('/admin?home=error');
+    });
+  });
+});
+
+async function ingestHomeMedia(req, res, slot, uploadError) {
+  const files = req.files ?? [];
+  if (uploadError || files.length === 0) {
+    await Promise.all(files.map((file) => fs.rm(file.path, { force: true })));
+    return res.redirect(`/admin?home=${uploadError ? 'toobig' : 'empty'}`);
+  }
+
+  // ภาพปกมีได้ใบเดียว — อัพใหม่คือแทนที่ ต้องลบไฟล์เก่าทิ้งด้วย ไม่ใช่แค่ลบแถว
+  if (slot === 'cover') {
+    for (const old of listHostMedia('cover')) {
+      await removeHostFiles(old);
+      deleteHostMediaRow(old.id);
+    }
+  }
+
+  let room = HOST_SLOTS[slot] - countHostMedia(slot);
+  let full = false;
+
+  for (const file of files) {
+    if (room <= 0) {
+      full = true;
+      await fs.rm(file.path, { force: true });
+      continue;
+    }
+
+    const handle = await fsSync.promises.open(file.path, 'r');
+    let magic;
+    try {
+      const buffer = Buffer.alloc(32);
+      const { bytesRead } = await handle.read(buffer, 0, 32, 0);
+      magic = buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+
+    const sniffed = sniffType(magic);
+    if (!sniffed || sniffed.kind !== 'image') {
+      await fs.rm(file.path, { force: true });
+      continue;
+    }
+
+    insertHostMedia({ slot, ...(await processHostImage(file.path, sniffed)) });
+    room -= 1;
+  }
+
+  return res.redirect(full ? '/admin?home=full' : '/admin');
+}
+
+adminRouter.post('/admin/home/item/:id/delete', requireAdmin, wrap(async (req, res) => {
+  const row = getHostMedia(Number(req.params.id));
+  if (row) {
+    // ลบไฟล์ก่อนลบแถว — สลับกันแล้วถ้าล้มกลางทางจะเหลือไฟล์กำพร้าที่ไม่มีใครรู้ว่ามี
+    await removeHostFiles(row);
+    deleteHostMediaRow(row.id);
+  }
+  res.redirect('/admin');
+}));
+
+adminRouter.post('/admin/home/item/:id/move', requireAdmin, express.urlencoded({ extended: false }), (req, res) => {
+  moveHostMedia(Number(req.params.id), req.body?.direction === 'up' ? 'up' : 'down');
+  res.redirect('/admin');
+});
 
 // ── หนังงานแต่ง: สั่งทำ ดูสถานะ เล่น และดาวน์โหลด จากหน้าเว็บ ────────────────
 

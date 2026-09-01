@@ -60,6 +60,32 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     expires_at TEXT NOT NULL
   );
+
+  /*
+   * รูปที่ "เจ้าภาพ" อัพเอง — ภาพปก การ์ดเชิญ รูปงาน สำหรับโชว์บนหน้าแรก
+   *
+   * แยกตารางจาก items โดยตั้งใจ ไม่ใช่เพิ่มคอลัมน์บอกชนิดลงใน items
+   * เพราะทุกเส้นทางที่อ่าน items — แกลลอรี่ สไลด์โชว์ หนัง ZIP รายชื่อแขก สถิติ —
+   * จะต้องเติมเงื่อนไขกรองออกให้ครบทุกที่ และลืมที่เดียวก็แปลว่าการ์ดเชิญ
+   * ของเจ้าภาพไปโผล่กลางหนังงานแต่ง · โปรเจกต์นี้เคยลืมเงื่อนไข deleted_at
+   * มาแล้วสองจุดทั้งที่ตอนนั้นมีให้จำแค่ข้อเดียว — คนละตารางกันจึงกันได้ตั้งแต่ต้น
+   */
+  CREATE TABLE IF NOT EXISTS host_media (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    slot         TEXT    NOT NULL CHECK (slot IN ('cover', 'invitation', 'photo')),
+    stored_name  TEXT    NOT NULL UNIQUE,
+    display_name TEXT,
+    thumb_name   TEXT,
+    mime         TEXT    NOT NULL,
+    bytes        INTEGER NOT NULL,
+    width        INTEGER,
+    height       INTEGER,
+    caption      TEXT,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_host_media_slot ON host_media (slot, sort_order, id);
 `);
 
 /**

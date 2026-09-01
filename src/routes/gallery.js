@@ -2,7 +2,9 @@ import path from 'node:path';
 import express from 'express';
 import { config, withinUploadWindow } from '../config.js';
 import { getFlag, getSetting } from '../db.js';
-import { countItems, getItem, listGuests, listItems, newerCount } from '../repo.js';
+import {
+  countItems, getHostMedia, getItem, listGuests, listHostMedia, listItems, newerCount,
+} from '../repo.js';
 import { normaliseName } from '../lib/guests.js';
 import { ensureDisplayCopy, safeOriginalName } from '../lib/media.js';
 import { trackDetails } from '../lib/music.js';
@@ -49,7 +51,32 @@ galleryRouter.get('/', wrap(async (req, res) => {
     total: countItems({ who }),
     who,
     guestName: guest && (guest.anonymous ? req.t('gallery.anonymous') : guest.name),
+    // รูปที่เจ้าภาพอัพไว้เอง — คนละตารางกับรูปแขก จึงไม่มีทางปนกับ /api/items
+    cover: listHostMedia('cover')[0] ?? null,
+    invitations: listHostMedia('invitation'),
+    hostPhotos: listHostMedia('photo'),
   });
+}));
+
+/**
+ * รูปของเจ้าภาพ — เปิดให้ทุกคนดูได้ ไม่มีสถานะรอตรวจหรือถังขยะเหมือนรูปแขก
+ *
+ * `?size=thumb` คือรูปย่อสำหรับแถบเลื่อน · ไม่ใส่คือสำเนาขนาดพอดีหน้าเว็บ
+ * ชื่อไฟล์มาจากฐานข้อมูลล้วน ไม่ได้มาจาก URL — เส้นทางนี้จึงไม่มีที่ให้เดินออกนอกโฟลเดอร์
+ */
+galleryRouter.get('/host/:id', wrap(async (req, res, next) => {
+  const row = getHostMedia(Number(req.params.id));
+  if (!row) return next();
+
+  const wantThumb = req.query.size === 'thumb' && row.thumb_name;
+  const filename = wantThumb ? row.thumb_name : (row.display_name ?? row.stored_name);
+  const root = wantThumb || row.display_name ? config.paths.derived : config.paths.uploads;
+
+  try {
+    await sendMedia(res, root, filename);
+  } catch (error) {
+    next(error);
+  }
 }));
 
 galleryRouter.get('/api/items', (req, res) => {

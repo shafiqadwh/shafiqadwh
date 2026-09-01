@@ -61,6 +61,28 @@
     "prev": "Previous",
     "next": "Next"
   },
+  "home": {
+    "invitation": "Invitation card",
+    "invitation_open": "Tap to see the whole invitation",
+    "photos": "Photos from the hosts",
+    "panel": "Event front page",
+    "panel_hint": "These appear on the page guests open first. They never mix with guest photos, and never reach the film or the ZIP.",
+    "cover": "Cover image",
+    "cover_hint": "One image, with the event name laid over it. Uploading replaces it.",
+    "invitation_hint": "Up to 3. Guests tap to see it full screen.",
+    "photos_hint": "Up to 12, reordered with the arrows.",
+    "add": "Add images",
+    "replace": "Replace cover",
+    "empty": "Nothing here yet",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "remove": "Remove",
+    "confirm_remove": "Remove this image from the front page",
+    "preview": "Open the real front page",
+    "full": "This slot is full. The extra images were not added.",
+    "failed": "Could not add the image. Please try again.",
+    "too_big": "That file is larger than we can take"
+  },
   "guestbook": {
     "heading": "Guest book",
     "intro": "Leave a message for the couple. You can attach a photo or video too.",

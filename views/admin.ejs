@@ -61,6 +61,78 @@
   </div>
 </section>
 
+<%# หน้าแรกของงาน — ภาพปก การ์ดเชิญ รูปงาน
+    ทุกปุ่มเป็นฟอร์มธรรมดา ทำงานได้แม้ JavaScript พัง แนวเดียวกับถังขยะ %>
+<section class="card home-media" id="home-media">
+  <h2 class="section-title"><%= t('home.panel') %></h2>
+  <p class="section-hint"><%= t('home.panel_hint') %></p>
+
+  <% if (locals.query && query.home === 'full') { %>
+    <p class="notice notice--error"><%= t('home.full') %></p>
+  <% } else if (locals.query && (query.home === 'error' || query.home === 'empty')) { %>
+    <p class="notice notice--error"><%= t('home.failed') %></p>
+  <% } else if (locals.query && query.home === 'toobig') { %>
+    <p class="notice notice--error"><%= t('home.too_big') %></p>
+  <% } %>
+
+  <% [
+       { slot: 'cover',      title: t('home.cover'),      hint: t('home.cover_hint'),      wide: true },
+       { slot: 'invitation', title: t('home.invitation'), hint: t('home.invitation_hint'), wide: false },
+       { slot: 'photo',      title: t('home.photos'),     hint: t('home.photos_hint'),     wide: true }
+     ].forEach(function (group) { %>
+    <div class="home-slot">
+      <h3 class="home-slot__title">
+        <%= group.title %>
+        <span class="section-count"><%= home[group.slot].length %> / <%= home.limits[group.slot] %></span>
+      </h3>
+      <p class="section-hint"><%= group.hint %></p>
+
+      <% if (home[group.slot].length === 0) { %>
+        <p class="notice"><%= t('home.empty') %></p>
+      <% } else { %>
+        <div class="home-grid">
+          <% home[group.slot].forEach(function (media, index) { %>
+            <figure class="home-item<%= group.wide ? ' home-item--wide' : '' %>">
+              <img src="/host/<%= media.id %>?size=thumb" alt="" loading="lazy">
+              <figcaption class="home-item__bar">
+                <% if (home[group.slot].length > 1) { %>
+                  <form method="post" action="/admin/home/item/<%= media.id %>/move">
+                    <input type="hidden" name="direction" value="up">
+                    <button type="submit" class="button button--tiny" title="<%= t('home.move_up') %>"
+                            <%= index === 0 ? 'disabled' : '' %>>&uarr;</button>
+                  </form>
+                  <form method="post" action="/admin/home/item/<%= media.id %>/move">
+                    <input type="hidden" name="direction" value="down">
+                    <button type="submit" class="button button--tiny" title="<%= t('home.move_down') %>"
+                            <%= index === home[group.slot].length - 1 ? 'disabled' : '' %>>&darr;</button>
+                  </form>
+                <% } %>
+                <form method="post" action="/admin/home/item/<%= media.id %>/delete"
+                      onsubmit="return confirm('<%= t('home.confirm_remove') %>')">
+                  <button type="submit" class="button button--tiny button--danger"><%= t('home.remove') %></button>
+                </form>
+              </figcaption>
+            </figure>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <% if (group.slot === 'cover' || home[group.slot].length < home.limits[group.slot]) { %>
+        <form method="post" action="/admin/home/<%= group.slot %>" enctype="multipart/form-data" class="home-add">
+          <label class="button button--small">
+            <%= group.slot === 'cover' && home.cover.length > 0 ? t('home.replace') : t('home.add') %>
+            <input type="file" name="files" accept="image/*"
+                   <%= group.slot === 'cover' ? '' : 'multiple' %> hidden
+                   onchange="this.form.submit()">
+          </label>
+        </form>
+      <% } %>
+    </div>
+  <% }) %>
+
+  <p><a class="button button--ghost button--small" href="/" target="_blank" rel="noopener"><%= t('home.preview') %></a></p>
+</section>
+
 <%# เพลงคลอในหน้าแกลลอรี่ — ฟอร์มธรรมดา ไม่มี JavaScript
     แขกต้องกดปุ่มเองถึงจะเล่น จึงไม่มีไฟล์เสียงถูกดึงโดยคนที่ไม่ได้อยากฟัง %>
 <% if (galleryMusic.library.length > 0) { %>
