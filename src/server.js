@@ -124,7 +124,10 @@ export async function start() {
 
   const app = createApp();
   const server = app.listen(config.port, config.host, () => {
-    console.log(`${config.event.title} — listening on http://${config.host}:${config.port}`);
+    // พอร์ตที่ผูกได้จริง ไม่ใช่ค่าที่ขอไป — PORT=0 แปลว่า "ขอพอร์ตว่างพอร์ตไหนก็ได้"
+    // แล้วบรรทัดนี้จะพิมพ์ :0 ซึ่งพาไปต่อไม่ได้ (เจอตอนเขียนเทสต์ที่ต้องอ่านพอร์ตจาก log)
+    const bound = server.address()?.port ?? config.port;
+    console.log(`${config.event.title} — listening on http://${config.host}:${bound}`);
     if (config.baseUrl) console.log(`Guests will scan: ${config.baseUrl}`);
   });
 

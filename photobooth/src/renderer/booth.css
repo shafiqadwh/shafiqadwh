@@ -216,6 +216,26 @@ body[data-busy] .chip { opacity: 0.5; pointer-events: none; }
 
 .done__text { margin: 0; font-size: clamp(18px, 2.6vw, 30px); }
 
+/* QR ต้องสแกนติดจากระยะที่คนยืนหน้าบูธ ไม่ใช่ระยะยื่นมือถือไปจ่อจอ
+   พื้นขาวรอบ ๆ เป็นส่วนหนึ่งของมาตรฐาน ไม่ใช่ของตกแต่ง */
+.done__qr {
+  width: min(52vh, 420px);
+  height: auto;
+  padding: 14px;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.done__qr[hidden] { display: none; }
+.done__mark[hidden] { display: none; }
+
+.done__code {
+  margin: 0;
+  font-size: clamp(15px, 2vw, 22px);
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.65);
+}
+
 /* ── ข้อความผิดพลาด ── */
 .error {
   position: fixed;

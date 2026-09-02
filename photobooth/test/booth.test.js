@@ -4,7 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import sharp from 'sharp';
-import { DEFAULTS, loadSettings, normaliseSettings, qrUrlFor, saveSettings } from '../src/main/settings.js';
+import {
+  DEFAULTS, loadSettings, normaliseSettings, photoUrl, saveSettings, sheetQrUrl,
+} from '../src/main/settings.js';
 import {
   discardSession, isToken, listSessions, newToken, readSession, reserveSession, saveSession,
 } from '../src/main/session.js';
@@ -85,11 +87,26 @@ test('a QR is only printed when it can actually lead somewhere', () => {
   // QR ที่สแกนแล้วพาไปหน้าว่าง แย่กว่าไม่มี QR เลย — และตั้ง qrMode ไว้แต่ลืมใส่
   // baseUrl เป็นความผิดพลาดที่เกิดง่ายที่สุดของทั้งหน้าตั้งค่า
   const on = normaliseSettings({ qrMode: 'later', baseUrl: 'https://booth.example.com/' });
-  assert.equal(qrUrlFor(on, 'K7QX2M'), 'https://booth.example.com/p/K7QX2M');
+  assert.equal(sheetQrUrl(on, 'K7QX2M'), 'https://booth.example.com/p/K7QX2M');
 
-  assert.equal(qrUrlFor(normaliseSettings({ qrMode: 'off', baseUrl: 'https://a.bc' }), 'K7QX2M'), null);
-  assert.equal(qrUrlFor(normaliseSettings({ qrMode: 'later', baseUrl: '' }), 'K7QX2M'), null);
-  assert.equal(qrUrlFor(on, null), null);
+  assert.equal(sheetQrUrl(normaliseSettings({ qrMode: 'off', baseUrl: 'https://a.bc' }), 'K7QX2M'), null);
+  assert.equal(sheetQrUrl(normaliseSettings({ qrMode: 'later', baseUrl: '' }), 'K7QX2M'), null);
+  assert.equal(sheetQrUrl(on, null), null);
+});
+
+test('where the photos live is a different question from what to print', () => {
+  /*
+   * เคยเป็นฟังก์ชันเดียวกัน แล้วโหมดจอที่ตั้ง qrMode: 'off' (ซึ่งสมเหตุสมผลมาก
+   * เพราะโหมดจอไม่ได้พิมพ์อะไรเลย) ได้ที่อยู่เป็น null แล้วพังตอนสร้าง QR ขึ้นจอ
+   */
+  const screen = normaliseSettings({
+    deliver: 'screen', qrMode: 'off', baseUrl: 'https://a.bc', uploadKey: 'k'.repeat(20),
+  });
+  assert.equal(sheetQrUrl(screen, 'K7QX2M'), null, 'ไม่พิมพ์ QR ลงแผ่น');
+  assert.equal(photoUrl(screen, 'K7QX2M'), 'https://a.bc/p/K7QX2M', 'แต่รูปยังอยู่ที่เดิม');
+
+  assert.equal(photoUrl(normaliseSettings({}), 'K7QX2M'), null, 'ไม่มี baseUrl ก็ไม่มีที่อยู่');
+  assert.equal(photoUrl(screen, null), null);
 });
 
 // ── รอบถ่าย ────────────────────────────────────────────────────────────────

@@ -39,15 +39,18 @@
       <img class="sheet" id="sheet" alt="แผ่นที่ประกอบแล้ว">
       <div class="row">
         <button class="big big--ghost" id="again" type="button">ถ่ายใหม่</button>
-        <button class="big" id="print" type="button">พิมพ์</button>
+        <button class="big" id="deliver" type="button">พิมพ์</button>
       </div>
       <p class="token" id="token"></p>
     </section>
 
     <!-- 4. เสร็จแล้ว -->
     <section class="stage stage--done" data-stage-panel="done">
-      <p class="done__mark" aria-hidden="true">✓</p>
+      <!-- QR ใหญ่พอสแกนจากระยะยืนหน้าบูธ · ไม่มี QR ก็ขึ้นเครื่องหมายถูกแทน -->
+      <img class="done__qr" id="done-qr" alt="" hidden>
+      <p class="done__mark" id="done-mark" aria-hidden="true">✓</p>
       <p class="done__text" id="done-text"></p>
+      <p class="done__code" id="done-code"></p>
       <button class="big" id="restart" type="button">ถ่ายอีกครั้ง</button>
     </section>
 

@@ -159,12 +159,36 @@ async function shoot() {
   stage('review');
 }
 
-async function print() {
-  const result = await guard(() => window.booth.print({ token: state.token }));
+/** ป้ายบนปุ่มหลัก และข้อความตอนเสร็จ — ผูกกับโหมดส่งมอบที่ตั้งไว้ */
+const DELIVERY = {
+  print: { button: 'พิมพ์', done: 'พิมพ์ให้แล้ว รอรับได้เลย' },
+  screen: { button: 'รับรูป', done: 'สแกนเพื่อรับรูปของคุณ' },
+  both: { button: 'พิมพ์และรับรูป', done: 'พิมพ์ให้แล้ว · สแกนเพื่อรับไฟล์ด้วย' },
+};
+
+async function deliver() {
+  const result = await guard(() => window.booth.deliver({ token: state.token }));
   if (!result) return;
-  el('done-text').textContent = result.driver === 'cups'
-    ? 'ส่งไปเครื่องพิมพ์แล้ว รอสักครู่'
-    : 'บันทึกแผ่นไว้ในโฟลเดอร์ขาออกแล้ว';
+
+  const mode = DELIVERY[state.setup.settings.deliver] ?? DELIVERY.print;
+  const qr = el('done-qr');
+
+  if (result.qr) {
+    qr.src = result.qr;
+    qr.hidden = false;
+    el('done-mark').hidden = true;
+    el('done-code').textContent = `รหัส ${result.token}`;
+  } else {
+    qr.hidden = true;
+    el('done-mark').hidden = false;
+    el('done-code').textContent = '';
+  }
+
+  // ส่งขึ้นเว็บไม่สำเร็จก็ยังให้ QR ไป — ลิงก์ถูกต้องตั้งแต่แรก รูปตามไปทีหลัง
+  el('done-text').textContent = result.qr && !result.published
+    ? 'สแกนเก็บลิงก์ไว้ก่อน — รูปจะขึ้นระบบให้ภายหลัง'
+    : mode.done;
+
   stage('done');
 }
 
@@ -180,6 +204,10 @@ async function reset({ discard = false } = {}) {
   state.token = null;
   el('sheet').removeAttribute('src');
   el('token').textContent = '';
+  // QR ของคนก่อนค้างอยู่ = คนถัดไปสแกนแล้วได้รูปของคนอื่น
+  el('done-qr').removeAttribute('src');
+  el('done-qr').hidden = true;
+  el('done-code').textContent = '';
   stage('ready');
 
   // ลบทีหลังหน้าจอเปลี่ยนแล้ว — แขกไม่ต้องยืนรอการลบไฟล์
@@ -230,6 +258,7 @@ async function boot() {
   el('event-title').textContent = settings.eventTitle;
   el('event-subtitle').textContent = settings.eventSubtitle;
   el('shot-count').textContent = shots > 1 ? `${shots} รูป` : '';
+  el('deliver').textContent = (DELIVERY[settings.deliver] ?? DELIVERY.print).button;
   paintEffects(effects);
 
   for (const [name, value] of Object.entries(theme.colours)) {
@@ -237,7 +266,7 @@ async function boot() {
   }
 
   el('start').addEventListener('click', () => shoot());
-  el('print').addEventListener('click', () => print());
+  el('deliver').addEventListener('click', () => deliver());
   el('again').addEventListener('click', () => reset({ discard: true }));
   el('restart').addEventListener('click', () => reset());
 

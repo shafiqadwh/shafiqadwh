@@ -2,13 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, app, ipcMain } from 'electron';
+import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { themeById } from '../../../shared/themes.js';
 import { composeSheet } from '../core/sheet.js';
 import { listEffects } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
-import { loadSettings, qrUrlFor, saveSettings } from './settings.js';
+import { canPublish, loadSettings, photoUrl, saveSettings, sheetQrUrl } from './settings.js';
 import { discardSession, isToken, reserveSession, saveSession } from './session.js';
+import { uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
 
 /**
@@ -92,7 +94,7 @@ ipcMain.handle('booth:compose', async (event, { shots, effect }) => {
 
   // จองโทเคนก่อนประกอบ — QR ต้องมีโทเคนอยู่ข้างในตั้งแต่แรก จะได้ประกอบรอบเดียว
   const { token } = await reserveSession(sessionsDir());
-  const qrUrl = qrUrlFor(settings, token);
+  const qrUrl = sheetQrUrl(settings, token);
 
   const sheet = await composeSheet({
     photos,
@@ -128,27 +130,47 @@ ipcMain.handle('booth:discard', async (event, { token }) => {
   return { ok: true };
 });
 
-ipcMain.handle('booth:print', async (event, { token }) => {
-  // โทเคนมาจากฝั่งหน้าจอ แล้วถูกเอาไปต่อเป็นพาธ · ถึงหน้าจอจะเป็นโค้ดของเราเอง
-  // ก็ไม่ใช่เหตุผลให้เชื่อค่าที่ข้ามขอบเขตกระบวนการมา — ตรวจรูปแบบก่อนเสมอ
+/**
+ * ส่งมอบรูปให้แขก — พิมพ์ ขึ้น QR บนจอ หรือทั้งสองอย่าง ตามที่ตั้งไว้
+ *
+ * รวมเป็นเส้นเดียวเพราะหน้าจอไม่ควรต้องรู้กติกาว่าโหมดไหนทำอะไรบ้าง · มันรู้แค่
+ * "แขกกดปุ่มแล้ว" ส่วนที่เหลือเป็นเรื่องของค่าตั้ง
+ *
+ * โหมด screen ส่งรูปขึ้นเว็บ **ตอนนั้นเลย** ไม่ใช่ทีหลังแบบโหมดพิมพ์ เพราะแขก
+ * ยืนสแกนอยู่ตรงหน้า · ส่งไม่สำเร็จก็ยังขึ้น QR ให้ พร้อมบอกว่ารูปจะมาทีหลัง —
+ * หน้า /p/<รหัส> อธิบายให้เองอยู่แล้ว และลิงก์นั้นถูกต้องตั้งแต่แรก
+ */
+ipcMain.handle('booth:deliver', async (event, { token }) => {
   if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   const settings = await loadSettings(dataRoot());
   const dir = path.join(sessionsDir(), token);
-  const prepared = await preparePrintFile({
-    dir,
-    sheetPath: path.join(dir, 'sheet.jpg'),
-    settings,
-  });
+  const out = { token, printed: false, qr: null, url: null, published: false };
 
-  const result = await printSheet({
-    sheetPath: prepared.path,
-    settings,
-    token,
-    outbox: outboxDir(),
-    copies: prepared.pages,
-  });
+  if (settings.deliver !== 'screen') {
+    const prepared = await preparePrintFile({
+      dir, sheetPath: path.join(dir, 'sheet.jpg'), settings,
+    });
+    await printSheet({
+      sheetPath: prepared.path, settings, token, outbox: outboxDir(), copies: prepared.pages,
+    });
+    out.printed = true;
+  }
 
-  return { ...result, page: settings.printPage, perPage: prepared.perPage };
+  if (settings.deliver !== 'print' && canPublish(settings)) {
+    out.url = photoUrl(settings, token);
+    try {
+      await uploadSession(sessionsDir(), token, {
+        baseUrl: settings.baseUrl, key: settings.uploadKey,
+      });
+      out.published = true;
+    } catch (error) {
+      // เน็ตล่มกลางงานไม่ใช่เหตุให้แขกกลับมือเปล่า — QR ยังถูกต้อง รูปตามไปทีหลัง
+      console.warn('[booth] ส่งรูปขึ้นเว็บไม่สำเร็จ ณ ตอนนี้:', error.message);
+    }
+    out.qr = await QRCode.toDataURL(out.url, { width: 720, margin: 1 });
+  }
+
+  return out;
 });
 
 app.whenReady().then(createWindow);

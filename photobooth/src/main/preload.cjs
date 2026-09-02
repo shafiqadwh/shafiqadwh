@@ -10,5 +10,5 @@ contextBridge.exposeInMainWorld('booth', {
   setup: () => ipcRenderer.invoke('booth:setup'),
   compose: (payload) => ipcRenderer.invoke('booth:compose', payload),
   discard: (payload) => ipcRenderer.invoke('booth:discard', payload),
-  print: (payload) => ipcRenderer.invoke('booth:print', payload),
+  deliver: (payload) => ipcRenderer.invoke('booth:deliver', payload),
 });

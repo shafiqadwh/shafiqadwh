@@ -127,7 +127,7 @@ test('the booth opens and reaches the ready screen', async (t) => {
   // และต้องไม่ยื่นอะไรเกินกว่าสามอย่างที่ตั้งใจ
   assert.deepEqual(
     (await page.evaluate(() => Object.keys(window.booth))).sort(),
-    ['compose', 'discard', 'print', 'setup'],
+    ['compose', 'deliver', 'discard', 'setup'],
   );
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined',
     'หน้าจอต้องไม่มีทางเรียกโมดูลของ Node ได้เอง');
@@ -189,10 +189,10 @@ test('the sheet and the originals really landed on disk', async (t) => {
   assert.equal(meta.height, 1800);
 });
 
-test('printing puts a file in the outbox and shows the done screen', async (t) => {
+test('delivering puts a file in the outbox and shows the done screen', async (t) => {
   if (skipIfNoElectron(t)) return;
 
-  await page.locator('#print').click();
+  await page.locator('#deliver').click();
   await page.waitForSelector('body[data-stage="done"]', { timeout: 20000 });
 
   const outbox = path.join(userData, 'booth', 'outbox');

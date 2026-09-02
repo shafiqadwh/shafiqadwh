@@ -29,9 +29,23 @@ export const DEFAULTS = Object.freeze({
   effects: ['clean', 'soft', 'film'],
   countdownSeconds: 3,
   copies: 1,
+  /*
+   * แขกได้รูปกลับไปทางไหน — คนละเรื่องกับ `qrMode` ที่คุม QR *บนกระดาษ*
+   *
+   * print  = พิมพ์อย่างเดียว (ต้องมีเครื่องพิมพ์)
+   * screen = ขึ้น QR บนจอให้สแกนรับไฟล์ทันที **ไม่ต้องมีเครื่องพิมพ์เลย**
+   * both   = ทั้งสองอย่าง
+   *
+   * โหมด screen ต้องส่งรูปขึ้นเว็บทันทีตอนนั้น จึงต้องมี baseUrl กับ uploadKey
+   * ครบ — ขาดอย่างใดอย่างหนึ่งจะถูกบีบกลับเป็น print ให้เอง ไม่ใช่ปล่อยให้ไปเจอ
+   * จอที่ขึ้น QR ที่สแกนแล้วไม่มีอะไร
+   */
+  deliver: 'print',
   // off = ไม่มี QR เลย · later = ชี้ไปที่ลิงก์ที่จะมีของหลังงาน · live = บูธอยู่บนเน็ตแล้ว
   qrMode: 'later',
   baseUrl: '',
+  // กุญแจเดียวกับ BOOTH_KEY ฝั่งเว็บ · เดินทางเป็น HTTP header จึงต้องเป็น ASCII
+  uploadKey: '',
   printer: { driver: 'file', name: '' },
 });
 
@@ -73,6 +87,15 @@ function effects(value) {
   return picked.length > 0 ? picked.slice(0, MAX_EFFECTS_AT_EVENT) : [...DEFAULTS.effects];
 }
 
+// กุญแจเดินทางเป็น HTTP header ซึ่งรับได้แค่ ASCII พิมพ์ได้ · ตั้งเป็นภาษาไทยแล้ว
+// `fetch` จะโยน error ตั้งแต่ยังไม่ได้ส่ง โดยไม่มีอะไรชี้ว่าเป็นเพราะกุญแจ
+const usableKey = (value) =>
+  typeof value === 'string' && value.length >= 16 && /^[\x20-\x7e]+$/.test(value);
+
+/** ส่งรูปขึ้นเว็บได้จริงไหม — โหมด screen ทั้งหมดขึ้นอยู่กับข้อนี้ */
+export const canPublish = (settings) =>
+  Boolean(settings.baseUrl) && usableKey(settings.uploadKey);
+
 function printer(value) {
   const given = value && typeof value === 'object' ? value : {};
   return {
@@ -84,7 +107,7 @@ function printer(value) {
 /** ทุกค่าถูกบีบให้อยู่ในช่วงที่ใช้ได้เสมอ — ผลลัพธ์ของฟังก์ชันนี้เชื่อถือได้ทั้งก้อน */
 export function normaliseSettings(raw) {
   const given = raw && typeof raw === 'object' ? raw : {};
-  return {
+  const settings = {
     lang: oneOf(given.lang, ['th', 'ms', 'en', 'ar'], DEFAULTS.lang),
     eventTitle: text(given.eventTitle, 42),
     eventSubtitle: text(given.eventSubtitle, 54),
@@ -99,19 +122,40 @@ export function normaliseSettings(raw) {
     copies: clampInt(given.copies, 1, 4, DEFAULTS.copies),
     qrMode: oneOf(given.qrMode, ['off', 'later', 'live'], DEFAULTS.qrMode),
     baseUrl: baseUrl(given.baseUrl),
+    uploadKey: usableKey(given.uploadKey) ? given.uploadKey : '',
     printer: printer(given.printer),
   };
+
+  // บีบ deliver ให้ตรงกับความจริง — ขอ screen ไว้แต่ส่งขึ้นเว็บไม่ได้ คือจอที่
+  // ขึ้น QR ที่สแกนแล้วไม่มีอะไร ซึ่งแย่กว่าไม่มีโหมดนั้นเลย
+  const wanted = oneOf(given.deliver, ['print', 'screen', 'both'], DEFAULTS.deliver);
+  settings.deliver = wanted === 'print' || canPublish(settings) ? wanted : 'print';
+  return settings;
 }
 
 /**
- * QR จะชี้ไปที่ไหน — คืน null ถ้าไม่ควรมี QR บนแผ่นนี้
+ * ที่อยู่ของรูปชุดนี้บนเว็บ — คำถาม "รูปอยู่ที่ไหน" ล้วน ๆ
  *
- * ตั้ง qrMode ไว้แต่ลืมใส่ baseUrl เป็นความผิดพลาดที่เกิดง่ายมาก และผลของมัน
- * คือ QR ที่สแกนแล้วพาไปหน้าว่าง ซึ่งแย่กว่าไม่มี QR เลย — ไม่มีดีกว่ามีแล้วพัง
+ * ขึ้นกับ baseUrl อย่างเดียว ไม่เกี่ยวกับ qrMode เลย · โหมดจอใช้ตัวนี้ เพราะ QR
+ * บนจอ **คือตัวส่งมอบ** ไม่ใช่ของแถมที่ปิดได้
  */
-export function qrUrlFor(settings, token) {
-  if (settings.qrMode === 'off' || !settings.baseUrl || !token) return null;
+export function photoUrl(settings, token) {
+  if (!settings.baseUrl || !token) return null;
   return `${settings.baseUrl}/p/${token}`;
+}
+
+/**
+ * QR ที่จะ *พิมพ์ลงบนแผ่น* — คนละคำถามกับข้างบน จึงคนละฟังก์ชัน
+ *
+ * เดิมเป็นฟังก์ชันเดียวกัน แล้วโหมดจอที่ตั้ง `qrMode: 'off'` ไว้ (ซึ่งสมเหตุสมผล
+ * มาก เพราะโหมดจอไม่ได้พิมพ์อะไร) ได้ที่อยู่เป็น null แล้วพังตอนสร้าง QR ขึ้นจอ
+ * — คำถามสองข้อที่ต่างกันไม่ควรใช้ทางเดียวกัน
+ *
+ * และตั้ง qrMode ไว้แต่ลืมใส่ baseUrl ยังคงแปลว่าไม่มี QR บนกระดาษ:
+ * QR ที่สแกนแล้วพาไปหน้าว่าง แย่กว่าไม่มี QR เลย
+ */
+export function sheetQrUrl(settings, token) {
+  return settings.qrMode === 'off' ? null : photoUrl(settings, token);
 }
 
 const FILE = 'settings.json';
