@@ -15,8 +15,6 @@ const run = promisify(execFile);
 // งานที่แขกยืนรออยู่ — อ่านข้อมูลวิดีโอกับดึงภาพปก
 const mediaGate = createGate(config.media.concurrency);
 
-export const mediaQueueDepth = () => mediaGate.depth;
-
 /**
  * ffmpeg comes from one of three places, in order of preference:
  *   1. FFMPEG_PATH / FFPROBE_PATH — what the Docker image sets (system ffmpeg)
@@ -44,10 +42,6 @@ const HEIF_BRANDS = new Set(['heic', 'heix', 'hevc', 'heim', 'heis', 'hevm', 'he
 const MP4_BRANDS = new Set(['isom', 'iso2', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42', 'avc1', 'dash', 'msnv', 'm4v ']);
 const MOV_BRANDS = new Set(['qt  ']);
 
-/**
- * Identify a file from its leading bytes. Extensions are attacker-controlled,
- * so nothing downstream is allowed to trust them.
- */
 /**
  * ตัวเข้ารหัสที่ "ใช้ได้จริงตอนนี้" ไม่ใช่ที่เขียนไว้ใน .env
  *
@@ -123,6 +117,10 @@ export function activeEncoder() {
   return encoderPromise;
 }
 
+/**
+ * Identify a file from its leading bytes. Extensions are attacker-controlled,
+ * so nothing downstream is allowed to trust them.
+ */
 export function sniffType(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 12) return null;
 

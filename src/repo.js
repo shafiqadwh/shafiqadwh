@@ -348,5 +348,3 @@ export function moveHostMedia(id, direction) {
   return true;
 }
 
-/** ไบต์ที่รูปเจ้าภาพกินบนดิสก์ — ต้องบวกเข้าสถิติ ไม่งั้นพื้นที่ใช้ไปต่ำกว่าจริง */
-export const hostMediaBytes = () => statements.hostBytes.get().bytes;

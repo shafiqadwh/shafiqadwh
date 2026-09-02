@@ -122,8 +122,3 @@ export function groupGuests({ items = [], messages = [] } = {}) {
   });
 }
 
-/** ชื่อที่แสดงของแถวเดี่ยว ๆ — กลุ่มไม่ระบุชื่อใช้คำเดิมที่หน้าเว็บใช้อยู่แล้ว */
-export function displayNameFor(name, t) {
-  const text = String(name ?? '').normalize('NFC').trim().replace(/\s+/g, ' ');
-  return text || t('gallery.anonymous');
-}
