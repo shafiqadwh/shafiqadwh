@@ -143,6 +143,77 @@ test('a slot that is full says so instead of dropping images quietly', async () 
     'ต้องบอกว่าเต็ม ไม่ใช่ตัดทิ้งเงียบ ๆ');
 });
 
+/*
+ * ─── ไฟล์ที่ไม่ใช่รูป ────────────────────────────────────────────────────────
+ *
+ * การ์ดเชิญที่ลูกค้าส่งมาให้เจ้าภาพมักเป็น PDF · เดิมเส้นทางนี้ทิ้งไฟล์ที่ไม่ใช่รูป
+ * **เงียบสนิท** ไม่มีข้อความ ไม่มีแถวเพิ่ม เจ้าภาพเห็นแค่ช่องว่างเปล่าโดยไม่รู้สาเหตุ
+ * — ต่างจากเส้นทางของแขกที่บอกชื่อไฟล์และเหตุผลกลับไปตั้งแต่แรก
+ */
+async function postHost(slot, parts) {
+  const form = new FormData();
+  for (const [name, bytes] of parts) form.append('files', new Blob([bytes]), name);
+  return fetch(`${app.baseUrl}/admin/home/${slot}`, {
+    method: 'POST', headers: { cookie }, body: form, redirect: 'manual',
+  });
+}
+
+const PDF = Buffer.from('%PDF-1.7\n%\xE2\xE3\xCF\xD3\n1 0 obj<<>>endobj\n', 'latin1');
+
+async function jpegBytes() {
+  counter += 1;
+  return fs.readFile(await makeJpeg(path.join(dataDir, `bytes-${counter}.jpg`), { width: 600, height: 400 }));
+}
+
+test('a file that is not an image is refused out loud, not dropped in silence', async () => {
+  const before = listHostMedia('invitation').length;
+  const response = await postHost('invitation', [['card.pdf', PDF]]);
+
+  assert.match(response.headers.get('location') ?? '', /home=badtype/,
+    'ต้องบอกว่ารับเฉพาะไฟล์รูป');
+  assert.equal(listHostMedia('invitation').length, before, 'ต้องไม่มีแถวเพิ่ม');
+});
+
+test('one bad file in a batch does not hide itself behind the good ones', async () => {
+  // เจ้าภาพเลือกสองไฟล์ รูปหนึ่ง PDF หนึ่ง · เดิมรูปเข้าเงียบ ๆ แล้ว redirect ไป
+  // /admin เฉย ๆ เจ้าภาพจึงเชื่อว่าเข้าไปทั้งคู่
+  const slot = 'photo';
+  const before = listHostMedia(slot).length;
+  const response = await postHost(slot, [['ok.jpg', await jpegBytes()], ['card.pdf', PDF]]);
+
+  assert.equal(listHostMedia(slot).length, before + 1, 'รูปที่ใช้ได้ต้องเข้าไปตามปกติ');
+  assert.match(response.headers.get('location') ?? '', /home=badtype/,
+    'และต้องบอกด้วยว่ามีไฟล์ที่เข้าไม่ได้');
+});
+
+test('too many files is not reported as a file being too big', async () => {
+  // ภาพปกรับใบเดียว · เลือกมาสามใบเดิมได้ข้อความ "ไฟล์ใหญ่เกินไป" ซึ่งพาให้เจ้าภาพ
+  // ไปย่อรูปแล้วลองใหม่ไปเรื่อย ๆ ทั้งที่ขนาดไฟล์ไม่ใช่ปัญหาเลย
+  const bytes = await jpegBytes();
+  const response = await postHost('cover', [['a.jpg', bytes], ['b.jpg', bytes], ['c.jpg', bytes]]);
+
+  const location = response.headers.get('location') ?? '';
+  assert.match(location, /home=toomany/);
+  assert.ok(!location.includes('toobig'), 'ห้ามบอกว่าไฟล์ใหญ่เกินไป');
+});
+
+test('a cover survives an upload that turns out to be unusable', async () => {
+  // ข้อที่ร้ายแรงที่สุดของแผงนี้: เดิมลบภาพปกเดิมทิ้ง *ก่อน* ตรวจไฟล์ใหม่
+  // อัพ PDF ทับหนึ่งครั้ง = ภาพปกหายถาวร (รูปเจ้าภาพไม่มีถังขยะให้กู้) และไม่มีข้อความบอก
+  await postHost('cover', [['good.jpg', await jpegBytes()]]);
+  const before = listHostMedia('cover')[0];
+  assert.ok(before, 'ต้องมีภาพปกอยู่ก่อนถึงจะทดสอบข้อนี้ได้');
+  const beforePath = path.join(dataDir, 'uploads', before.stored_name);
+
+  const response = await postHost('cover', [['card.pdf', PDF]]);
+
+  const after_ = listHostMedia('cover');
+  assert.equal(after_.length, 1, 'ภาพปกเดิมต้องยังอยู่');
+  assert.equal(after_[0].id, before.id, 'และต้องเป็นใบเดิม ไม่ใช่ใบที่ถูกสร้างใหม่');
+  await fs.access(beforePath); // ไฟล์บนดิสก์ต้องไม่ถูกลบไปด้วย
+  assert.match(response.headers.get('location') ?? '', /home=badtype/);
+});
+
 test('uploading a new cover replaces the old one, files and all', async () => {
   const before = listHostMedia('cover')[0];
   const beforePath = path.join(dataDir, 'uploads', before.stored_name);

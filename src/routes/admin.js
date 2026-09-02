@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import express from 'express';
@@ -32,7 +31,9 @@ import {
   softDeleteItems,
   stats,
 } from '../repo.js';
-import { formatBytes, processHostImage, randomName, removeHostFiles, sniffType } from '../lib/media.js';
+import {
+  formatBytes, processHostImage, randomName, readMagic, removeHostFiles, sniffType,
+} from '../lib/media.js';
 import { deleteFilm, filmPath, jobStatus, startJob } from '../lib/film-job.js';
 import { deleteTrack, listLibrary, resolveTracks, totalSeconds, trackPath } from '../lib/music.js';
 import { buildTimeline, dedupe, planLength } from '../lib/film-plan.js';
@@ -339,25 +340,62 @@ const homeUpload = multer({
  */
 adminRouter.post('/admin/home/:slot', requireAdmin, (req, res) => {
   const slot = String(req.params.slot);
-  if (!Object.hasOwn(HOST_SLOTS, slot)) return res.status(404).redirect('/admin');
+  if (!Object.hasOwn(HOST_SLOTS, slot)) return res.redirect('/admin');
 
   homeUpload.array('files', HOST_SLOTS[slot])(req, res, (uploadError) => {
     void ingestHomeMedia(req, res, slot, uploadError).catch(async (error) => {
       console.error('[home] อัพรูปหน้าแรกล้ม:', error);
-      await Promise.all((req.files ?? []).map((file) => fs.rm(file.path, { force: true })));
+      await discard(req.files);
       if (!res.headersSent) res.redirect('/admin?home=error');
     });
   });
 });
 
+const discard = (files) =>
+  Promise.all((files ?? []).map((file) => fs.rm(file.path, { force: true })));
+
+/** multer บอกได้ว่าล้มเพราะอะไร — แปลเป็นข้อความที่ตรงกับสาเหตุ ไม่ใช่ "ไฟล์ใหญ่ไป" เสมอ */
+function multerOutcome(error) {
+  if (error.code === 'LIMIT_FILE_SIZE') return 'toobig';
+  // ส่งไฟล์เกินจำนวนที่ช่องนั้นรับได้ — ภาพปกรับใบเดียว เลือกมาสามใบจะมาทางนี้
+  if (['LIMIT_FILE_COUNT', 'LIMIT_UNEXPECTED_FILE'].includes(error.code)) return 'toomany';
+  return 'error';
+}
+
 async function ingestHomeMedia(req, res, slot, uploadError) {
   const files = req.files ?? [];
+  const done = (outcome) => res.redirect(outcome ? `/admin?home=${outcome}` : '/admin');
+
   if (uploadError || files.length === 0) {
-    await Promise.all(files.map((file) => fs.rm(file.path, { force: true })));
-    return res.redirect(`/admin?home=${uploadError ? 'toobig' : 'empty'}`);
+    await discard(files);
+    return done(uploadError ? multerOutcome(uploadError) : 'empty');
   }
 
-  // ภาพปกมีได้ใบเดียว — อัพใหม่คือแทนที่ ต้องลบไฟล์เก่าทิ้งด้วย ไม่ใช่แค่ลบแถว
+  /*
+   * ตรวจไฟล์ให้ครบ *ก่อน* แตะของเดิม
+   *
+   * ภาพปกอัพใหม่คือแทนที่ของเก่า · เดิมโค้ดลบใบเก่าทิ้งก่อนแล้วค่อยตรวจใบใหม่
+   * เจ้าภาพที่เผลออัพไฟล์ PDF ทับจึงเสียภาพปกไปเลยโดยไม่มีอะไรมาแทน และไม่มี
+   * ข้อความบอกด้วย (ทดสอบยืนยันแล้ว) — รูปเจ้าภาพไม่มีถังขยะ กู้คืนไม่ได้
+   */
+  // ภาพปกมีได้ใบเดียวและใบใหม่ทับใบเก่า ที่ว่างจึงเป็น 1 เสมอ ไม่ใช่ 1 ลบของที่มีอยู่
+  const room = slot === 'cover' ? HOST_SLOTS.cover : HOST_SLOTS[slot] - countHostMedia(slot);
+  const keep = [];
+  let rejected = 0;
+
+  for (const file of files) {
+    // ชนิดไฟล์ตัดสินจากไบต์จริง ไม่ใช่จากนามสกุลที่เบราว์เซอร์ส่งมา (เหมือนเส้นทางของแขก)
+    const sniffed = sniffType(await readMagic(file.path));
+    const usable = sniffed?.kind === 'image';
+    if (!usable) rejected += 1;
+
+    if (usable && keep.length < room) keep.push({ file, sniffed });
+    else await fs.rm(file.path, { force: true }); // ใช้ไม่ได้ หรือเกินโควตาช่อง
+  }
+
+  // ไม่มีไฟล์ที่ใช้ได้เลย = ไม่ต้องแตะของเดิม บอกสาเหตุแล้วจบ
+  if (keep.length === 0) return done(rejected > 0 ? 'badtype' : 'full');
+
   if (slot === 'cover') {
     for (const old of listHostMedia('cover')) {
       await removeHostFiles(old);
@@ -365,37 +403,13 @@ async function ingestHomeMedia(req, res, slot, uploadError) {
     }
   }
 
-  let room = HOST_SLOTS[slot] - countHostMedia(slot);
-  let full = false;
-
-  for (const file of files) {
-    if (room <= 0) {
-      full = true;
-      await fs.rm(file.path, { force: true });
-      continue;
-    }
-
-    const handle = await fsSync.promises.open(file.path, 'r');
-    let magic;
-    try {
-      const buffer = Buffer.alloc(32);
-      const { bytesRead } = await handle.read(buffer, 0, 32, 0);
-      magic = buffer.subarray(0, bytesRead);
-    } finally {
-      await handle.close();
-    }
-
-    const sniffed = sniffType(magic);
-    if (!sniffed || sniffed.kind !== 'image') {
-      await fs.rm(file.path, { force: true });
-      continue;
-    }
-
+  for (const { file, sniffed } of keep) {
     insertHostMedia({ slot, ...(await processHostImage(file.path, sniffed)) });
-    room -= 1;
   }
 
-  return res.redirect(full ? '/admin?home=full' : '/admin');
+  // ของที่เข้าไม่ได้เพราะชนิดไฟล์เป็นเรื่องน่าแปลกใจกว่าโควตาเต็ม จึงบอกอันนั้นก่อน
+  if (rejected > 0) return done('badtype');
+  return done(keep.length < files.length ? 'full' : null);
 }
 
 adminRouter.post('/admin/home/item/:id/delete', requireAdmin, wrap(async (req, res) => {

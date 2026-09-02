@@ -88,7 +88,9 @@
     "preview": "Buka halaman hadapan sebenar",
     "full": "Ruang ini sudah penuh. Gambar berlebihan tidak ditambah.",
     "failed": "Gagal menambah gambar. Sila cuba lagi.",
-    "too_big": "Fail itu lebih besar daripada yang boleh diterima"
+    "too_big": "Fail itu lebih besar daripada yang boleh diterima",
+    "bad_type": "Hanya fail gambar diterima (JPG, PNG, WEBP, HEIC) — fail lain tidak ditambah",
+    "too_many": "Fail yang dipilih melebihi muatan ruang ini. Tiada apa-apa ditambah lagi."
   },
   "guestbook": {
     "heading": "Buku ucapan",

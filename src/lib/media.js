@@ -149,6 +149,23 @@ export function sniffType(buffer) {
   return null;
 }
 
+/**
+ * ไบต์ต้นไฟล์ที่ `sniffType()` ใช้ตัดสินชนิด — อ่านจากไฟล์จริง ไม่ใช่เชื่อนามสกุล
+ *
+ * อยู่คู่กับ `sniffType()` เพราะทั้งสองเส้นทางที่รับไฟล์ (ของแขก กับของเจ้าภาพ)
+ * ต้องตัดสินชนิดด้วยวิธีเดียวกันเป๊ะ — เขียนแยกกันเมื่อไรก็เพี้ยนจากกันเมื่อนั้น
+ */
+export async function readMagic(filePath) {
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(32);
+    const { bytesRead } = await handle.read(buffer, 0, 32, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 export function randomName(ext) {
   const stamp = new Date().toISOString().slice(0, 10).replaceAll('-', '');
   return `${stamp}-${crypto.randomBytes(8).toString('hex')}.${ext}`;

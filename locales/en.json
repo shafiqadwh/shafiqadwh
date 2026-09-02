@@ -88,7 +88,9 @@
     "preview": "Open the real front page",
     "full": "This slot is full. The extra images were not added.",
     "failed": "Could not add the image. Please try again.",
-    "too_big": "That file is larger than we can take"
+    "too_big": "That file is larger than we can take",
+    "bad_type": "Only image files are accepted (JPG, PNG, WEBP, HEIC) — the rest were not added",
+    "too_many": "That is more files than this slot holds. Nothing was added yet."
   },
   "guestbook": {
     "heading": "Guest book",

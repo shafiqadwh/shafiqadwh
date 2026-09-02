@@ -67,12 +67,20 @@
   <h2 class="section-title"><%= t('home.panel') %></h2>
   <p class="section-hint"><%= t('home.panel_hint') %></p>
 
-  <% if (locals.query && query.home === 'full') { %>
-    <p class="notice notice--error"><%= t('home.full') %></p>
-  <% } else if (locals.query && (query.home === 'error' || query.home === 'empty')) { %>
-    <p class="notice notice--error"><%= t('home.failed') %></p>
-  <% } else if (locals.query && query.home === 'toobig') { %>
-    <p class="notice notice--error"><%= t('home.too_big') %></p>
+  <%
+    // ?home= บอกว่าการอัพครั้งก่อนจบลงอย่างไร · ค่าที่ไม่รู้จัก (หรือคนพิมพ์เอง
+    // ใน URL) ไม่ขึ้นอะไรเลย แทนที่จะขึ้นข้อความผิด ๆ
+    const homeNotice = {
+      full: 'home.full',
+      error: 'home.failed',
+      empty: 'home.failed',
+      toobig: 'home.too_big',
+      badtype: 'home.bad_type',
+      toomany: 'home.too_many',
+    }[locals.query?.home];
+  %>
+  <% if (homeNotice) { %>
+    <p class="notice notice--error"><%= t(homeNotice) %></p>
   <% } %>
 
   <% [

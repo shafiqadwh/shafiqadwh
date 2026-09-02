@@ -1,10 +1,12 @@
-import fs, { open } from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import express from 'express';
 import multer from 'multer';
 import { config } from '../config.js';
 import { getFlag } from '../db.js';
 import { insertItem, stats } from '../repo.js';
-import { processImage, processVideo, randomName, safeOriginalName, sniffType } from '../lib/media.js';
+import {
+  processImage, processVideo, randomName, readMagic, safeOriginalName, sniffType,
+} from '../lib/media.js';
 import { enqueueConversion } from '../lib/queue.js';
 import { createLimiter } from '../lib/ratelimit.js';
 import { byDevice, byIp } from '../lib/device.js';
@@ -43,17 +45,6 @@ const uploadCeiling = createLimiter({
   windowMs: 60 * 60 * 1000,
   key: byIp,
 });
-
-async function readMagic(filePath) {
-  const handle = await open(filePath, 'r');
-  try {
-    const buffer = Buffer.alloc(32);
-    const { bytesRead } = await handle.read(buffer, 0, 32, 0);
-    return buffer.subarray(0, bytesRead);
-  } finally {
-    await handle.close();
-  }
-}
 
 function storageExceeded() {
   if (config.limits.totalStorageGb <= 0) return false;
@@ -142,37 +133,35 @@ uploadRouter.post('/api/upload', uploadCeiling, uploadLimiter, (req, res) => {
 });
 
 async function ingestBatch(req, res, uploadError) {
-  {
-    if (uploadError) {
-      const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';
-      return res.status(tooLarge ? 413 : 400).json({
-        error: req.t(tooLarge ? 'errors.too_large_request' : 'errors.server_error'),
-      });
-    }
-
-    const files = req.files ?? [];
-    if (files.length === 0) {
-      return res.status(400).json({ error: req.t('errors.no_files') });
-    }
-
-    const uploader = cleanName(req.body?.uploader);
-    const status = getFlag('require_review', false) ? 'pending' : 'visible';
-    const created = [];
-    const errors = [];
-
-    for (const file of files) {
-      const result = await ingestFile(file, { uploader, t: req.t, status });
-      if (result.error) errors.push(result.error);
-      else created.push(result.row.id);
-    }
-
-    res.status(created.length > 0 ? 201 : 400).json({
-      created: created.length,
-      ids: created,
-      pending: status === 'pending',
-      errors,
+  if (uploadError) {
+    const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({
+      error: req.t(tooLarge ? 'errors.too_large_request' : 'errors.server_error'),
     });
   }
+
+  const files = req.files ?? [];
+  if (files.length === 0) {
+    return res.status(400).json({ error: req.t('errors.no_files') });
+  }
+
+  const uploader = cleanName(req.body?.uploader);
+  const status = getFlag('require_review', false) ? 'pending' : 'visible';
+  const created = [];
+  const errors = [];
+
+  for (const file of files) {
+    const result = await ingestFile(file, { uploader, t: req.t, status });
+    if (result.error) errors.push(result.error);
+    else created.push(result.row.id);
+  }
+
+  return res.status(created.length > 0 ? 201 : 400).json({
+    created: created.length,
+    ids: created,
+    pending: status === 'pending',
+    errors,
+  });
 }
 
 /** Shared with the guest book, which accepts a single optional attachment. */
