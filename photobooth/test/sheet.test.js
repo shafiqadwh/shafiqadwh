@@ -150,9 +150,6 @@ test('the Arabic sheet puts the QR on the other side', async () => {
 
   // ⚠️ `stats()` ของ sharp อ่านจาก **ภาพต้นทาง** ไม่สนใจ `extract` ที่ต่อไว้ในไปป์ไลน์
   // เขียน `sharp(x).extract(box).stats()` จะได้ค่าของทั้งแผ่นเสมอ ทุกกรอบเท่ากันหมด
-  // จึงต้องตัดออกมาเป็นภาพใหม่ก่อน แล้วค่อยวัด
-  // ⚠️ `stats()` ของ sharp อ่านจาก **ภาพต้นทาง** ไม่สนใจ `extract` ที่ต่อไว้ในไปป์ไลน์
-  // เขียน `sharp(x).extract(box).stats()` จะได้ค่าของทั้งแผ่นเสมอ ทุกกรอบเท่ากันหมด
   // (เจอตอนเทสต์นี้ล้มโดยที่ซ้ายกับขวาให้ค่าเท่ากันเป๊ะ ซึ่งเป็นไปไม่ได้)
   const look = async (data, box) => {
     const cropped = await sharp(data).extract(box).png().toBuffer();

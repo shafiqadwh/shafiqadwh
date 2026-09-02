@@ -9,6 +9,11 @@ import { paperSize } from './paper.js';
  * `slots[].shot` คือ "รูปใบที่เท่าไรของรอบถ่าย" ไม่ใช่ลำดับช่อง — แบบแถบมีสอง
  * สำเนาบนแผ่นเดียว รูปชุดเดียวกันจึงลงสองที่ (ตัดครึ่งแล้วได้สองแถบ: แถบหนึ่ง
  * แปะสมุดอวยพรของเจ้าภาพ อีกแถบแขกเอากลับบ้าน — คือวิธีใช้จริงที่ออกแบบไว้)
+ *
+ * `footer: false` เอาแถบล่างออกแล้วยกพื้นที่ให้รูปแทน · จำเป็นเพราะงานที่ไม่ตั้ง
+ * ชื่อและปิด QR (ซึ่งเป็นค่าเริ่มต้น) จะได้แถบขาวเปล่า ๆ กินพื้นที่ 15% ของทุกแผ่น
+ * — เห็นกับตาตอนถ่ายหน้าจอแอปจริงครั้งแรก · แถบเปล่าดูเหมือนของพัง ไม่ใช่ของที่ตั้งใจ
+ * ยกเว้นโพลารอยด์: ขอบล่างหนาคือรูปทรงของมัน ไม่ใช่ที่ว่างสำหรับข้อความ
  */
 
 const round = Math.round;
@@ -18,19 +23,19 @@ const TEMPLATES = {
     id: 'classic',
     shots: 1,
     name: { th: 'เต็มใบ', ms: 'Penuh', en: 'Classic', ar: 'كلاسيكي' },
-    build(page) {
+    build(page, { footer = true } = {}) {
       const m = round(page.width * 0.05);
-      const footerH = round(page.height * 0.15);
+      const footerH = footer ? round(page.height * 0.15) : 0;
       const gap = round(m * 0.6);
       return {
         ...page,
         slots: [{ shot: 0, left: m, top: m, width: page.width - m * 2, height: page.height - footerH - m * 2 }],
-        footers: [{
+        footers: footer ? [{
           left: m,
           top: page.height - footerH - round(m * 0.4),
           width: page.width - m * 2,
           height: footerH,
-        }],
+        }] : [],
         cuts: [],
         gap,
       };
@@ -41,10 +46,10 @@ const TEMPLATES = {
     id: 'grid',
     shots: 4,
     name: { th: 'สี่ช่อง', ms: 'Empat kotak', en: 'Grid of four', ar: 'أربع صور' },
-    build(page) {
+    build(page, { footer = true } = {}) {
       const m = round(page.width * 0.05);
       const gap = round(page.width * 0.02);
-      const footerH = round(page.height * 0.15);
+      const footerH = footer ? round(page.height * 0.15) : 0;
       const cellW = round((page.width - m * 2 - gap) / 2);
       const cellH = round((page.height - footerH - m * 2 - gap) / 2);
 
@@ -62,12 +67,12 @@ const TEMPLATES = {
       return {
         ...page,
         slots,
-        footers: [{
+        footers: footer ? [{
           left: m,
           top: page.height - footerH - round(m * 0.4),
           width: page.width - m * 2,
           height: footerH,
-        }],
+        }] : [],
         cuts: [],
         gap,
       };
@@ -78,11 +83,11 @@ const TEMPLATES = {
     id: 'strip',
     shots: 3,
     name: { th: 'แถบยาว (ได้สองแถบ)', ms: 'Jalur (dua helai)', en: 'Strip (two copies)', ar: 'شريط (نسختان)' },
-    build(page) {
+    build(page, { footer = true } = {}) {
       const panelW = round(page.width / 2);
       const m = round(panelW * 0.06);
       const gap = round(panelW * 0.04);
-      const footerH = round(page.height * 0.16);
+      const footerH = footer ? round(page.height * 0.16) : 0;
       const photoW = panelW - m * 2;
       const photoH = round((page.height - footerH - m * 2 - gap * 2) / 3);
 
@@ -99,12 +104,14 @@ const TEMPLATES = {
             height: photoH,
           });
         }
-        footers.push({
-          left: originX + m,
-          top: m + 3 * photoH + 2 * gap + gap,
-          width: photoW,
-          height: footerH - gap,
-        });
+        if (footer) {
+          footers.push({
+            left: originX + m,
+            top: m + 3 * photoH + 2 * gap + gap,
+            width: photoW,
+            height: footerH - gap,
+          });
+        }
       }
 
       // เส้นตัดกลางแผ่น — ไม่มีเส้นแล้วคนถือกรรไกรต้องกะเอง แล้วแถบหนึ่งจะแหว่ง
@@ -163,6 +170,6 @@ export function listTemplates(lang = 'th') {
 }
 
 /** ผังเต็มพร้อมพิกัดจริงเป็นพิกเซลบนกระดาษที่เลือก */
-export function layoutFor(templateId, paperId, { landscape = false } = {}) {
-  return templateById(templateId).build(paperSize(paperId, { landscape }));
+export function layoutFor(templateId, paperId, { landscape = false, footer = true } = {}) {
+  return templateById(templateId).build(paperSize(paperId, { landscape }), { footer });
 }

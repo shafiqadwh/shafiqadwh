@@ -184,7 +184,9 @@ export async function composeSheet({
     );
   }
 
-  const layout = layoutFor(template, paper, { landscape });
+  // แถบล่างมีไว้ใส่ชื่องานกับ QR · ไม่มีทั้งสองอย่างก็ไม่ต้องกันที่ไว้ ยกให้รูปแทน
+  const hasFooter = Boolean(title || subtitle || qrUrl);
+  const layout = layoutFor(template, paper, { landscape, footer: hasFooter });
   const colours = themeById(theme).colours;
 
   const slotLayers = await Promise.all(layout.slots.map(async (slot) => ({

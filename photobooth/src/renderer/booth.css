@@ -1,0 +1,235 @@
+/*
+ * หน้าจอบูธ — อ่านออกจากระยะสองเมตร กดด้วยนิ้วโป้งได้
+ *
+ * สีมาจากธีมของงาน ฉีดเป็นตัวแปรตอนบูตใน booth.js (ตัวเดียวกับที่เว็บแชร์รูปใช้)
+ * ค่าที่เขียนไว้ตรงนี้เป็นแค่ค่าสำรองตอนยังอ่านธีมไม่เสร็จ
+ */
+:root {
+  --accent: #d99a2b;
+  --accentDark: #b87a14;
+  --paper: #fffdf9;
+  --blush: #fdf3df;
+  --ink: #241f1a;
+  --stageGap: clamp(16px, 3vh, 40px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0f0f12;
+  color: var(--paper);
+  font-family: "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+  /* บูธเป็นจอสัมผัส — เลือกข้อความหรือซูมสองนิ้วมีแต่ทำให้หน้าจอเพี้ยน */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.booth {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--stageGap);
+}
+
+/* ทุกฉากซ้อนอยู่ที่เดียวกัน โผล่ทีละฉากตาม data-stage บน body */
+.stage {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--stageGap);
+  width: min(100%, 1100px);
+  text-align: center;
+}
+
+body[data-stage="ready"]  .stage--ready,
+body[data-stage="shoot"]  .stage--shoot,
+body[data-stage="review"] .stage--review,
+body[data-stage="done"]   .stage--done { display: flex; }
+
+/* ── ฉากพร้อมเริ่ม ── */
+.event {
+  margin: 0;
+  font-size: clamp(28px, 6vw, 64px);
+  font-weight: 700;
+  color: var(--paper);
+  line-height: 1.15;
+}
+
+.event__sub {
+  margin: 0;
+  font-size: clamp(15px, 2.2vw, 26px);
+  color: var(--accent);
+}
+
+.effects {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.chip {
+  min-height: 56px;
+  padding: 0 28px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-size: clamp(15px, 1.8vw, 22px);
+  cursor: pointer;
+}
+
+.chip[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #17130d;
+  font-weight: 700;
+}
+
+.big {
+  min-height: 96px;
+  min-width: min(360px, 80vw);
+  padding: 0 48px;
+  border: none;
+  border-radius: 20px;
+  background: var(--accent);
+  color: #17130d;
+  font: inherit;
+  font-size: clamp(22px, 3vw, 34px);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.big small { font-size: 0.5em; font-weight: 400; opacity: 0.75; }
+.big--ghost { background: transparent; color: var(--paper); border: 2px solid rgba(255, 255, 255, 0.3); }
+
+/* ปุ่มทั้งจอตายตอนกำลังทำงาน — กดพิมพ์ซ้ำ = กระดาษเสียหนึ่งใบ ย้อนไม่ได้ */
+body[data-busy] .big,
+body[data-busy] .chip { opacity: 0.5; pointer-events: none; }
+
+/* ── ฉากถ่ายรูป ── */
+.viewfinder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+#preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* จอทำตัวเป็นกระจก — คนยกมือขวาแล้วเห็นเงายกมือฝั่งเดียวกัน ไม่งั้นขยับตัวไม่ถูก
+     รูปที่เก็บก็พลิกตามใน grabFrame() ให้ตรงกับที่เห็น */
+  transform: scaleX(-1);
+}
+
+.count {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(80px, 22vw, 260px);
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 4px 40px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
+.count.is-tick { animation: tick 1s ease-out; }
+
+@keyframes tick {
+  from { transform: scale(1.5); opacity: 0.15; }
+  30%  { transform: scale(1);   opacity: 1; }
+  to   { transform: scale(0.9); opacity: 0.6; }
+}
+
+.flash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flash.is-on { animation: pop 0.35s ease-out; }
+
+@keyframes pop {
+  from { opacity: 0.9; }
+  to   { opacity: 0; }
+}
+
+.progress {
+  margin: 0;
+  font-size: clamp(16px, 2.4vw, 28px);
+  color: var(--accent);
+}
+
+/* ── ฉากดูแผ่น ── */
+.sheet {
+  max-height: 62vh;
+  max-width: 100%;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+
+.row { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+
+.token {
+  margin: 0;
+  font-size: clamp(14px, 1.8vw, 20px);
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── ฉากเสร็จแล้ว ── */
+.done__mark {
+  margin: 0;
+  width: clamp(96px, 18vw, 160px);
+  height: clamp(96px, 18vw, 160px);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #17130d;
+  font-size: clamp(48px, 9vw, 90px);
+}
+
+.done__text { margin: 0; font-size: clamp(18px, 2.6vw, 30px); }
+
+/* ── ข้อความผิดพลาด ── */
+.error {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: min(90vw, 760px);
+  margin: 0;
+  padding: 16px 24px;
+  border-radius: 14px;
+  background: #7d2b22;
+  color: #fff;
+  font-size: clamp(14px, 1.8vw, 20px);
+  text-align: center;
+}
+
+.error[hidden] { display: none; }

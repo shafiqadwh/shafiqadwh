@@ -86,6 +86,34 @@ test('the strip really is two identical copies, with a line to cut between them'
   }
 });
 
+test('with nothing to put in the footer, the photos get that space instead', () => {
+  /*
+   * ค่าเริ่มต้นของบูธคือไม่ตั้งชื่องานและไม่มี baseUrl ให้ QR ชี้ไป — ถ้ายังกันที่
+   * ไว้ให้แถบล่าง ทุกแผ่นที่พิมพ์ออกมาจะมีแถบขาวเปล่า ๆ กิน 15% ของกระดาษ
+   * ซึ่งดูเหมือนของพัง ไม่ใช่ของที่ตั้งใจ (เห็นตอนถ่ายหน้าจอแอปจริงครั้งแรก)
+   */
+  for (const templateId of ['classic', 'grid', 'strip']) {
+    const withFooter = layoutFor(templateId, '4x6');
+    const without = layoutFor(templateId, '4x6', { footer: false });
+
+    assert.equal(without.footers.length, 0, `${templateId} ต้องไม่เหลือแถบล่างไว้`);
+    assert.equal(withFooter.slots.length, without.slots.length, 'จำนวนช่องรูปต้องเท่าเดิม');
+
+    const area = (layout) => layout.slots.reduce((sum, s) => sum + s.width * s.height, 0);
+    assert.ok(area(without) > area(withFooter) * 1.1,
+      `${templateId}: รูปต้องได้พื้นที่เพิ่มขึ้นจริง ไม่ใช่แค่ตัดแถบทิ้งแล้วเหลือที่ว่าง`);
+
+    // และยังต้องไม่ล้นหน้ากระดาษหลังขยาย
+    for (const box of without.slots) {
+      assert.ok(box.top + box.height <= without.height, `${templateId} ล้นขอบล่างหลังขยาย`);
+    }
+  }
+
+  // โพลารอยด์ต่างออกไป: ขอบล่างหนาคือรูปทรงของมัน ไม่ใช่ที่ว่างสำหรับข้อความ
+  assert.equal(layoutFor('polaroid', '4x6', { footer: false }).footers.length, 1,
+    'โพลารอยด์ต้องมีขอบล่างเสมอ ไม่งั้นก็ไม่ใช่โพลารอยด์');
+});
+
 test('an unknown paper or template falls back instead of throwing', () => {
   // หน้างานกระดาษหมดแล้วสลับม้วน หรือค่าใน config พิมพ์ผิด — ต้องพิมพ์ต่อได้
   // ไม่ใช่แอปค้างกลางงานที่มีคนต่อแถวอยู่

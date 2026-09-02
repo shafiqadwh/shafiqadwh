@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>Photo Booth</title>
+  <link rel="stylesheet" href="booth.css">
+</head>
+<body>
+  <!--
+    หน้าจอเดียว สี่สถานะ สลับกันด้วย data-stage บน <body>
+    แขกยืนอยู่หน้าบูธ ทุกอย่างต้องอ่านออกจากระยะสองเมตรและกดด้วยนิ้วโป้งได้
+  -->
+  <main class="booth">
+    <!-- 1. พร้อมเริ่ม -->
+    <section class="stage stage--ready" data-stage-panel="ready">
+      <h1 class="event" id="event-title"></h1>
+      <p class="event__sub" id="event-subtitle"></p>
+
+      <div class="effects" id="effects" role="radiogroup" aria-label="เลือกโทนภาพ"></div>
+
+      <button class="big" id="start" type="button">
+        <span id="start-label">เริ่มถ่าย</span>
+        <small id="shot-count"></small>
+      </button>
+    </section>
+
+    <!-- 2. กำลังถ่าย -->
+    <section class="stage stage--shoot" data-stage-panel="shoot">
+      <div class="viewfinder">
+        <video id="preview" autoplay playsinline muted></video>
+        <div class="count" id="count" aria-live="assertive"></div>
+        <div class="flash" id="flash" aria-hidden="true"></div>
+      </div>
+      <p class="progress" id="progress"></p>
+    </section>
+
+    <!-- 3. ดูแผ่นที่ได้ -->
+    <section class="stage stage--review" data-stage-panel="review">
+      <img class="sheet" id="sheet" alt="แผ่นที่ประกอบแล้ว">
+      <div class="row">
+        <button class="big big--ghost" id="again" type="button">ถ่ายใหม่</button>
+        <button class="big" id="print" type="button">พิมพ์</button>
+      </div>
+      <p class="token" id="token"></p>
+    </section>
+
+    <!-- 4. เสร็จแล้ว -->
+    <section class="stage stage--done" data-stage-panel="done">
+      <p class="done__mark" aria-hidden="true">✓</p>
+      <p class="done__text" id="done-text"></p>
+      <button class="big" id="restart" type="button">ถ่ายอีกครั้ง</button>
+    </section>
+
+    <p class="error" id="error" role="alert" hidden></p>
+  </main>
+
+  <script src="booth.js"></script>
+</body>
+</html>
