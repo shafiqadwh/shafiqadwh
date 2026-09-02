@@ -20,12 +20,17 @@ import path from 'node:path';
  * **มีจอเดียวต้องได้หน้าต่างเดียว** ไม่ใช่สองหน้าต่างซ้อนกัน — จอช่างภาพที่ไป
  * ทับจอแขกคือบูธที่ใช้งานไม่ได้เลย ไม่ใช่บูธที่ขาดของเสริม
  */
+const sameSpot = (a, b) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
 export function planScreens(displays, primaryId, { operator = 'auto' } = {}) {
   const list = (Array.isArray(displays) ? displays : []).filter((one) => one?.bounds);
   if (list.length === 0) return { guest: null, operator: null };
 
   const guest = list.find((one) => one.id === primaryId) ?? list[0];
-  const second = operator === 'off' ? null : list.find((one) => one !== guest);
+  // จอที่ตั้งเป็น "แสดงเหมือนกัน" (mirror) รายงานพิกัดเดียวกัน — เปิดหน้าต่างที่สอง
+  // ตรงนั้นคือเอาจอช่างภาพไปทับจอแขก ซึ่งแย่กว่าไม่มีจอที่สองเลย
+  const second = operator === 'off' ? null
+    : list.find((one) => one !== guest && !sameSpot(one.bounds, guest.bounds));
 
   return { guest: guest.bounds, operator: second ? second.bounds : null };
 }

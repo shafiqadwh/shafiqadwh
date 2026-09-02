@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, app, globalShortcut, ipcMain, screen } from 'electron';
@@ -8,9 +7,9 @@ import { themeById } from '../../../shared/themes.js';
 import { composeSheet } from '../core/sheet.js';
 import { listEffects } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
-import { canPublish, loadSettings, photoUrl, saveSettings, sheetQrUrl } from './settings.js';
-import { discardSession, isToken, reserveSession, saveSession } from './session.js';
-import { uploadSession } from './upload.js';
+import { canPublish, loadSettings, photoUrl, sheetQrUrl } from './settings.js';
+import { discardSession, isToken, listSessions, reserveSession, saveSession } from './session.js';
+import { uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
 import { createRemote } from '../core/keys.js';
 import { registerGlobalKeys } from './remote.js';
@@ -74,6 +73,10 @@ async function createWindow() {
   windows.guest = opened.guest;
   windows.operator = opened.operator;
 
+  // ปิดจอหน้า = ปิดบูธ · กล้องกับสถานะอยู่ที่จอหน้าทั้งคู่ จอหลังที่เหลืออยู่ลำพัง
+  // จึงเป็นจอที่กดอะไรก็ไม่มีอะไรตอบ ซึ่งดูเหมือนโปรแกรมค้างมากกว่าโปรแกรมที่ปิดแล้ว
+  opened.guest.once('closed', () => app.quit());
+
   // ปุ่มที่หน้าจอรับเองไม่ได้ (ปุ่มเสียงที่เดสก์ท็อปยึดไว้) — ที่เหลือหน้าจอจัดการเอง
   if (settings.remote.enabled) {
     registerGlobalKeys(globalShortcut, settings.remote.globalKeys, press);
@@ -101,9 +104,50 @@ ipcMain.handle('booth:setup', async () => {
   };
 });
 
-ipcMain.handle('booth:save-settings', async (event, patch) => saveSettings(dataRoot(), patch));
-
 ipcMain.on('booth:broadcast', (event, message) => relay(event.sender, message));
+
+/**
+ * งานหลังงาน — ส่งรอบถ่ายที่ยังค้างขึ้นเว็บ
+ *
+ * บูธทำงานในเต็นท์ที่ไม่มีเน็ต · QR ที่พิมพ์ไปแล้วถูกต้องตั้งแต่แรกเพราะโทเคนถูก
+ * จองตั้งแต่ตอนถ่าย แต่ปลายทางจะว่างอยู่จนกว่าจะมีคนสั่งส่ง — **และตัวสั่งนั้นคือ
+ * ปุ่มนี้** ไม่มีปุ่ม แขกที่สแกนกระดาษกลับบ้านไปก็ไม่มีวันได้รูปเลยสักคน
+ *
+ * ปุ่มอยู่บนจอช่างภาพ ไม่ใช่จอแขก — เป็นงานของคนทำงาน ไม่ใช่ของคนมาเที่ยวงาน
+ */
+let uploading = false;
+
+ipcMain.handle('booth:pending', async () => {
+  const settings = await loadSettings(dataRoot());
+  const sessions = await listSessions(sessionsDir());
+  return {
+    pending: sessions.filter((one) => !one.uploaded).length,
+    total: sessions.length,
+    canPublish: canPublish(settings),
+    baseUrl: settings.baseUrl,
+  };
+});
+
+ipcMain.handle('booth:upload', async () => {
+  const settings = await loadSettings(dataRoot());
+  if (!canPublish(settings)) {
+    throw new Error('ยังไม่ได้ตั้งที่อยู่เว็บกับกุญแจ — ส่งขึ้นเว็บไม่ได้');
+  }
+  // กดสองครั้งระหว่างที่รอบแรกยังส่งอยู่ = ส่งไฟล์ชุดเดียวกันขึ้นไปพร้อมกันสองสาย
+  if (uploading) throw new Error('กำลังส่งอยู่ รอให้รอบนี้จบก่อน');
+  uploading = true;
+
+  try {
+    return await uploadPending(sessionsDir(), {
+      baseUrl: settings.baseUrl,
+      key: settings.uploadKey,
+      // งานสามวันมีหลายร้อยรอบและใช้เวลาเป็นนาที — คนกดต้องเห็นว่ามันเดินอยู่
+      onProgress: (progress) => relay(null, { type: 'upload', ...progress }),
+    });
+  } finally {
+    uploading = false;
+  }
+});
 
 /**
  * ประกอบแผ่นจากรูปที่เพิ่งถ่าย แล้วคืนภาพตัวอย่างขนาดจอ
@@ -126,32 +170,39 @@ ipcMain.handle('booth:compose', async (event, { shots, effect }) => {
   const { token } = await reserveSession(sessionsDir());
   const qrUrl = sheetQrUrl(settings, token);
 
-  const sheet = await composeSheet({
-    photos,
-    template: settings.template,
-    paper: settings.paper,
-    effect,
-    theme: settings.theme,
-    title: settings.eventTitle,
-    subtitle: settings.eventSubtitle,
-    qrUrl,
-  });
+  try {
+    const sheet = await composeSheet({
+      photos,
+      template: settings.template,
+      paper: settings.paper,
+      effect,
+      theme: settings.theme,
+      title: settings.eventTitle,
+      subtitle: settings.eventSubtitle,
+      qrUrl,
+    });
 
-  await saveSession(sessionsDir(), {
-    token, photos, sheet, settings, effect, template: settings.template,
-  });
+    await saveSession(sessionsDir(), {
+      token, photos, sheet, settings, effect, template: settings.template,
+    });
 
-  return {
-    token,
-    qrUrl,
-    qrModuleMm: sheet.qrModuleMm,
-    qrTooSmall: sheet.qrTooSmall,
-    // ไม่ส่งแผ่นเต็ม 1200×1800 กลับไปให้หน้าจอ — ไฟล์ใหญ่โดยไม่ได้อะไรเพิ่ม
-    preview: `data:image/jpeg;base64,${(await sharp(sheet.data)
-      .resize({ width: 700 })
-      .jpeg({ quality: 82 })
-      .toBuffer()).toString('base64')}`,
-  };
+    return {
+      token,
+      qrUrl,
+      qrModuleMm: sheet.qrModuleMm,
+      qrTooSmall: sheet.qrTooSmall,
+      // ไม่ส่งแผ่นเต็ม 1200×1800 กลับไปให้หน้าจอ — ไฟล์ใหญ่โดยไม่ได้อะไรเพิ่ม
+      preview: `data:image/jpeg;base64,${(await sharp(sheet.data)
+        .resize({ width: 700 })
+        .jpeg({ quality: 82 })
+        .toBuffer()).toString('base64')}`,
+    };
+  } catch (error) {
+    // ที่จองไว้ต้องคืนเมื่อประกอบไม่สำเร็จ · ไม่คืนแล้วทุกครั้งที่กล้องส่งเฟรมเสีย
+    // จะเหลือโฟลเดอร์เปล่าค้างไว้หนึ่งใบ งานสามวันได้กองขยะที่ไม่มีใครรู้ว่าคืออะไร
+    await discardSession(sessionsDir(), token).catch(() => {});
+    throw error;
+  }
 });
 
 ipcMain.handle('booth:discard', async (event, { token }) => {
@@ -203,7 +254,12 @@ ipcMain.handle('booth:deliver', async (event, { token }) => {
   return out;
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(createWindow).catch((error) => {
+  // เปิดหน้าต่างไม่ได้ = ไม่มีบูธ · ตายพร้อมบอกเหตุ ดีกว่าค้างเป็นกระบวนการเงียบ
+  // ที่ไม่มีหน้าต่างให้ใครเห็นและไม่มีอะไรบอกว่าเกิดอะไรขึ้น
+  console.error('[booth] เปิดหน้าต่างไม่สำเร็จ:', error);
+  app.exit(1);
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

@@ -127,7 +127,7 @@ test('the booth opens and reaches the ready screen', async (t) => {
   // และต้องไม่ยื่นอะไรเกินกว่าที่ตั้งใจ
   assert.deepEqual(
     (await page.evaluate(() => Object.keys(window.booth))).sort(),
-    ['broadcast', 'compose', 'deliver', 'discard', 'onMessage', 'setup'],
+    ['broadcast', 'compose', 'deliver', 'discard', 'onMessage', 'pending', 'setup', 'upload'],
   );
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined',
     'หน้าจอต้องไม่มีทางเรียกโมดูลของ Node ได้เอง');
@@ -226,6 +226,24 @@ test('a take the guest rejects is deleted, not left on disk', async (t) => {
   }
   assert.ok(await gone(),
     'รอบที่แขกกด "ถ่ายใหม่" ต้องถูกลบ — ไม่งั้นรูปที่เขาตั้งใจทิ้งจะถูกอัปโหลดขึ้นเว็บด้วย');
+});
+
+test('a take that fails to build leaves nothing behind on disk', async (t) => {
+  if (skipIfNoElectron(t)) return;
+  await toReady();
+
+  const sessions = path.join(userData, 'booth', 'sessions');
+  const before = (await fs.readdir(sessions)).length;
+
+  // เฟรมเสียจากกล้อง (หรือจำนวนรูปไม่ครบแบบที่ตั้งไว้) — ทั้งคู่ล้มหลังจองที่ไปแล้ว
+  const failed = await page.evaluate(() => window.booth
+    .compose({ shots: ['data:image/jpeg;base64,AAAAAAAA'], effect: 'clean' })
+    .then(() => null, (error) => error.message));
+  assert.ok(failed, 'ประกอบแผ่นจากเฟรมเสียต้องล้ม ไม่ใช่ผ่านไปเงียบ ๆ');
+
+  assert.equal((await fs.readdir(sessions)).length, before,
+    'ที่จองไว้ต้องถูกคืนเมื่อประกอบไม่สำเร็จ — ไม่งั้นทุกครั้งที่กล้องส่งเฟรมเสีย'
+    + ' จะเหลือโฟลเดอร์เปล่าค้างไว้หนึ่งใบตลอดงาน');
 });
 
 test('the next guest never sees the sheet the last guest left', async (t) => {

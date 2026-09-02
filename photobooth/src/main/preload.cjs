@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('booth', {
   compose: (payload) => ipcRenderer.invoke('booth:compose', payload),
   discard: (payload) => ipcRenderer.invoke('booth:discard', payload),
   deliver: (payload) => ipcRenderer.invoke('booth:deliver', payload),
+  pending: () => ipcRenderer.invoke('booth:pending'),
+  upload: () => ipcRenderer.invoke('booth:upload'),
   broadcast: (message) => ipcRenderer.send('booth:broadcast', message),
   onMessage: (handler) => {
     const listener = (event, message) => handler(message);

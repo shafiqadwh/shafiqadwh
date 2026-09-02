@@ -145,3 +145,17 @@ body {
 }
 
 .foot__code { letter-spacing: 0.22em; }
+
+/* ปุ่มงานหลังงาน — ตั้งใจให้จืด ไม่ให้แย่งสายตาไปจากปุ่มที่ใช้ทุกรอบถ่าย */
+.foot__send {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.foot__send[disabled] { opacity: 0.45; cursor: default; }

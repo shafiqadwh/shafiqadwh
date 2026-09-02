@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
-import { PAGES, PAPERS } from '../core/paper.js';
+import { PAGES } from '../core/paper.js';
 import { mountOnPage } from '../core/mount.js';
 
 const run = promisify(execFile);
@@ -21,8 +21,6 @@ const run = promisify(execFile);
  *   ช้ากว่าแต่ **ไม่มีทางล้มเพราะไดรเวอร์** ซึ่งสำคัญกว่าในงานแรก ๆ
  * - `cups` เรียก `lp` ให้จบในปุ่มเดียว ต้องตั้งเครื่องพิมพ์ในระบบไว้ก่อน
  */
-
-export const DRIVERS = Object.freeze(['file', 'cups']);
 
 /**
  * ชื่อสื่อของ CUPS สำหรับกระดาษแต่ละขนาด
@@ -159,6 +157,3 @@ export async function printSheet({ sheetPath, settings, token, outbox, copies: w
   }
   return printViaFile({ sheetPath, outbox, token, copies });
 }
-
-/** ขนาดกระดาษที่ตั้งไว้มีชื่อสื่อของ CUPS รองรับไหม — ใช้เตือนตอนตั้งค่า ไม่ใช่ตอนพิมพ์ */
-export const paperIsPrintable = (paper) => Object.hasOwn(PAPERS, paper) && Boolean(CUPS_MEDIA[paper]);

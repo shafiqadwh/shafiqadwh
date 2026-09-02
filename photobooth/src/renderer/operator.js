@@ -68,6 +68,42 @@ function clearImage() {
   el('progress').textContent = '';
 }
 
+/**
+ * งานหลังงาน — ส่งรอบที่ยังค้างขึ้นเว็บ
+ *
+ * ปุ่มบอกจำนวนที่ค้างอยู่เสมอ และบอกเหตุที่กดไม่ได้แทนที่จะเป็นปุ่มเทา ๆ เฉย ๆ
+ * "ส่งไม่ได้" กับ "ไม่มีอะไรให้ส่ง" คนละเรื่องกันคนละทางแก้
+ */
+async function refreshSend() {
+  const button = el('send');
+  try {
+    const { pending, canPublish } = await window.booth.pending();
+    button.disabled = pending === 0 || !canPublish;
+    button.textContent = !canPublish ? 'ยังตั้งที่อยู่เว็บไม่ครบ'
+      : pending === 0 ? 'ส่งขึ้นเว็บครบแล้ว'
+        : `ส่งขึ้นเว็บ ${pending} รอบ`;
+  } catch (error) {
+    button.disabled = true;
+    button.textContent = `อ่านรายการค้างไม่ได้: ${error.message}`;
+  }
+}
+
+async function sendPending() {
+  const button = el('send');
+  button.disabled = true;
+  try {
+    const { sent, failed } = await window.booth.upload();
+    el('progress').textContent = failed.length === 0
+      ? `ส่งขึ้นเว็บแล้ว ${sent.length} รอบ`
+      // ล้มบางรอบต้องบอกจำนวนและเหตุ ไม่ใช่ "เสร็จแล้ว" ที่ไม่จริง · กดซ้ำได้เสมอ
+      // เพราะรอบที่ส่งสำเร็จถูกทำเครื่องหมายไว้แล้ว จะไม่ถูกส่งซ้ำ
+      : `ส่งแล้ว ${sent.length} · ไม่สำเร็จ ${failed.length} รอบ (${failed[0].reason})`;
+  } catch (error) {
+    el('progress').textContent = error.message;
+  }
+  await refreshSend();
+}
+
 const HANDLERS = {
   stage: ({ stage }) => paintStage(stage),
   frame: ({ data }) => showImage(data, { mirror: true }),
@@ -85,6 +121,10 @@ const HANDLERS = {
     // ส่งขึ้นเว็บไม่สำเร็จเป็นเรื่องที่ช่างภาพต้องรู้ทันที ไม่ใช่มารู้ตอนแขกโทรมาถาม
     el('progress').textContent = text ?? '';
     if (code && published === false) el('progress').textContent = `${text} (ยังส่งขึ้นเว็บไม่สำเร็จ)`;
+    refreshSend();
+  },
+  upload: ({ done, total }) => {
+    el('progress').textContent = `กำลังส่งขึ้นเว็บ ${done}/${total}`;
   },
   reset: () => { clearImage(); el('code').textContent = ''; },
 };
@@ -117,6 +157,9 @@ async function boot() {
       if (press(event)) event.preventDefault();
     });
   }
+
+  el('send').addEventListener('click', () => sendPending());
+  await refreshSend();
 
   paintStage('ready');
   // จอหลังอาจเปิดขึ้นทีหลังจอหน้า (หรือรีเฟรชกลางงาน) — ถามสถานะปัจจุบันแทนที่จะ

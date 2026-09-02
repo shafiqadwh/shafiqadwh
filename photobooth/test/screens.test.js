@@ -42,6 +42,12 @@ test('the photographer screen can be turned off even when a second screen is plu
   assert.equal(plan.operator, null, 'ตั้ง off ไว้แล้วต้องไม่เปิดจอที่สอง');
 });
 
+test('screens set to mirror each other count as one', () => {
+  // โหมด "แสดงเหมือนกัน" รายงานพิกัดเดียวกัน · เปิดจอช่างภาพตรงนั้นคือเอาไปทับจอแขก
+  const plan = planScreens([display(1, 0), display(2, 0)], 1, { operator: 'auto' });
+  assert.equal(plan.operator, null);
+});
+
 test('a third screen does not become a third window', () => {
   const plan = planScreens([display(1, 0), display(2, 1920), display(3, 3840)], 1, {});
   assert.deepEqual(plan.operator, { x: 1920, y: 0, width: 1920, height: 1080 });
