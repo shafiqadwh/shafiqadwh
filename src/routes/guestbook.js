@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import express from 'express';
 import { config } from '../config.js';
 import { getFlag } from '../db.js';
@@ -64,35 +65,47 @@ guestbookRouter.post('/api/messages', messageCeiling, messageLimiter, (req, res)
 });
 
 async function postMessage(req, res, uploadError) {
-  {
-    if (uploadError) {
-      const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';
-      return res.status(tooLarge ? 413 : 400).json({
-        error: req.t(tooLarge ? 'errors.too_large_request' : 'errors.server_error'),
-      });
-    }
+  /*
+   * ไฟล์แนบที่ไม่ได้เอาไปใช้ ต้องถูกลบทิ้งทุกทาง
+   *
+   * `ingestFile()` ลบไฟล์ชั่วคราวให้เองครบทุกทางออกของมัน — แต่สองทางนี้ไม่เคย
+   * เรียกมันเลย: ข้อความว่าง (แขกแนบรูปแล้วกดส่งก่อนพิมพ์) กับตอนเจ้าภาพปิดรับรูป
+   * ท้ายงานแล้วแขกยังเขียนคำอวยพรพร้อมแนบรูปต่อ · เดิมไฟล์เต็มความละเอียดค้างอยู่
+   * ใน tmp/ ถาวร และ `stats().bytes` ก็ไม่นับมันด้วย เพดานพื้นที่จึงกันไม่ทัน
+   */
+  const dropAttachment = () =>
+    (req.file ? fs.rm(req.file.path, { force: true }) : Promise.resolve());
 
-    const body = String(req.body?.body ?? '').trim().slice(0, 2000);
-    if (!body) {
-      return res.status(400).json({ error: req.t('guestbook.required') });
-    }
-
-    const author = String(req.body?.author ?? '').trim().slice(0, 60) || null;
-    const status = getFlag('require_review', false) ? 'pending' : 'visible';
-    let itemId = null;
-    const errors = [];
-
-    if (req.file) {
-      if (!uploadsOpen()) {
-        errors.push(req.t('errors.upload_closed'));
-      } else {
-        const result = await ingestFile(req.file, { uploader: author, t: req.t, status });
-        if (result.error) errors.push(result.error);
-        else itemId = result.row.id;
-      }
-    }
-
-    const message = insertMessage({ author, body, itemId, status });
-    res.status(201).json({ id: message.id, pending: status === 'pending', errors });
+  if (uploadError) {
+    const tooLarge = uploadError.code === 'LIMIT_FILE_SIZE';
+    await dropAttachment();
+    return res.status(tooLarge ? 413 : 400).json({
+      error: req.t(tooLarge ? 'errors.too_large_request' : 'errors.server_error'),
+    });
   }
+
+  const body = String(req.body?.body ?? '').trim().slice(0, 2000);
+  if (!body) {
+    await dropAttachment();
+    return res.status(400).json({ error: req.t('guestbook.required') });
+  }
+
+  const author = String(req.body?.author ?? '').trim().slice(0, 60) || null;
+  const status = getFlag('require_review', false) ? 'pending' : 'visible';
+  let itemId = null;
+  const errors = [];
+
+  if (req.file) {
+    if (!uploadsOpen()) {
+      await dropAttachment();
+      errors.push(req.t('errors.upload_closed'));
+    } else {
+      const result = await ingestFile(req.file, { uploader: author, t: req.t, status });
+      if (result.error) errors.push(result.error);
+      else itemId = result.row.id;
+    }
+  }
+
+  const message = insertMessage({ author, body, itemId, status });
+  return res.status(201).json({ id: message.id, pending: status === 'pending', errors });
 }

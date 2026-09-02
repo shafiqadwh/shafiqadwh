@@ -209,6 +209,41 @@ export async function ensureDirs() {
   ]);
 
   await warnIfTmpIsOnAnotherDevice();
+  await sweepStaleTmp();
+}
+
+/** ไฟล์ชั่วคราวที่เก่ากว่านี้ไม่มีทางเป็นของคำขอที่ยังวิ่งอยู่ — อัพโหลดหนึ่งครั้งใช้เวลาไม่กี่วินาที */
+const TMP_STALE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * กวาดไฟล์ชั่วคราวที่ค้างจากรอบก่อน ๆ ตอนเริ่มระบบ
+ *
+ * เส้นทางรับไฟล์ลบของตัวเองครบแล้ว แต่ไฟล์ที่ค้างไว้ก่อนหน้านี้ (จากบั๊กที่เพิ่งแก้
+ * หรือจากคอนเทนเนอร์ที่ถูกฆ่ากลางคำขอ) ไม่มีอะไรมาเก็บให้เลย · `stats().bytes`
+ * ก็ไม่นับมันด้วย เพดาน MAX_TOTAL_STORAGE_GB จึงมองไม่เห็นพื้นที่ส่วนนี้
+ *
+ * ล้มแล้วไม่หยุดระบบ — เว็บขึ้นได้สำคัญกว่าที่ว่างดิสก์ไม่กี่เมกะไบต์
+ */
+export async function sweepStaleTmp(olderThanMs = TMP_STALE_MS) {
+  const cutoff = Date.now() - olderThanMs;
+  let removed = 0;
+
+  try {
+    for (const entry of await fs.readdir(config.paths.tmp, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const full = path.join(config.paths.tmp, entry.name);
+      const info = await fs.stat(full).catch(() => null);
+      if (!info || info.mtimeMs > cutoff) continue;
+      await fs.rm(full, { force: true });
+      removed += 1;
+    }
+  } catch (error) {
+    console.warn('[tmp] กวาดไฟล์ชั่วคราวไม่สำเร็จ:', error.message);
+    return 0;
+  }
+
+  if (removed > 0) console.log(`[tmp] เก็บกวาดไฟล์ชั่วคราวที่ค้างอยู่ ${removed} ไฟล์`);
+  return removed;
 }
 
 /**
