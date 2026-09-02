@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import { ink as sharedInk, trim } from '../../shared/text.js';
 import { config } from '../config.js';
 
 /**
@@ -23,74 +24,20 @@ import { config } from '../config.js';
 export const FRAME_WIDTH = 1920;
 export const FRAME_HEIGHT = 1080;
 
-// ฟอนต์เดินทางมากับโปรเจกต์ ไม่ใช่ของที่ติดตั้งในระบบ เพราะอิมเมจ node:slim
-// ไม่มีฟอนต์ไทยหรืออาหรับเลยสักตัว และ NAS ตัวนี้ต่อเน็ตออกจากในคอนเทนเนอร์ไม่ได้
-const FONT_DIR = new URL('../../assets/fonts/', import.meta.url);
-
-/**
- * เลือกฟอนต์จาก "ตัวอักษรที่อยู่ในข้อความจริง" ไม่ใช่จากภาษาที่ตั้งไว้
+/*
+ * ตัวเรนเดอร์ตัวหนังสือย้ายไปอยู่ที่ shared/text.js แล้ว
  *
- * ครูสอนภาษาอาหรับเขียนคำอวยพรเป็นภาษาอาหรับได้ แม้ภาษาหลักของงานจะเป็นไทย
- * ข้อความในหนังเรื่องเดียวกันจึงมีได้ทั้งสองอักษร ต้องดูเป็นข้อความ ๆ ไป
- *
- * ไม่พึ่ง fallback ของ fontconfig เพราะมันขึ้นกับว่าเครื่องนั้นมีฟอนต์อะไรติดตั้งไว้
- * เครื่องพัฒนามี แต่คอนเทนเนอร์บน NAS อาจไม่มี แล้วคำอวยพรจะกลายเป็นกล่องว่าง
- * โดยไม่มี error ให้เห็น — รู้ตอนเปิดหนังดูหลังงานก็สายไปแล้ว
+ * photo booth ต้องเขียนชื่องานลงบนแผ่นที่พิมพ์ด้วยตัวเรนเดอร์เดียวกันเป๊ะ —
+ * เก็บไว้สองที่เมื่อไรก็เพี้ยนจากกันเมื่อนั้น และกับดักเรื่องฟอนต์หายเงียบ ๆ
+ * ก็ต้องไปเจอซ้ำอีกรอบในโปรแกรมที่สอง · ที่นี่ส่งต่อออกไปให้ของเดิมเรียกได้เหมือนเดิม
  */
-const FONTS = {
-  latin: {
-    regular: path.join(FONT_DIR.pathname, 'NotoSerifThai-Regular.ttf'),
-    bold: path.join(FONT_DIR.pathname, 'NotoSerifThai-SemiBold.ttf'),
-    family: 'Noto Serif Thai',
-  },
-  arabic: {
-    regular: path.join(FONT_DIR.pathname, 'NotoNaskhArabic-Regular.ttf'),
-    bold: path.join(FONT_DIR.pathname, 'NotoNaskhArabic-SemiBold.ttf'),
-    family: 'Noto Naskh Arabic',
-  },
-};
+export { assertFonts, fontFor } from '../../shared/text.js';
+export { trim };
 
-// ช่วงอักษรอาหรับพื้นฐาน บวกส่วนขยายที่ใช้จริงในข้อความทั่วไป
-const ARABIC = /[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]/;
-
-/**
- * ฟอนต์หายต้องล้มพร้อมบอกเหตุ ไม่ใช่เงียบแล้วได้กล่องสี่เหลี่ยม
- *
- * sharp ส่ง `fontfile` ที่ไม่มีอยู่จริงให้ Pango แล้ว Pango **ไม่ error** —
- * มันตกไปใช้ฟอนต์ระบบตัวใดก็ได้ที่หาเจอ ซึ่งบนอิมเมจ node:slim ไม่มีอักษรไทย
- * ผลคือได้หนังและ PDF ที่ข้อความไทยเป็น □□□ ทั้งหมด โดยไม่มีอะไรเตือนสักบรรทัด
- *
- * เกิดขึ้นจริงแล้ว: `assets/` ไม่ได้อยู่ทั้งใน Dockerfile และใน docker-compose.yml
- * หนังที่สร้างจากหน้าแอดมินจึงมีชื่อร้านเป็นกล่องสี่เหลี่ยม (เส้นทาง export-film.sh
- * ไม่เป็น เพราะมันmount assets เอง) — กว่าจะรู้ก็ตอนเปิดหนังดูแล้ว
- *
- * ล้มตรงนี้แปลว่างานสร้างหนัง/PDF รายงานข้อผิดพลาดขึ้นหน้าแอดมินให้เห็น
- * ส่วนเว็บที่แขกใช้ยังทำงานปกติ เพราะไม่ได้เรียกทางนี้
- */
-let fontsChecked = false;
-
-function assertFonts() {
-  if (fontsChecked) return;
-  const missing = [];
-  for (const face of Object.values(FONTS)) {
-    for (const file of [face.regular, face.bold]) {
-      if (!fsSync.existsSync(file)) missing.push(file);
-    }
-  }
-  if (missing.length > 0) {
-    throw new Error(
-      `ไม่พบไฟล์ฟอนต์ ${missing.length} ไฟล์ — ข้อความไทย/อาหรับจะกลายเป็นกล่องสี่เหลี่ยม\n`
-      + `  ${missing.join('\n  ')}\n`
-      + '  ตรวจว่า docker-compose.yml mount ./assets:/app/assets:ro ไว้แล้ว '
-      + 'จากนั้น sudo ./scripts/update.sh --env',
-    );
-  }
-  fontsChecked = true;
-}
-
-export function fontFor(text) {
-  assertFonts();
-  return ARABIC.test(String(text ?? '')) ? FONTS.arabic : FONTS.latin;
+// `ink` ของหนังมีความกว้างเริ่มต้นเป็นของเฟรม 1920 ซึ่งเป็นเรื่องเฉพาะของหนัง
+// ตัวกลางจึงบังคับให้ระบุ width เสมอ แล้วห่อเติมค่าเริ่มต้นให้ตรงนี้แทน
+export function ink(text, options) {
+  return sharedInk(text, { width: FRAME_WIDTH - 320, colour: INK.cream, ...options });
 }
 
 export const INK = {
@@ -100,57 +47,6 @@ export const INK = {
   paper: '#14100c',
 };
 
-/**
- * Pango อ่านข้อความที่ส่งเข้าไปเป็น markup ข้อความจากแขกจึงต้อง escape ก่อนเสมอ
- * ไม่งั้นคำอวยพรที่มีเครื่องหมาย & หรือ < จะทำให้การเรนเดอร์ล้มทั้งเฟรม
- * (เจอจริงตอนทดสอบ: ชื่อ "Sofwan & 'Aishah" ทำให้ sharp โยน invalid markup)
- */
-export function escapeMarkup(value) {
-  return String(value ?? '')
-    // อักขระควบคุมทำให้ Pango จัดบรรทัดเพี้ยน ตัดทิ้งก่อน
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-/** ตัดข้อความยาวเกินจอ ไม่ให้การ์ดใบเดียวกินเวลาอ่านเป็นนาที */
-export function trim(value, limit) {
-  const text = String(value ?? '').trim().replace(/\s+/g, ' ');
-  return text.length > limit ? `${text.slice(0, limit).trim()}…` : text;
-}
-
-/** เรนเดอร์ข้อความหนึ่งก้อนเป็นภาพโปร่งใส คืนทั้งบัฟเฟอร์และขนาดที่ได้จริง */
-export async function ink(text, {
-  size,
-  colour = INK.cream,
-  width = FRAME_WIDTH - 320,
-  align = 'centre',
-  bold = false,
-  spacing = 0,
-  lineHeight = null,
-}) {
-  const attrs = [`foreground="${colour}"`];
-  if (spacing) attrs.push(`letter_spacing="${Math.round(spacing * 1024)}"`);
-  if (lineHeight) attrs.push(`line_height="${lineHeight}"`);
-
-  const markup = `<span ${attrs.join(' ')}>${text}</span>`;
-  const face = fontFor(text);
-
-  return sharp({
-    text: {
-      text: markup,
-      fontfile: bold ? face.bold : face.regular,
-      font: `${face.family}${bold ? ' SemiBold' : ''} ${size}`,
-      width,
-      align,
-      rgba: true,
-      wrap: 'word',
-    },
-  })
-    .png()
-    .toBuffer({ resolveWithObject: true });
-}
 
 /** วางภาพย่อยลงกลางแนวนอน ที่ระยะ top ที่กำหนด แล้วคืนขอบล่างที่ใช้ไป */
 function centred(layers, { data, info }, top) {
@@ -244,12 +140,12 @@ export async function captionLayer({ name, wish } = {}) {
 
   const parts = [];
   if (hasWish) {
-    parts.push(await ink(escapeMarkup(words), {
+    parts.push(await ink(words, {
       size: 40, colour: INK.cream, width: FRAME_WIDTH - 480, lineHeight: 1.3,
     }));
   }
   if (label) {
-    parts.push(await ink(escapeMarkup(label), {
+    parts.push(await ink(label, {
       size: 28, colour: INK.gold, spacing: 0.2,
     }));
   }
@@ -324,7 +220,7 @@ export async function textCard({ eyebrow, headline, body, footer, big = false } 
   footer = trim(footer, 120);
 
   if (eyebrow) {
-    blocks.push(await ink(escapeMarkup(eyebrow), {
+    blocks.push(await ink(eyebrow, {
       size: big ? 64 : 44, colour: INK.gold, spacing: 0.3, bold: true,
     }));
   }
@@ -334,17 +230,17 @@ export async function textCard({ eyebrow, headline, body, footer, big = false } 
     blocks.push(meta);
   }
   if (headline) {
-    blocks.push(await ink(escapeMarkup(headline), {
+    blocks.push(await ink(headline, {
       size: big ? 86 : 58, colour: INK.cream, width: FRAME_WIDTH - 420, lineHeight: 1.15,
     }));
   }
   if (body) {
-    blocks.push(await ink(escapeMarkup(body), {
+    blocks.push(await ink(body, {
       size: 44, colour: INK.cream, width: FRAME_WIDTH - 620, lineHeight: 1.4,
     }));
   }
   if (footer) {
-    blocks.push(await ink(escapeMarkup(footer), {
+    blocks.push(await ink(footer, {
       size: 30, colour: INK.dim, spacing: 0.16, width: FRAME_WIDTH - 420,
     }));
   }

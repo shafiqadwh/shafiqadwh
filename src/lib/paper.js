@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import sharp from 'sharp';
 import { config } from '../config.js';
-import { escapeMarkup, ink, trim } from './film.js';
+import { ink, trim } from './film.js';
 import { normaliseName, pickDisplayName } from './guests.js';
 import { listItemsForPaper, listMessagesForPaper } from '../repo.js';
 import { sourceFor, thumbFor } from './film-plan.js';
@@ -79,26 +79,26 @@ async function flush(sheet, pageNumber) {
 async function coverPage(heading, subtitle) {
   const blocks = [];
   if (config.event.monogram) {
-    blocks.push(await ink(escapeMarkup(config.event.monogram), {
+    blocks.push(await ink(config.event.monogram, {
       size: 44, colour: PAPER.accent, width: COLUMN, align: 'centre', spacing: 0.3,
     }));
   }
-  blocks.push(await ink(escapeMarkup(heading), {
+  blocks.push(await ink(heading, {
     size: 66, colour: PAPER.ink, width: COLUMN, align: 'centre', bold: true, lineHeight: 1.2,
   }));
   if (config.event.names) {
-    blocks.push(await ink(escapeMarkup(config.event.names), {
+    blocks.push(await ink(config.event.names, {
       size: 40, colour: PAPER.ink, width: COLUMN, align: 'centre', lineHeight: 1.3,
     }));
   }
   const meta = [config.event.date, config.event.venue].filter(Boolean).join('   ·   ');
   if (meta) {
-    blocks.push(await ink(escapeMarkup(meta), {
+    blocks.push(await ink(meta, {
       size: 26, colour: PAPER.soft, width: COLUMN, align: 'centre',
     }));
   }
   if (subtitle) {
-    blocks.push(await ink(escapeMarkup(subtitle), {
+    blocks.push(await ink(subtitle, {
       size: 24, colour: PAPER.soft, width: COLUMN, align: 'centre',
     }));
   }
@@ -119,11 +119,11 @@ async function coverPage(heading, subtitle) {
  * ต้องรู้ความสูงก่อนวาง ไม่งั้นหัวชื่อจะไปโดดอยู่ท้ายหน้าโดยไม่มีเนื้อหาตามมา
  */
 async function guestHeading(name, note) {
-  const title = await ink(escapeMarkup(name), {
+  const title = await ink(name, {
     size: 38, colour: PAPER.accent, width: COLUMN, bold: true, align: 'left',
   });
   const sub = note
-    ? await ink(escapeMarkup(note), { size: 21, colour: PAPER.soft, width: COLUMN, align: 'left' })
+    ? await ink(note, { size: 21, colour: PAPER.soft, width: COLUMN, align: 'left' })
     : null;
   return { title, sub, height: title.info.height + (sub ? sub.info.height + 6 : 0) + 26 };
 }
@@ -242,10 +242,10 @@ export async function wishesPages(t, lang = 'th', onProgress = () => {}) {
     let everPlaced = false;
 
     for (const message of guest.messages) {
-      const body = await ink(escapeMarkup(trim(message.body, 900)), {
+      const body = await ink(trim(message.body, 900), {
         size: 27, colour: PAPER.ink, width: COLUMN - 40, align: 'left', lineHeight: 1.45,
       });
-      const stamp = await ink(escapeMarkup(shortDate(message.created_at, lang)), {
+      const stamp = await ink(shortDate(message.created_at, lang), {
         size: 18, colour: PAPER.soft, width: COLUMN - 40, align: 'left',
       });
       const picture = message.item_id && message.item_status !== 'hidden'

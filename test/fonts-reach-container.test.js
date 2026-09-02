@@ -30,7 +30,9 @@ test('the fonts the renderer points at actually exist in the repo', async () => 
 });
 
 test('a missing font is refused outright instead of quietly drawing boxes', async () => {
-  const source = await read('src/lib/film.js');
+  // ตัวเรนเดอร์ตัวหนังสือย้ายไปอยู่ที่ shared/text.js แล้ว (ใช้ร่วมกับ photo booth)
+  // — ที่นั่นคือที่เดียวที่ยังต้องมีด่านตรวจฟอนต์ ไม่ใช่สองที่
+  const source = await read('shared/text.js');
   // Pango ไม่บ่นเรื่องฟอนต์หาย จึงต้องเช็คเองก่อนเรนเดอร์
   assert.match(source, /existsSync/, 'ต้องตรวจว่าไฟล์ฟอนต์มีอยู่จริงก่อนใช้');
   assert.match(source, /กล่องสี่เหลี่ยม/, 'ข้อความ error ต้องบอกอาการที่คนเห็นจริง');

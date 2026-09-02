@@ -1,0 +1,19 @@
+{
+  "name": "photobooth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "บูธถ่ายรูป — ถ่าย เลือก ประกอบแผ่น พิมพ์ทันที พร้อม QR ให้แขกโหลดไฟล์ดิจิตอล",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "electron": "^44.1.1"
+  }
+}

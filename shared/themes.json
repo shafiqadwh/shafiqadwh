@@ -1,0 +1,109 @@
+{
+  "_comment": "แหล่งเดียวของธีม — ทั้งเว็บแชร์รูปและ photo booth อ่านไฟล์นี้ไฟล์เดียวกัน อย่าก๊อปไปไว้ที่อื่น",
+  "themes": [
+    {
+      "id": "wedding",
+      "name": { "th": "งานแต่งงาน", "ms": "Majlis Perkahwinan", "en": "Wedding", "ar": "حفل زفاف" },
+      "colours": {
+        "accent": "#d99a2b",
+        "accentDark": "#b87a14",
+        "paper": "#fffdf9",
+        "blush": "#fdf3df",
+        "ink": "#241f1a"
+      },
+      "effects": ["warm", "soft", "film"],
+      "templates": ["classic", "strip", "polaroid", "grid"]
+    },
+    {
+      "id": "engagement",
+      "name": { "th": "งานหมั้น", "ms": "Majlis Pertunangan", "en": "Engagement", "ar": "حفل خطوبة" },
+      "colours": {
+        "accent": "#c9748c",
+        "accentDark": "#a4526a",
+        "paper": "#fffbfc",
+        "blush": "#fbeef2",
+        "ink": "#2b1f24"
+      },
+      "effects": ["soft", "warm", "clean"],
+      "templates": ["polaroid", "classic", "strip", "grid"]
+    },
+    {
+      "id": "birthday",
+      "name": { "th": "งานวันเกิด", "ms": "Hari Jadi", "en": "Birthday", "ar": "عيد ميلاد" },
+      "colours": {
+        "accent": "#e0574a",
+        "accentDark": "#b83c30",
+        "paper": "#fffdf6",
+        "blush": "#ffeede",
+        "ink": "#2a1e1c"
+      },
+      "effects": ["pop", "clean", "film"],
+      "templates": ["strip", "grid", "polaroid", "classic"]
+    },
+    {
+      "id": "graduation",
+      "name": { "th": "งานรับปริญญา", "ms": "Majlis Konvokesyen", "en": "Graduation", "ar": "حفل تخرج" },
+      "colours": {
+        "accent": "#2f5d8c",
+        "accentDark": "#1e3f61",
+        "paper": "#fbfdff",
+        "blush": "#e8f0f8",
+        "ink": "#1b232c"
+      },
+      "effects": ["clean", "mono", "warm"],
+      "templates": ["classic", "polaroid", "grid", "strip"]
+    },
+    {
+      "id": "office",
+      "name": { "th": "งานเลี้ยงบริษัท", "ms": "Majlis Syarikat", "en": "Office Party", "ar": "حفل الشركة" },
+      "colours": {
+        "accent": "#3f7f74",
+        "accentDark": "#2a5e55",
+        "paper": "#fbfefd",
+        "blush": "#e6f2ef",
+        "ink": "#1d2724"
+      },
+      "effects": ["clean", "pop", "mono"],
+      "templates": ["grid", "strip", "classic", "polaroid"]
+    },
+    {
+      "id": "raya_fitri",
+      "name": { "th": "ฮารีรายอ อีดิลฟิตรี", "ms": "Hari Raya Aidilfitri", "en": "Eid al-Fitr", "ar": "عيد الفطر" },
+      "colours": {
+        "accent": "#1f7a52",
+        "accentDark": "#14563a",
+        "paper": "#fbfdfa",
+        "blush": "#e4f2ea",
+        "ink": "#17241e"
+      },
+      "effects": ["festive", "warm", "clean"],
+      "templates": ["classic", "grid", "strip", "polaroid"]
+    },
+    {
+      "id": "raya_adha",
+      "name": { "th": "ฮารีรายอ อีดิลอัฎฮา", "ms": "Hari Raya Aidiladha", "en": "Eid al-Adha", "ar": "عيد الأضحى" },
+      "colours": {
+        "accent": "#1c6b73",
+        "accentDark": "#124a50",
+        "paper": "#fafdfd",
+        "blush": "#e2f0f1",
+        "ink": "#152425"
+      },
+      "effects": ["festive", "clean", "mono"],
+      "templates": ["classic", "grid", "polaroid", "strip"]
+    },
+    {
+      "id": "other",
+      "name": { "th": "งานอื่น ๆ", "ms": "Majlis Lain", "en": "Other", "ar": "مناسبة أخرى" },
+      "colours": {
+        "accent": "#7a6a55",
+        "accentDark": "#5a4d3c",
+        "paper": "#fffdfa",
+        "blush": "#f2ede4",
+        "ink": "#241f1a"
+      },
+      "effects": ["clean", "soft", "mono"],
+      "templates": ["classic", "strip", "grid", "polaroid"]
+    }
+  ]
+}

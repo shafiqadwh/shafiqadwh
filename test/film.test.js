@@ -13,7 +13,7 @@ process.env.EVENT_DATE = '29.08.2026';
 process.env.EVENT_VENUE = 'Hasanah Restaurant (ร้านอาหารฮาซานะห์) Sateng, Yala';
 
 const {
-  FRAME_WIDTH, FRAME_HEIGHT, escapeMarkup, trim, fontFor,
+  FRAME_WIDTH, FRAME_HEIGHT, trim, fontFor, ink: renderText,
   photoFrame, textCard, openingCard, wishCard, captionLayer,
 } = await import('../src/lib/film.js');
 const { buildTimeline, dedupe } = await import('../src/lib/film-plan.js');
@@ -56,14 +56,28 @@ async function inkCoverage(buffer) {
   return ink / (info.width * info.height);
 }
 
-test('guest text can never break the renderer, however it is punctuated', () => {
+test('guest text can never break the renderer, however it is punctuated', async () => {
   // Pango อ่านข้อความเป็น markup — เจอจริงตอนพัฒนา: ชื่อ "Sofwan & 'Aishah"
   // ทำให้ sharp โยน invalid markup แล้วเฟรมนั้นหายไปทั้งใบ
-  assert.equal(escapeMarkup("Sofwan & 'Aishah"), "Sofwan &amp; 'Aishah");
-  assert.equal(escapeMarkup('<span foreground="red">แดง</span>'),
-    '&lt;span foreground="red"&gt;แดง&lt;/span&gt;');
-  assert.equal(escapeMarkup('บรรทัดเดียว'), 'บรรทัดเดียว');
-  assert.equal(escapeMarkup(null), '');
+  //
+  // ตอนนี้ `ink()` escape ให้เองข้างใน ผู้เรียกยี่สิบกว่าจุดจึงไม่ต้องจำอีก
+  // — เทสต์นี้จึงตรวจ "ผลลัพธ์ที่รับประกัน" แทนที่จะตรวจฟังก์ชันช่วยที่ซ่อนไปแล้ว
+  for (const text of [
+    "Sofwan & 'Aishah",
+    '<span foreground="red">แดง</span>',
+    'a > b < c',
+    'บรรทัดเดียว',
+  ]) {
+    const out = await renderText(text, { size: 24, width: 900 });
+    assert.ok(out.info.width > 0 && out.info.height > 0, `เรนเดอร์ "${text}" ไม่ออก`);
+  }
+
+  // และต้อง escape "ครั้งเดียว" ไม่ใช่สองครั้ง — escape ซ้ำจะได้ข้อความ "&amp;"
+  // โผล่บนจอให้แขกอ่าน ซึ่งไม่ throw จึงไม่มีอะไรจับได้นอกจากตรวจความกว้าง
+  const amp = await renderText('&', { size: 40, width: 2000 });
+  const one = await renderText('x', { size: 40, width: 2000 });
+  assert.ok(amp.info.width < one.info.width * 2.5,
+    `"&" กว้าง ${amp.info.width} เทียบกับ "x" ${one.info.width} — น่าจะถูก escape ซ้ำเป็น "&amp;"`);
 });
 
 test('a very long wish is cut, a short one is left alone', () => {

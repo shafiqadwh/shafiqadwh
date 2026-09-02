@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import sharp from 'sharp';
-import { FRAME_WIDTH, FRAME_HEIGHT, INK, escapeMarkup, grain, ink, trim } from './film.js';
+import { FRAME_WIDTH, FRAME_HEIGHT, INK, grain, ink, trim } from './film.js';
 
 /**
  * เฟรมแบบ "กำแพงรูป" สำหรับหนังที่ export — โพลารอยด์กระจายเต็มจอ ทีละใบสว่างขึ้นมา
@@ -104,7 +104,7 @@ async function card({ photoPath, name, width, rotate, hole = false }) {
   }
 
   if (name) {
-    const label = await ink(escapeMarkup(trim(name, 28)), {
+    const label = await ink(trim(name, 28), {
       size: Math.max(9, Math.round(width * 0.062)),
       colour: '#4a3f31',
       width: photoWidth,
