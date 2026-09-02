@@ -72,11 +72,7 @@ galleryRouter.get('/host/:id', wrap(async (req, res, next) => {
   const filename = wantThumb ? row.thumb_name : (row.display_name ?? row.stored_name);
   const root = wantThumb || row.display_name ? config.paths.derived : config.paths.uploads;
 
-  try {
-    await sendMedia(res, root, filename);
-  } catch (error) {
-    next(error);
-  }
+  return sendMedia(res, root, filename);
 }));
 
 galleryRouter.get('/api/items', (req, res) => {
@@ -116,6 +112,13 @@ function mayServe(row, res) {
   return res.locals.isAdmin === true;
 }
 
+/**
+ * ส่งไฟล์ออกไปโดยที่ error กลายเป็น Promise ที่ reject ไม่ใช่ callback ที่หายไปเงียบ ๆ
+ *
+ * ทุกเส้นทางที่เรียกตัวนี้ห่อด้วย `wrap()` อยู่แล้ว ซึ่งส่ง rejection เข้า error
+ * middleware ให้เอง — จึงคืนค่าตรง ๆ ได้ ไม่ต้อง try/catch แล้ว `next(error)` ซ้ำ
+ * ที่ทุกเส้นทาง (เคยมีอยู่ห้าชุด เขียนเหมือนกันหมด บังเงาชุดที่ *ไม่* เหมือน)
+ */
 function sendMedia(res, root, filename, { download = false, downloadName = null } = {}) {
   return new Promise((resolve, reject) => {
     res.sendFile(
@@ -150,22 +153,14 @@ galleryRouter.get('/music/track', wrap(async (req, res, next) => {
   const track = await galleryMusic();
   if (!track) return next();
 
-  try {
-    // sendFile จัดการ Range ให้เอง มือถือจึงข้ามไปกลางเพลงได้โดยไม่ต้องโหลดใหม่ทั้งไฟล์
-    await sendMedia(res, path.dirname(track.path), path.basename(track.path));
-  } catch (error) {
-    next(error);
-  }
+  // sendFile จัดการ Range ให้เอง มือถือจึงข้ามไปกลางเพลงได้โดยไม่ต้องโหลดใหม่ทั้งไฟล์
+  return sendMedia(res, path.dirname(track.path), path.basename(track.path));
 }));
 
 galleryRouter.get('/thumb/:id', wrap(async (req, res, next) => {
   const row = getItem(Number(req.params.id));
   if (!mayServe(row, res) || !row.thumb_name) return next();
-  try {
-    await sendMedia(res, config.paths.derived, row.thumb_name);
-  } catch (error) {
-    next(error);
-  }
+  return sendMedia(res, config.paths.derived, row.thumb_name);
 }));
 
 /**
@@ -179,6 +174,8 @@ galleryRouter.get('/display/:id', wrap(async (req, res, next) => {
   if (!mayServe(row, res)) return next();
   if (row.kind !== 'image') return res.redirect(302, `/media/${row.id}`);
 
+  // เส้นทางเดียวในไฟล์นี้ที่ดัก error เอง — ที่เหลือปล่อยให้ wrap() จัดการ
+  // ตรงนี้ดักเพราะมี *ทางเลือกที่ดีกว่า 500* คือส่งรูปเต็มไปแทน จอจะได้ไม่ว่าง
   try {
     const displayName = await ensureDisplayCopy(row);
     await sendMedia(res, config.paths.derived, displayName);
@@ -197,11 +194,7 @@ galleryRouter.get('/media/:id', wrap(async (req, res, next) => {
   const root = usePlayback ? config.paths.derived : config.paths.uploads;
   const filename = usePlayback ? row.playback_name : row.stored_name;
 
-  try {
-    await sendMedia(res, root, filename);
-  } catch (error) {
-    next(error);
-  }
+  return sendMedia(res, root, filename);
 }));
 
 galleryRouter.get('/download/:id', wrap(async (req, res, next) => {
@@ -210,12 +203,8 @@ galleryRouter.get('/download/:id', wrap(async (req, res, next) => {
 
   const ext = path.extname(row.stored_name);
   const base = path.parse(safeOriginalName(row.original_name)).name || `item-${row.id}`;
-  try {
-    await sendMedia(res, config.paths.uploads, row.stored_name, {
-      download: true,
-      downloadName: `${base}-${row.id}${ext}`,
-    });
-  } catch (error) {
-    next(error);
-  }
+  return sendMedia(res, config.paths.uploads, row.stored_name, {
+    download: true,
+    downloadName: `${base}-${row.id}${ext}`,
+  });
 }));

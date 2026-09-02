@@ -70,11 +70,26 @@ export function createApp() {
     return res.json({ error: req.t('errors.not_found') });
   });
 
+  /*
+   * ตัวรับ error ตัวสุดท้าย — ตอบให้ตรงกับสาเหตุ ไม่ใช่เหมาเป็น 500 ทุกอย่าง
+   *
+   * `res.sendFile` ติด `statusCode` มากับ error ให้อยู่แล้ว: ไฟล์ไม่อยู่บนดิสก์
+   * คือ 404 · เดิมเหมาเป็น 500 ทั้งหมด ซึ่งพาเจ้าของไล่หาสาเหตุผิดทาง (ไฟล์หาย
+   * จากดิสก์เกิดขึ้นจริงบนเครื่องนี้มาแล้วตอนคลังเพลงกลายเป็นของ root) และ log
+   * เต็มไปด้วย stack ยาว ๆ พร้อมพาธเต็มของเครื่อง ทั้งที่บรรทัดเดียวก็พอ
+   */
   app.use((error, req, res, next) => {
-    console.error('[error]', error);
+    const declared = Number(error?.status ?? error?.statusCode);
+    const code = Number.isInteger(declared) && declared >= 400 && declared <= 599 ? declared : 500;
+
+    // 5xx คือความผิดของเรา ต้องเห็น stack เต็ม · 4xx คือคำขอที่ไม่มีของให้ ไม่ใช่เหตุ
+    if (code >= 500) console.error('[error]', error);
+    else console.warn(`[${code}] ${req.method} ${req.originalUrl} — ${error.message}`);
+
     if (res.headersSent) return next(error);
-    res.status(500);
-    const message = req.t ? req.t('errors.server_error') : 'Server error';
+    res.status(code);
+    const key = code === 404 ? 'errors.not_found' : 'errors.server_error';
+    const message = req.t ? req.t(key) : 'Server error';
     if (req.accepts('html')) return res.render('error', { page: 'error', message });
     return res.json({ error: message });
   });

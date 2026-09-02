@@ -51,12 +51,31 @@ test('the server survives a request that blows up, and says so honestly', async 
 
   for (const url of ['/media/999999', '/thumb/abc', '/display/-1', '/download/0']) {
     const response = await fetch(`${app.baseUrl}${url}`);
-    assert.ok(response.status === 404 || response.status === 500, `${url} → ${response.status}`);
+    assert.equal(response.status, 404, `${url} ควรเป็น 404 — ไม่มีของ ไม่ใช่เว็บพัง`);
   }
 
   // ตัวชี้ขาด: เว็บยังตอบอยู่หลังจากนั้น
   const after = await fetch(`${app.baseUrl}/healthz`);
   assert.equal(after.status, 200, 'เซิร์ฟเวอร์ตายหลังเจอคำขอที่มีปัญหา');
+});
+
+test('a file missing from disk is a 404, not a server fault', async () => {
+  // เกิดขึ้นจริงบนเครื่องนี้มาแล้ว (คลังเพลงกลายเป็นของ root จนคอนเทนเนอร์อ่านไม่ได้)
+  // เดิมตอบ 500 ทุกกรณี ซึ่งพาเจ้าของไล่หาสาเหตุผิดทาง — แถวยังอยู่ ไฟล์ต่างหากที่หาย
+  const { makeJpeg, uploadFiles } = await import('./helpers/fixtures.js');
+  const { getItem } = await import('../src/repo.js');
+  const path = await import('node:path');
+
+  const source = await makeJpeg(path.join(dataDir, 'gone.jpg'), { width: 400, height: 300 });
+  const { body } = await uploadFiles(app.baseUrl, [source]);
+  const row = getItem(body.ids[0]);
+  await fs.rm(path.join(dataDir, 'uploads', row.stored_name), { force: true });
+
+  const response = await fetch(`${app.baseUrl}/media/${row.id}`);
+  assert.equal(response.status, 404, 'ไฟล์ที่ไม่อยู่บนดิสก์ต้องเป็น 404');
+
+  // และเว็บต้องยังรับงานต่อได้ — ทางที่แก้ไปคือปล่อยให้ error วิ่งผ่าน wrap()
+  assert.equal((await fetch(`${app.baseUrl}/healthz`)).status, 200);
 });
 
 test('there is a process-level net for anything that still escapes', async () => {

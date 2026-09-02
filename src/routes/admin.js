@@ -566,11 +566,7 @@ async function serveFilm(req, res, next, download) {
     return next();
   }
 
-  try {
-    return await sendFilm(res, target, { download });
-  } catch (error) {
-    return next(error);
-  }
+  return sendFilm(res, target, { download });
 }
 
 /**
@@ -604,11 +600,11 @@ adminRouter.post('/admin/film/track/delete', requireAdmin, express.urlencoded({ 
   res.status(removed ? 200 : 404).json({ ok: removed });
 }));
 
-adminRouter.get('/admin/film/:id/video', requireAdmin, (req, res, next) =>
-  serveFilm(req, res, next, false));
+adminRouter.get('/admin/film/:id/video', requireAdmin,
+  wrap((req, res, next) => serveFilm(req, res, next, false)));
 
-adminRouter.get('/admin/film/:id/download', requireAdmin, (req, res, next) =>
-  serveFilm(req, res, next, true));
+adminRouter.get('/admin/film/:id/download', requireAdmin,
+  wrap((req, res, next) => serveFilm(req, res, next, true)));
 
 adminRouter.post('/admin/film/:id/delete', requireAdmin, wrap(async (req, res) => {
   const removed = await deleteFilm(req.params.id);
@@ -649,18 +645,14 @@ async function servePaper(req, res, next, download) {
     return next();
   }
 
-  try {
-    return await sendFilm(res, target, { download });
-  } catch (error) {
-    return next(error);
-  }
+  return sendFilm(res, target, { download });
 }
 
-adminRouter.get('/admin/paper/:id/view', requireAdmin, (req, res, next) =>
-  servePaper(req, res, next, false));
+adminRouter.get('/admin/paper/:id/view', requireAdmin,
+  wrap((req, res, next) => servePaper(req, res, next, false)));
 
-adminRouter.get('/admin/paper/:id/download', requireAdmin, (req, res, next) =>
-  servePaper(req, res, next, true));
+adminRouter.get('/admin/paper/:id/download', requireAdmin,
+  wrap((req, res, next) => servePaper(req, res, next, true)));
 
 adminRouter.post('/admin/paper/:id/delete', requireAdmin, wrap(async (req, res) => {
   const removed = await deletePaper(req.params.id);
