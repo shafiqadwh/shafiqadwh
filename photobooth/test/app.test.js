@@ -124,10 +124,10 @@ test('the booth opens and reaches the ready screen', async (t) => {
 
   // preload ต้องยื่นสะพานให้จริง ไม่ใช่แค่หน้าโหลดขึ้น
   assert.equal(await page.evaluate(() => typeof window.booth?.compose), 'function');
-  // และต้องไม่ยื่นอะไรเกินกว่าสามอย่างที่ตั้งใจ
+  // และต้องไม่ยื่นอะไรเกินกว่าที่ตั้งใจ
   assert.deepEqual(
     (await page.evaluate(() => Object.keys(window.booth))).sort(),
-    ['compose', 'deliver', 'discard', 'setup'],
+    ['broadcast', 'compose', 'deliver', 'discard', 'onMessage', 'setup'],
   );
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined',
     'หน้าจอต้องไม่มีทางเรียกโมดูลของ Node ได้เอง');

@@ -8,6 +8,8 @@
  * ทุกปุ่มจึงใหญ่ ทุกสถานะมีทางกลับ และไม่มีจุดไหนที่กดแล้วค้างโดยไม่บอกอะไร
  */
 
+import { createRemote } from '../core/keys.js';
+
 const el = (id) => document.getElementById(id);
 const body = document.body;
 
@@ -18,9 +20,33 @@ const state = {
   token: null,
   busy: false,
   stream: null,
+  relay: null,
 };
 
-const stage = (name) => { body.dataset.stage = name; };
+/**
+ * บอกจอช่างภาพว่าเกิดอะไรขึ้น
+ *
+ * จอหลังไม่มีกล้องของตัวเอง (กล้องตัวหนึ่งเปิดได้ทีละที่เดียว) และไม่รู้จัก
+ * ขั้นตอนอะไรเลย — ทุกอย่างที่มันเห็นมาจากท่อนี้ · ไม่มีจอที่สองก็ไม่เป็นไร
+ * ข้อความจะไม่ถูกส่งต่อไปไหน แต่จอหน้าต้องทำงานเหมือนเดิมทุกประการ
+ */
+const say = (message) => {
+  try {
+    window.booth.broadcast(message);
+  } catch (error) {
+    console.warn('ส่งให้จอช่างภาพไม่ได้:', error?.message);
+  }
+};
+
+const stage = (name) => {
+  body.dataset.stage = name;
+  say({ type: 'stage', stage: name });
+};
+
+function setProgress(text) {
+  el('progress').textContent = text;
+  say({ type: 'progress', text });
+}
 
 function fail(message) {
   const box = el('error');
@@ -69,6 +95,37 @@ function closeCamera() {
   el('preview').srcObject = null;
 }
 
+/*
+ * ส่งภาพจากกล้องไปให้จอช่างภาพ — เล็กและช้าโดยตั้งใจ
+ *
+ * ช่างภาพต้องการเห็นว่า "แขกอยู่ในกรอบไหม ตาปิดหรือเปล่า" ซึ่ง 4 ภาพต่อวินาที
+ * ที่กว้าง 480 พิกเซลก็พอแล้ว · ส่งภาพเต็มความละเอียดทุกเฟรมคือการเอาแรงเครื่อง
+ * ไปแย่งกับงานที่สำคัญกว่า (การถ่ายกับการประกอบแผ่น) เพื่อความคมที่ไม่มีใครดู
+ */
+const RELAY_WIDTH = 480;
+const RELAY_INTERVAL_MS = 250;
+
+function startRelay() {
+  stopRelay();
+  const video = el('preview');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  state.relay = setInterval(() => {
+    if (!video.videoWidth) return;
+    canvas.width = RELAY_WIDTH;
+    canvas.height = Math.round((RELAY_WIDTH * video.videoHeight) / video.videoWidth);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // ไม่พลิกภาพตรงนี้ — จอช่างภาพพลิกด้วย CSS เหมือนที่จอหน้าทำกับวิดีโอ
+    say({ type: 'frame', data: canvas.toDataURL('image/jpeg', 0.6) });
+  }, RELAY_INTERVAL_MS);
+}
+
+function stopRelay() {
+  clearInterval(state.relay);
+  state.relay = null;
+}
+
 /**
  * เก็บเฟรมปัจจุบันเป็น JPEG
  *
@@ -95,6 +152,7 @@ async function countdown(seconds) {
   const box = el('count');
   for (let n = seconds; n > 0; n -= 1) {
     box.textContent = String(n);
+    say({ type: 'count', n });
     box.classList.remove('is-tick');
     // บังคับให้เบราว์เซอร์เริ่มอนิเมชันใหม่ทุกวินาที ไม่ใช่เล่นครั้งเดียวแล้วนิ่ง
     void box.offsetWidth;
@@ -102,6 +160,7 @@ async function countdown(seconds) {
     await wait(1000);
   }
   box.textContent = '';
+  say({ type: 'count', n: 0 });
 }
 
 function flash() {
@@ -128,9 +187,10 @@ async function shoot() {
 
   // ปิดกล้องให้ได้ทุกทางออก — หลุดไปทางไหนก็ตามแล้วไฟกล้องยังติดค้าง แขกคนถัดไป
   // จะเห็นว่ากล้องเปิดอยู่ทั้งที่หน้าจอกลับไปหน้าเริ่มแล้ว
+  startRelay();
   try {
     for (let i = 1; i <= needed; i += 1) {
-      el('progress').textContent = needed > 1 ? `รูปที่ ${i} จาก ${needed}` : '';
+      setProgress(needed > 1 ? `รูปที่ ${i} จาก ${needed}` : '');
       await countdown(settings.countdownSeconds);
       flash();
       state.shots.push(grabFrame());
@@ -138,12 +198,17 @@ async function shoot() {
       if (i < needed) await wait(900);
     }
   } finally {
+    stopRelay();
     closeCamera();
   }
-  el('progress').textContent = 'กำลังประกอบแผ่น…';
+  setProgress('กำลังประกอบแผ่น…');
 
   const result = await guard(() =>
     window.booth.compose({ shots: state.shots, effect: state.effect }));
+
+  // เก็บข้อความ "กำลังประกอบแผ่น" ทันทีที่ประกอบเสร็จ · จอหน้าซ่อนมันเองตอนเปลี่ยนฉาก
+  // แต่จอช่างภาพโชว์แถบนี้ตลอด ข้อความค้างจึงกลายเป็นคำโกหกอยู่บนจอนั้น
+  setProgress('');
 
   if (!result) {
     stage('ready');
@@ -153,6 +218,7 @@ async function shoot() {
   state.token = result.token;
   el('sheet').src = result.preview;
   el('token').textContent = result.qrUrl ? `รหัส ${result.token}` : '';
+  say({ type: 'sheet', preview: result.preview, code: result.token });
   if (result.qrTooSmall) {
     fail(`QR เล็กกว่าที่ควร (โมดูล ${result.qrModuleMm} มม.) — ลองใช้ที่อยู่เว็บที่สั้นลง`);
   }
@@ -189,6 +255,16 @@ async function deliver() {
     ? 'สแกนเก็บลิงก์ไว้ก่อน — รูปจะขึ้นระบบให้ภายหลัง'
     : mode.done;
 
+  // ช่างภาพต้องรู้ว่าสั่งพิมพ์ไปแล้วจริงหรือแค่ขึ้น QR — เขาคือคนที่ต้องตอบแขก
+  // เวลาแผ่นไม่ออกมาจากเครื่อง
+  say({
+    type: 'done',
+    printed: result.printed,
+    published: result.published,
+    code: result.qr ? result.token : '',
+    text: el('done-text').textContent,
+  });
+
   stage('done');
 }
 
@@ -208,6 +284,8 @@ async function reset({ discard = false } = {}) {
   el('done-qr').removeAttribute('src');
   el('done-qr').hidden = true;
   el('done-code').textContent = '';
+  el('progress').textContent = '';
+  say({ type: 'reset' });
   stage('ready');
 
   // ลบทีหลังหน้าจอเปลี่ยนแล้ว — แขกไม่ต้องยืนรอการลบไฟล์
@@ -215,6 +293,29 @@ async function reset({ discard = false } = {}) {
     window.booth.discard({ token }).catch((error) =>
       console.warn('ลบรอบที่ไม่เอาไม่สำเร็จ:', error?.message));
   }
+}
+
+// ── คำสั่งจากรีโมทและจอช่างภาพ ─────────────────────────────────────────────
+
+/**
+ * ปุ่มเดียวทำงานต่างกันตามขั้นตอน — เหมือนปุ่มใหญ่บนจอตรงหน้าแขก ณ ตอนนั้น
+ *
+ * รีโมทกดถ่ายมีปุ่มเดียว (นั่นคือทั้งหมดที่มันมี) ถ้าปุ่มนั้นหมายถึง "เริ่มถ่าย"
+ * อย่างเดียว ช่างภาพจะต้องเดินอ้อมไปกดจอทุกครั้งที่ต้องสั่งพิมพ์ ซึ่งทำให้รีโมท
+ * แทบไม่ช่วยอะไรเลย · ให้มันหมายถึง "ทำขั้นต่อไป" แทน
+ *
+ * ขั้น shoot ไม่รับคำสั่งใด ๆ — ระหว่างนับถอยหลังไม่มีอะไรให้เร่งหรือย้อน
+ */
+const ACTIONS = {
+  shutter: { ready: () => shoot(), review: () => deliver(), done: () => reset() },
+  back: { review: () => reset({ discard: true }), done: () => reset() },
+};
+
+function act(action) {
+  // ระหว่างกำลังพิมพ์/ประกอบแผ่น ปุ่มบนจอก็ตายอยู่แล้ว รีโมทต้องตายด้วย
+  // ไม่งั้นรีโมทกลายเป็นทางลัดสั่งพิมพ์ซ้ำที่จอไม่มี
+  if (state.busy) return;
+  ACTIONS[action]?.[body.dataset.stage]?.();
 }
 
 // ── ตั้งค่าเริ่มต้น ────────────────────────────────────────────────────────
@@ -269,6 +370,27 @@ async function boot() {
   el('deliver').addEventListener('click', () => deliver());
   el('again').addEventListener('click', () => reset({ discard: true }));
   el('restart').addEventListener('click', () => reset());
+
+  /*
+   * รีโมทกดถ่าย — หน้าจอรับปุ่มเอง
+   *
+   * รีโมทเป็นคีย์บอร์ดในสายตาระบบ ปุ่มจึงมาถึงหน้าเว็บตามเส้นทางปกติเหมือนคน
+   * กดคีย์บอร์ด · รับตรงนี้แทนที่จะไปดักในกระบวนการหลัก เพราะเป็นเส้นทางเดียว
+   * ที่ทดสอบได้จริงทั้งเส้น และไม่ต้องยึดปุ่มไปจากทั้งเครื่อง
+   */
+  if (settings.remote.enabled) {
+    const press = createRemote(act);
+    window.addEventListener('keydown', (event) => {
+      if (press(event)) event.preventDefault();
+    });
+  }
+
+  window.booth.onMessage((message) => {
+    if (message?.type === 'action') act(message.action);
+    // จอช่างภาพเพิ่งเปิด/รีเฟรช — บอกให้มันรู้ว่าตอนนี้อยู่ขั้นไหน ไม่ใช่ปล่อยให้
+    // นั่งดูจอเปล่าจนกว่าแขกคนถัดไปจะมา
+    if (message?.type === 'hello') say({ type: 'stage', stage: body.dataset.stage });
+  });
 
   stage('ready');
   document.body.dataset.ready = '1';

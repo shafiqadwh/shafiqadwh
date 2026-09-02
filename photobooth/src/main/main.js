@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, app, ipcMain } from 'electron';
+import { BrowserWindow, app, globalShortcut, ipcMain, screen } from 'electron';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { themeById } from '../../../shared/themes.js';
@@ -12,6 +12,9 @@ import { canPublish, loadSettings, photoUrl, saveSettings, sheetQrUrl } from './
 import { discardSession, isToken, reserveSession, saveSession } from './session.js';
 import { uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
+import { createRemote } from '../core/keys.js';
+import { registerGlobalKeys } from './remote.js';
+import { openWindows } from './windows.js';
 
 /**
  * Electron main — หน้าต่าง กับสะพานระหว่างหน้าจอกับแกนประกอบแผ่น
@@ -34,23 +37,48 @@ const dataRoot = () => path.join(process.env.BOOTH_USER_DATA || app.getPath('use
 const sessionsDir = () => path.join(dataRoot(), 'sessions');
 const outboxDir = () => path.join(dataRoot(), 'outbox');
 
-let window = null;
+const windows = { guest: null, operator: null };
 
-function createWindow() {
-  window = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    backgroundColor: '#101014',
-    // บูธเปิดค้างทั้งงาน แขกไม่ควรเห็นแถบเมนูหรือปิดหน้าต่างได้โดยบังเอิญ
-    fullscreen: process.env.BOOTH_WINDOWED !== '1',
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(here, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+const alive = (win) => Boolean(win) && !win.isDestroyed();
+
+/**
+ * สะพานระหว่างสองจอ — ใครส่งอะไรมา ส่งต่อให้อีกจอ
+ *
+ * ทำเป็นทางเดียวใช้ได้ทั้งสองทิศโดยตั้งใจ: จอหน้าส่งสถานะกับภาพไปให้จอหลัง
+ * จอหลังส่งคำสั่งกลับมาให้จอหน้า · ใช้ท่อเดียวกันจึงไม่มีทางที่ทิศหนึ่งใช้ได้
+ * อีกทิศเงียบ ซึ่งเป็นอาการที่หาสาเหตุยากที่สุดเวลาอยู่หน้างาน
+ */
+function relay(from, message) {
+  if (!message || typeof message.type !== 'string') return;
+  for (const win of [windows.guest, windows.operator]) {
+    if (alive(win) && win.webContents !== from) win.webContents.send('booth:message', message);
+  }
+}
+
+/** ปุ่มรีโมทสั่งงานที่จอหน้าเสมอ — จอหน้าคือที่เดียวที่รู้ว่าตอนนี้อยู่ขั้นไหน */
+const press = createRemote((action) => {
+  if (alive(windows.guest)) windows.guest.webContents.send('booth:message', { type: 'action', action });
+});
+
+async function createWindow() {
+  const settings = await loadSettings(dataRoot());
+  const opened = await openWindows({ BrowserWindow, screen }, {
+    renderer,
+    preload: path.join(here, 'preload.cjs'),
+    windowed: process.env.BOOTH_WINDOWED === '1',
+    operator: settings.operatorScreen,
+    // เปิดจอช่างภาพบนเครื่องจอเดียวได้ สำหรับซ้อมก่อนงานและสำหรับเทสต์
+    force: process.env.BOOTH_OPERATOR === '1',
   });
-  return window.loadFile(path.join(renderer, 'index.html'));
+
+  windows.guest = opened.guest;
+  windows.operator = opened.operator;
+
+  // ปุ่มที่หน้าจอรับเองไม่ได้ (ปุ่มเสียงที่เดสก์ท็อปยึดไว้) — ที่เหลือหน้าจอจัดการเอง
+  if (settings.remote.enabled) {
+    registerGlobalKeys(globalShortcut, settings.remote.globalKeys, press);
+  }
+  return opened;
 }
 
 /** รูปจากกล้องมาเป็น data URL — แปลงเป็น Buffer ก่อนส่งต่อให้ sharp */
@@ -74,6 +102,8 @@ ipcMain.handle('booth:setup', async () => {
 });
 
 ipcMain.handle('booth:save-settings', async (event, patch) => saveSettings(dataRoot(), patch));
+
+ipcMain.on('booth:broadcast', (event, message) => relay(event.sender, message));
 
 /**
  * ประกอบแผ่นจากรูปที่เพิ่งถ่าย แล้วคืนภาพตัวอย่างขนาดจอ
@@ -178,6 +208,9 @@ app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+// ปุ่มที่ยึดไว้ทั้งเครื่องต้องคืนตอนปิด ไม่งั้นเจ้าของเครื่องเสียปุ่มนั้นไปจนกว่าจะล็อกเอาต์
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

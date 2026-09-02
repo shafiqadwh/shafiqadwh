@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>Photo Booth · จอช่างภาพ</title>
+  <link rel="stylesheet" href="operator.css">
+</head>
+<body>
+  <!--
+    จอด้านหลัง — ช่างภาพเป็นคนดู ไม่ใช่แขก
+    เห็นทุกอย่างที่จอหน้าเห็น (ส่งต่อมาทาง booth:message) แล้วสั่งงานกลับไปได้
+    ปุ่มสองปุ่มตรงกับปุ่มสองปุ่มบนรีโมทเป๊ะ ๆ — ใครหยิบรีโมทมาก็เดาถูกทันที
+  -->
+  <header class="bar">
+    <h1 class="bar__title" id="event-title"></h1>
+    <p class="bar__stage" id="stage-label">กำลังเชื่อมต่อ…</p>
+  </header>
+
+  <main class="view">
+    <img class="view__image" id="view-image" alt="" hidden>
+    <p class="view__idle" id="view-idle">พร้อมถ่าย</p>
+    <div class="view__count" id="count" aria-live="polite"></div>
+  </main>
+
+  <p class="progress" id="progress"></p>
+
+  <div class="controls">
+    <button class="key key--ghost" id="back" type="button" hidden>ถ่ายใหม่</button>
+    <button class="key" id="go" type="button">เริ่มถ่าย</button>
+  </div>
+
+  <footer class="foot">
+    <span class="foot__code" id="code"></span>
+    <span class="foot__count" id="tally">วันนี้ 0 แผ่น</span>
+  </footer>
+
+  <script type="module" src="operator.js"></script>
+</body>
+</html>

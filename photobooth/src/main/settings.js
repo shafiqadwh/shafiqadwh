@@ -4,6 +4,7 @@ import { THEME_IDS } from '../../../shared/themes.js';
 import { EFFECT_IDS } from '../core/effects.js';
 import { TEMPLATE_IDS } from '../core/templates.js';
 import { PAGES, PAPERS } from '../core/paper.js';
+import { KEY_ACTIONS } from '../core/keys.js';
 
 /**
  * ค่าตั้งของบูธ — ตั้งไว้ก่อนงาน แล้วหน้างานแตะให้น้อยที่สุด
@@ -47,6 +48,16 @@ export const DEFAULTS = Object.freeze({
   // กุญแจเดียวกับ BOOTH_KEY ฝั่งเว็บ · เดินทางเป็น HTTP header จึงต้องเป็น ASCII
   uploadKey: '',
   printer: { driver: 'file', name: '' },
+  // จอที่สองสำหรับช่างภาพ · auto = ใช้เมื่อเสียบจอไว้จริง, off = ไม่ใช้แม้จะมีจอ
+  operatorScreen: 'auto',
+  /*
+   * รีโมทกดถ่าย — รับปุ่มจากหน้าต่างที่โฟกัสอยู่เสมอ (ดู remote.js)
+   *
+   * `globalKeys` คือปุ่มที่ยอมให้ยึดทั้งเครื่อง สำหรับปุ่มที่เดสก์ท็อปกินไปก่อน
+   * (ปุ่มเสียงบน Linux) · ว่างไว้เป็นค่าเริ่มต้นโดยตั้งใจ เพราะการยึด Enter
+   * ทั้งเครื่องแปลว่าโปรแกรมอื่นบนเครื่องนั้นใช้ปุ่มนั้นไม่ได้ไปจนกว่าจะปิดบูธ
+   */
+  remote: { enabled: true, globalKeys: [] },
 });
 
 const MAX_EFFECTS_AT_EVENT = 4;
@@ -104,6 +115,21 @@ function printer(value) {
   };
 }
 
+/**
+ * ปุ่มรีโมทที่ยอมให้ยึดทั้งเครื่อง — เฉพาะปุ่มที่บูธรู้จักเท่านั้น
+ *
+ * ปุ่มที่ไม่มีในตารางแปลว่ากดแล้วไม่เกิดอะไรขึ้น · ยึดปุ่มทั้งเครื่องไว้เฉย ๆ
+ * โดยไม่ได้ใช้ คือการทำให้โปรแกรมอื่นบนเครื่องนั้นเสียปุ่มไปเปล่า ๆ
+ */
+function remote(value) {
+  const given = value && typeof value === 'object' ? value : {};
+  const keys = Array.isArray(given.globalKeys) ? given.globalKeys : [];
+  return {
+    enabled: given.enabled !== false,
+    globalKeys: [...new Set(keys.filter((key) => KEY_ACTIONS[key]))],
+  };
+}
+
 /** ทุกค่าถูกบีบให้อยู่ในช่วงที่ใช้ได้เสมอ — ผลลัพธ์ของฟังก์ชันนี้เชื่อถือได้ทั้งก้อน */
 export function normaliseSettings(raw) {
   const given = raw && typeof raw === 'object' ? raw : {};
@@ -124,6 +150,8 @@ export function normaliseSettings(raw) {
     baseUrl: baseUrl(given.baseUrl),
     uploadKey: usableKey(given.uploadKey) ? given.uploadKey : '',
     printer: printer(given.printer),
+    operatorScreen: oneOf(given.operatorScreen, ['auto', 'off'], DEFAULTS.operatorScreen),
+    remote: remote(given.remote),
   };
 
   // บีบ deliver ให้ตรงกับความจริง — ขอ screen ไว้แต่ส่งขึ้นเว็บไม่ได้ คือจอที่
