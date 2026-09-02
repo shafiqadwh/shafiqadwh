@@ -199,6 +199,7 @@ export async function ensureDirs() {
   await Promise.all([
     fs.mkdir(config.paths.uploads, { recursive: true }),
     fs.mkdir(config.paths.derived, { recursive: true }),
+    fs.mkdir(config.paths.booth, { recursive: true }),
     fs.mkdir(config.paths.tmp, { recursive: true }),
     fs.mkdir(config.paths.export, { recursive: true }),
     fs.mkdir(config.paths.films, { recursive: true }),

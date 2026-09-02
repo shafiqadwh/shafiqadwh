@@ -86,6 +86,38 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_host_media_slot ON host_media (slot, sort_order, id);
+
+  /*
+   * รอบถ่ายจาก photo booth ที่อัปโหลดขึ้นมาหลังงาน
+   *
+   * แยกตารางด้วยเหตุผลเดียวกับ host_media และหนักกว่าเดิม: รูปจากบูธไม่ใช่ของที่
+   * แขกส่งเข้ามาในงาน มันจึงต้องไม่ไปโผล่ในแกลลอรี่ สไลด์โชว์ หนัง ZIP หรือ
+   * รายชื่อแขก · เข้าถึงได้ทางเดียวคือ /p/<โทเคน> ที่พิมพ์อยู่บนกระดาษของเจ้าตัว
+   *
+   * โทเคนเป็น PRIMARY KEY เอง ไม่ใช่ id ที่นับขึ้นเรื่อย ๆ — อัปโหลดซ้ำโทเคนเดิม
+   * (เน็ตหลุดกลางทางแล้วสั่งใหม่) จึงชนกันเองแล้วเรารู้ทันที ไม่เกิดของซ้ำเงียบ ๆ
+   */
+  CREATE TABLE IF NOT EXISTS booth_sessions (
+    token       TEXT    PRIMARY KEY,
+    taken_at    TEXT    NOT NULL,
+    event_title TEXT,
+    template    TEXT,
+    effect      TEXT,
+    sheet_name  TEXT    NOT NULL UNIQUE,
+    bytes       INTEGER NOT NULL,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS booth_shots (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    token       TEXT    NOT NULL REFERENCES booth_sessions (token) ON DELETE CASCADE,
+    stored_name TEXT    NOT NULL UNIQUE,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    bytes       INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_booth_shots_token ON booth_shots (token, sort_order);
+  CREATE INDEX IF NOT EXISTS idx_booth_sessions_created ON booth_sessions (created_at DESC);
 `);
 
 /**

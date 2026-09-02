@@ -11,6 +11,7 @@ import { resumeQueue } from './lib/queue.js';
 import { startLimiterCleanup } from './lib/ratelimit.js';
 import { themeStyle } from './lib/theme.js';
 import { adminRouter, isAdmin } from './routes/admin.js';
+import { boothRouter } from './routes/booth.js';
 import { galleryRouter } from './routes/gallery.js';
 import { guestbookRouter } from './routes/guestbook.js';
 import { slideshowRouter } from './routes/slideshow.js';
@@ -58,6 +59,7 @@ export function createApp() {
   app.use('/static', express.static(config.paths.public, { maxAge: '7d' }));
   app.get('/healthz', (req, res) => res.json({ ok: true }));
 
+  app.use(boothRouter);
   app.use(galleryRouter);
   app.use(uploadRouter);
   app.use(guestbookRouter);

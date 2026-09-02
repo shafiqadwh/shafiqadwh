@@ -283,5 +283,17 @@
     "messages": "Wishes",
     "clear": "Clear the search",
     "showing": "Showing what {name} sent"
+  },
+  "booth": {
+    "title": "Photos from the booth",
+    "hint": "These are your photos from the booth. Download and keep them.",
+    "sheet": "The sheet we printed for you",
+    "download_sheet": "Download the full sheet",
+    "originals": "The separate shots",
+    "originals_hint": "The original photos before they were laid out, at full resolution",
+    "download": "Download",
+    "code": "Code",
+    "not_yet": "Not uploaded yet",
+    "not_yet_hint": "Booth photos are uploaded after the event. Keep this code and scan again later — this link stays valid."
   }
 }

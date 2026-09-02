@@ -90,6 +90,40 @@ function colour(name) {
   return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : '';
 }
 
+/**
+ * กุญแจของ photo booth — ต้องเป็น ASCII ที่พิมพ์ได้ และยาวพอที่จะเป็นความลับจริง
+ *
+ * กุญแจนี้เดินทางเป็น **HTTP header** ซึ่งรับได้แค่ไบต์ 0x20–0x7E เท่านั้น
+ * ตั้งเป็นภาษาไทยแล้ว `fetch` ฝั่งบูธจะโยน error ตั้งแต่ยังไม่ได้ส่ง — อาการที่
+ * เจ้าของเห็นคือ "อัปโหลดไม่ได้เลย" โดยไม่มีอะไรชี้ว่าเป็นเพราะกุญแจ
+ * ปิดทางนั้นตั้งแต่ตอนอ่านค่า แล้วบอกเหตุผลออกมาเลย ดีกว่าปล่อยให้ไปตายหน้างาน
+ *
+ * ยาวอย่างน้อย 16 ตัว เพราะมันเปิดทางให้เขียนไฟล์ลงเครื่อง — กุญแจสั้น ๆ
+ * ที่ตั้งเล่นไว้ก่อนแล้วลืมเปลี่ยน คือช่องที่เดาได้จริงบนเว็บที่เปิดอยู่บนเน็ต
+ */
+const MIN_BOOTH_KEY = 16;
+
+function boothKey() {
+  const raw = str('BOOTH_KEY', '');
+  if (!raw) return '';
+
+  if (!/^[\x20-\x7e]+$/.test(raw)) {
+    console.warn(
+      '[config] BOOTH_KEY มีอักขระที่ไม่ใช่ ASCII — ส่งเป็น HTTP header ไม่ได้ '
+      + 'จึงถือว่ายังไม่ได้ตั้ง (ปิดรับรูปจากบูธ) · ตั้งใหม่เป็นตัวอักษรอังกฤษ ตัวเลข และสัญลักษณ์',
+    );
+    return '';
+  }
+  if (raw.length < MIN_BOOTH_KEY) {
+    console.warn(
+      `[config] BOOTH_KEY สั้นเกินไป (${raw.length} ตัว ต้องอย่างน้อย ${MIN_BOOTH_KEY}) `
+      + '— ถือว่ายังไม่ได้ตั้ง (ปิดรับรูปจากบูธ)',
+    );
+    return '';
+  }
+  return raw;
+}
+
 const dataDir = path.resolve(rootDir, str('DATA_DIR', 'data'));
 
 export const config = {
@@ -130,6 +164,8 @@ export const config = {
     data: dataDir,
     uploads: path.join(dataDir, 'uploads'),
     derived: path.join(dataDir, 'derived'),
+    // รูปจาก photo booth — คนละโฟลเดอร์กับรูปแขกโดยตั้งใจ เหตุผลเดียวกับที่แยกตาราง
+    booth: path.join(dataDir, 'booth'),
     db: path.join(dataDir, 'db', 'wedding.db'),
     tmp: path.join(dataDir, 'tmp'),
     locales: path.join(rootDir, 'locales'),
@@ -221,6 +257,16 @@ export const config = {
     // ค่านี้คือลบถาวรจริงหลังจากผ่านไปกี่วัน
     trashRetentionDays: num('TRASH_RETENTION_DAYS', 7),
   },
+
+  /*
+   * กุญแจที่ photo booth ใช้ส่งรอบถ่ายขึ้นมา
+   *
+   * **ว่าง = ปิดรับทั้งเส้นทาง** ซึ่งเป็นค่าเริ่มต้น · เว็บที่เปิดอยู่บนเน็ตไม่ควรมี
+   * ปากทางให้ใครก็ได้ยัดไฟล์เข้ามา เพียงเพราะเจ้าของอาจจะซื้อบูธในอนาคต
+   * แยกจากรหัสแอดมินเพราะกุญแจนี้ต้องไปฝังอยู่ในเครื่องบูธที่ยกไปตามงาน —
+   * หายเมื่อไรเปลี่ยนตัวนี้ตัวเดียว ไม่ต้องไปเปลี่ยนรหัสที่เจ้าภาพใช้เข้าหน้าแอดมิน
+   */
+  boothKey: boothKey(),
 
   i18n: {
     default: str('DEFAULT_LANGUAGE', 'th'),

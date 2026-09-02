@@ -283,5 +283,17 @@
     "messages": "Ucapan",
     "clear": "Kosongkan carian",
     "showing": "Menunjukkan hantaran {name}"
+  },
+  "booth": {
+    "title": "Gambar dari gerai foto",
+    "hint": "Ini gambar anda dari gerai. Muat turun dan simpan.",
+    "sheet": "Helaian yang dicetak untuk anda",
+    "download_sheet": "Muat turun helaian penuh",
+    "originals": "Gambar berasingan",
+    "originals_hint": "Gambar asal sebelum disusun jadi helaian, resolusi penuh",
+    "download": "Muat turun",
+    "code": "Kod",
+    "not_yet": "Gambar belum dimuat naik",
+    "not_yet_hint": "Gambar gerai dimuat naik selepas majlis. Simpan kod ini dan imbas semula kemudian — pautan ini kekal sah."
   }
 }

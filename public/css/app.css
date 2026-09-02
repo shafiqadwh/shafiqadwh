@@ -3005,3 +3005,70 @@ a:focus-visible {
   max-height: 46vh;
   overflow-y: auto;
 }
+
+/* ── หน้ารูปจากบูธ (/p/<โทเคน>) ─────────────────────────────────────────
+   แขกเปิดจากมือถือหลังสแกน QR บนกระดาษ · หน้าเดียวจบ ไม่มีอะไรให้กดผิด */
+
+.section-title--sub {
+  margin-top: 28px;
+  font-size: 1.05rem;
+}
+
+.booth-sheet {
+  margin: 18px 0 0;
+  text-align: center;
+}
+
+/* แผ่นที่พิมพ์เป็นพระเอกของหน้านี้ · พื้นขาวใต้ภาพเพราะแผ่นเองมีขอบขาว
+   วางบนพื้นครีมของหน้าเว็บแล้วขอบจะดูเลอะ ไม่ใช่ดูตั้งใจ */
+.booth-sheet img {
+  max-width: 100%;
+  max-height: 62vh;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.booth-sheet figcaption {
+  margin-top: 16px;
+}
+
+.booth-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.booth-shot {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.booth-shot img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--blush);
+}
+
+/* รหัสบนกระดาษ — แขกใช้พิมพ์เองเมื่อสแกน QR ไม่ติด จึงต้องอ่านทีละตัวได้ชัด */
+.booth-token {
+  margin: 26px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.booth-token strong {
+  color: var(--ink);
+  letter-spacing: 0.22em;
+  font-size: 1.05rem;
+}
+
+.booth-wait .booth-token {
+  margin-top: 18px;
+}

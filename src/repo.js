@@ -242,7 +242,7 @@ export function stats() {
     pending: statements.countPending.get().count,
     // รูปเจ้าภาพกินดิสก์จริงเหมือนรูปแขก ต้องบวกเข้ามาด้วย ไม่งั้นตัวเลขพื้นที่ใช้ไป
     // ต่ำกว่าความจริง แล้วเพดาน MAX_TOTAL_STORAGE_GB จะกันไม่ทันตอนดิสก์ใกล้เต็ม
-    bytes: statements.totalBytes.get().bytes + statements.hostBytes.get().bytes,
+    bytes: statements.totalBytes.get().bytes + statements.hostBytes.get().bytes + boothBytes(),
   };
 }
 
@@ -348,3 +348,53 @@ export function moveHostMedia(id, direction) {
   return true;
 }
 
+
+/*
+ * ─── รอบถ่ายจาก photo booth ──────────────────────────────────────────────
+ *
+ * เหมือนบล็อกรูปเจ้าภาพข้างบน: ทุกฟังก์ชันในนี้แตะเฉพาะ booth_sessions และ
+ * booth_shots · ไม่มีตัวไหนอ่านหรือเขียน items และไม่มีฟังก์ชันไหนข้างบนอ่านสองตารางนี้
+ * ความแยกขาดนี้คือทั้งหมดที่กันไม่ให้รูปจากบูธหลุดไปอยู่ในแกลลอรี่ สไลด์โชว์
+ * หนัง ZIP หรือรายชื่อแขก — ซึ่งเป็นของคนละงานกันคนละเรื่อง
+ */
+
+const boothStatements = {
+  get: db.prepare('SELECT * FROM booth_sessions WHERE token = ?'),
+  insert: db.prepare(`
+    INSERT INTO booth_sessions (token, taken_at, event_title, template, effect, sheet_name, bytes)
+    VALUES (@token, @takenAt, @eventTitle, @template, @effect, @sheetName, @bytes)
+  `),
+  insertShot: db.prepare(`
+    INSERT INTO booth_shots (token, stored_name, sort_order, bytes)
+    VALUES (@token, @storedName, @sortOrder, @bytes)
+  `),
+  shots: db.prepare('SELECT * FROM booth_shots WHERE token = ? ORDER BY sort_order, id'),
+  list: db.prepare('SELECT * FROM booth_sessions ORDER BY created_at DESC LIMIT ?'),
+  remove: db.prepare('DELETE FROM booth_sessions WHERE token = ?'),
+  count: db.prepare('SELECT COUNT(*) AS count FROM booth_sessions'),
+  bytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM booth_sessions'),
+  shotBytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM booth_shots'),
+};
+
+export const getBoothSession = (token) => boothStatements.get.get(token);
+export const listBoothShots = (token) => boothStatements.shots.all(token);
+export const listBoothSessions = (limit = 200) => boothStatements.list.all(Math.min(limit, 1000));
+export const countBoothSessions = () => boothStatements.count.get().count;
+export const deleteBoothSession = (token) => boothStatements.remove.run(token);
+
+/** ไบต์ที่รูปจากบูธกินบนดิสก์ — ต้องบวกเข้าสถิติ ไม่งั้นพื้นที่ใช้ไปต่ำกว่าจริง */
+export const boothBytes = () =>
+  boothStatements.bytes.get().bytes + boothStatements.shotBytes.get().bytes;
+
+/**
+ * บันทึกรอบถ่ายหนึ่งรอบทั้งก้อน — แถวหลักกับรูปทุกใบต้องเข้าไปพร้อมกันหรือไม่เข้าเลย
+ *
+ * เน็ตหลุดกลางอัปโหลดแล้วเหลือแถวที่ไม่มีรูป คือหน้า /p/ ที่เปิดแล้วว่างเปล่า
+ * ซึ่งแขกที่ถือกระดาษมาสแกนจะเจอ และเราจะไม่มีทางรู้ว่ามันเกิดขึ้น
+ */
+export const insertBoothSession = db.transaction((session, shots) => {
+  boothStatements.insert.run(session);
+  shots.forEach((shot, index) =>
+    boothStatements.insertShot.run({ ...shot, token: session.token, sortOrder: index + 1 }));
+  return boothStatements.get.get(session.token);
+});

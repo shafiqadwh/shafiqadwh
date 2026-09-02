@@ -1,0 +1,49 @@
+<%- include('partials/head', { pageTitle }) %>
+
+<%#
+  หน้าที่แขกเจอเมื่อสแกน QR บนกระดาษจากบูธ
+
+  แขกยืนอยู่ที่ไหนก็ได้ อาจสแกนในงานหรือสแกนอีกสามเดือนให้หลัง · หน้านี้จึงต้อง
+  อธิบายตัวเองได้โดยไม่ต้องมีใครมาบอก และต้องบอกตรง ๆ เมื่อของยังไม่พร้อม
+%>
+
+<% if (!session) { %>
+  <section class="card booth-wait">
+    <h1 class="section-title"><%= t('booth.not_yet') %></h1>
+    <p class="section-hint"><%= t('booth.not_yet_hint') %></p>
+    <p class="booth-token"><%= t('booth.code') %> <strong><%= token %></strong></p>
+  </section>
+<% } else { %>
+  <section class="card booth-photos">
+    <h1 class="section-title"><%= session.event_title || t('booth.title') %></h1>
+    <p class="section-hint"><%= t('booth.hint') %></p>
+
+    <figure class="booth-sheet">
+      <img src="/p/<%= token %>/sheet" alt="<%= t('booth.sheet') %>" loading="lazy">
+      <figcaption>
+        <a class="button button--primary" href="/p/<%= token %>/sheet" download>
+          <%= t('booth.download_sheet') %>
+        </a>
+      </figcaption>
+    </figure>
+
+    <% if (shots.length > 0) { %>
+      <h2 class="section-title section-title--sub"><%= t('booth.originals') %></h2>
+      <p class="section-hint"><%= t('booth.originals_hint') %></p>
+      <div class="booth-grid">
+        <% shots.forEach(function (shot, index) { %>
+          <figure class="booth-shot">
+            <img src="/p/<%= token %>/shot/<%= index + 1 %>" alt="" loading="lazy">
+            <a class="button button--tiny" href="/p/<%= token %>/shot/<%= index + 1 %>" download>
+              <%= t('booth.download') %>
+            </a>
+          </figure>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <p class="booth-token"><%= t('booth.code') %> <strong><%= token %></strong></p>
+  </section>
+<% } %>
+
+<%- include('partials/foot') %>
