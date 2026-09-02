@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, app, ipcMain } from 'electron';
@@ -8,7 +9,7 @@ import { listEffects } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
 import { loadSettings, qrUrlFor, saveSettings } from './settings.js';
 import { discardSession, isToken, reserveSession, saveSession } from './session.js';
-import { printSheet } from './print.js';
+import { preparePrintFile, printSheet } from './print.js';
 
 /**
  * Electron main — หน้าต่าง กับสะพานระหว่างหน้าจอกับแกนประกอบแผ่น
@@ -132,12 +133,22 @@ ipcMain.handle('booth:print', async (event, { token }) => {
   // ก็ไม่ใช่เหตุผลให้เชื่อค่าที่ข้ามขอบเขตกระบวนการมา — ตรวจรูปแบบก่อนเสมอ
   if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   const settings = await loadSettings(dataRoot());
-  return printSheet({
-    sheetPath: path.join(sessionsDir(), token, 'sheet.jpg'),
+  const dir = path.join(sessionsDir(), token);
+  const prepared = await preparePrintFile({
+    dir,
+    sheetPath: path.join(dir, 'sheet.jpg'),
+    settings,
+  });
+
+  const result = await printSheet({
+    sheetPath: prepared.path,
     settings,
     token,
     outbox: outboxDir(),
+    copies: prepared.pages,
   });
+
+  return { ...result, page: settings.printPage, perPage: prepared.perPage };
 });
 
 app.whenReady().then(createWindow);

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { THEME_IDS } from '../../../shared/themes.js';
 import { EFFECT_IDS } from '../core/effects.js';
 import { TEMPLATE_IDS } from '../core/templates.js';
-import { PAPERS } from '../core/paper.js';
+import { PAGES, PAPERS } from '../core/paper.js';
 
 /**
  * ค่าตั้งของบูธ — ตั้งไว้ก่อนงาน แล้วหน้างานแตะให้น้อยที่สุด
@@ -21,6 +21,9 @@ export const DEFAULTS = Object.freeze({
   theme: 'wedding',
   template: 'strip',
   paper: '4x6',
+  // กระดาษที่ใส่ในเครื่องพิมพ์จริง · `same` = เท่าขนาดสินค้า (dye-sub หรือกระดาษรูป 4×6)
+  // ตั้งเป็น A4 เมื่อใช้อิงค์เจ็ทกระดาษธรรมดา แล้วแผ่นจะไปนั่งกลางหน้าพร้อมเส้นตัด
+  printPage: 'same',
   // เอฟเฟคที่จะโชว์ให้แขกเลือกหน้างาน · เลือกไว้ตั้งแต่แรกว่าจะให้มีกี่แบบ
   // แขกยืนหน้าบูธเลือกจากเจ็ดแบบคือแถวยาว — สองสามแบบพอ
   effects: ['clean', 'soft', 'film'],
@@ -88,6 +91,7 @@ export function normaliseSettings(raw) {
     theme: oneOf(given.theme, THEME_IDS, DEFAULTS.theme),
     template: oneOf(given.template, TEMPLATE_IDS, DEFAULTS.template),
     paper: oneOf(given.paper, Object.keys(PAPERS), DEFAULTS.paper),
+    printPage: oneOf(given.printPage, Object.keys(PAGES), DEFAULTS.printPage),
     effects: effects(given.effects),
     // นับถอยหลังสั้นกว่า 2 วิ แขกยังไม่ทันตั้งท่า ยาวกว่า 10 วิ แถวเริ่มยาว
     countdownSeconds: clampInt(given.countdownSeconds, 2, 10, DEFAULTS.countdownSeconds),
