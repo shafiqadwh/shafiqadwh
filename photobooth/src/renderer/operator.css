@@ -4,6 +4,19 @@
  * จอหน้าต้องอ่านออกจากระยะสองเมตร ส่วนจอนี้ช่างภาพยืนติดอยู่แล้ว ที่ว่างจึงเอาไป
  * ให้ภาพสดเป็นหลัก แล้วเหลือแถบบอกสถานะกับปุ่มสองปุ่มไว้ข้าง ๆ
  */
+
+/*
+ * `hidden` ต้องชนะเสมอ — กับดักที่ไฟล์นี้เหยียบมาแล้วห้าครั้ง
+ *
+ * `[hidden]` ของเบราว์เซอร์คือ `display: none` ที่มาจาก UA stylesheet ซึ่ง
+ * **แพ้กฎของเราทุกข้อที่ตั้ง display เอง** · `.row { display: flex }` จึงทำให้
+ * ปุ่มที่สั่ง `hidden = true` ยังโผล่อยู่ (เจอตอนทำหน้าจ่ายเงิน: ปุ่ม "จ่ายแล้ว"
+ * ขึ้นบนจอแขกทั้งที่เสียบจอช่างภาพไว้ = ให้แขกยืนยันเงินให้ตัวเองได้)
+ *
+ * ประกาศครั้งเดียวตรงนี้ แทนการไล่เขียน `.อะไร[hidden]` ทีละอันแล้วลืมอันที่หก
+ */
+[hidden] { display: none !important; }
+
 :root {
   --accent: #d99a2b;
   --paper: #fffdf9;
@@ -83,7 +96,6 @@ body {
 }
 
 .view__image.is-mirrored { transform: scaleX(-1); }
-.view__image[hidden] { display: none; }
 
 .view__idle {
   margin: 0;
@@ -135,11 +147,14 @@ body {
 }
 
 .key[disabled] { opacity: 0.4; cursor: default; }
-.key[hidden] { display: none; }
 
 .foot {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  /* ช่องว่างระหว่างตัวเลข — ไม่มี gap แล้ว "0 แผ่น" กับ "รับแล้ว 0 บาท" ติดกัน
+     จนอ่านเป็นประโยคเดียว (เห็นจากภาพหน้าจอจริง ไม่ใช่จากการอ่านโค้ด) */
+  gap: 16px;
   font-size: clamp(12px, 1.5vw, 16px);
   color: rgba(255, 255, 255, 0.5);
 }
@@ -168,3 +183,23 @@ body {
 }
 
 .foot__send[disabled] { opacity: 0.45; cursor: default; }
+
+/* ── แผงเก็บเงิน ─────────────────────────────────────────────────────────
+   QR ซ้าย ยอดขวา · เจ้าของบูธมองแวบเดียวต้องรู้ว่าต้องเก็บเท่าไร
+   ขึ้นเฉพาะขั้นจ่ายเงิน เพราะขั้นอื่นมันคือพื้นที่ที่แย่งไปจากภาพที่ต้องดู       */
+.pay {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+}
+
+
+.pay__qr { width: 132px; height: 132px; border-radius: 8px; background: #fff; padding: 6px; }
+.pay__side { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pay__price { margin: 0; font-size: 2rem; font-weight: 700; }
+
+/* คำเตือนที่ต้องอยู่ตรงหน้าคนกด ไม่ใช่ในคู่มือที่ไม่มีใครเปิด */
+.pay__note { margin: 0; font-size: 0.82rem; opacity: 0.75; max-width: 34ch; }
+
+.foot__takings { font-variant-numeric: tabular-nums; }

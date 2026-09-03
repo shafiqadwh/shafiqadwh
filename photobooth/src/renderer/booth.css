@@ -4,6 +4,19 @@
  * สีมาจากธีมของงาน ฉีดเป็นตัวแปรตอนบูตใน booth.js (ตัวเดียวกับที่เว็บแชร์รูปใช้)
  * ค่าที่เขียนไว้ตรงนี้เป็นแค่ค่าสำรองตอนยังอ่านธีมไม่เสร็จ
  */
+
+/*
+ * `hidden` ต้องชนะเสมอ — กับดักที่ไฟล์นี้เหยียบมาแล้วห้าครั้ง
+ *
+ * `[hidden]` ของเบราว์เซอร์คือ `display: none` ที่มาจาก UA stylesheet ซึ่ง
+ * **แพ้กฎของเราทุกข้อที่ตั้ง display เอง** · `.row { display: flex }` จึงทำให้
+ * ปุ่มที่สั่ง `hidden = true` ยังโผล่อยู่ (เจอตอนทำหน้าจ่ายเงิน: ปุ่ม "จ่ายแล้ว"
+ * ขึ้นบนจอแขกทั้งที่เสียบจอช่างภาพไว้ = ให้แขกยืนยันเงินให้ตัวเองได้)
+ *
+ * ประกาศครั้งเดียวตรงนี้ แทนการไล่เขียน `.อะไร[hidden]` ทีละอันแล้วลืมอันที่หก
+ */
+[hidden] { display: none !important; }
+
 :root {
   --accent: #d99a2b;
   --accentDark: #b87a14;
@@ -48,6 +61,7 @@ html, body {
 body[data-stage="ready"]  .stage--ready,
 body[data-stage="shoot"]  .stage--shoot,
 body[data-stage="review"] .stage--review,
+body[data-stage="pay"]    .stage--pay,
 body[data-stage="done"]   .stage--done { display: flex; }
 
 /* ── ฉากพร้อมเริ่ม ── */
@@ -226,8 +240,6 @@ body[data-busy] .chip { opacity: 0.5; pointer-events: none; }
   background: #fff;
 }
 
-.done__qr[hidden] { display: none; }
-.done__mark[hidden] { display: none; }
 
 .done__code {
   margin: 0;
@@ -252,4 +264,36 @@ body[data-busy] .chip { opacity: 0.5; pointer-events: none; }
   text-align: center;
 }
 
-.error[hidden] { display: none; }
+
+/* ── ขั้นจ่ายเงิน ────────────────────────────────────────────────────────
+   ราคาต้องใหญ่กว่าทุกอย่าง — แขกอ่านยอดก่อนหยิบมือถือขึ้นมาสแกนเสมอ
+   และ QR ต้องคมพอให้สแกนติดจากระยะยืน ไม่ใช่ต้องก้มลงไปจ่อ                 */
+.pay__price {
+  margin: 0 0 2vh;
+  font-size: clamp(2.4rem, 7vw, 4.5rem);
+  font-weight: 700;
+  /* จอบูธพื้นเข้ม — ใช้ --ink ซึ่งเป็นสีเกือบดำคือยอดที่มองไม่เห็นทั้งงาน */
+  color: var(--paper);
+}
+
+.pay__qr {
+  width: min(52vh, 68vw);
+  height: auto;
+  border-radius: 12px;
+  background: #fff;
+  padding: 2%;
+}
+
+.pay__hint {
+  margin: 2vh 0 0;
+  font-size: clamp(1rem, 2.4vw, 1.6rem);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* ข้อความรอ ขึ้นเฉพาะตอนที่ปุ่มยืนยันไม่ได้อยู่จอนี้ — แขกจะได้ไม่ยืนหาปุ่มที่ไม่มี */
+.pay__wait {
+  margin: 3vh 0 0;
+  font-size: clamp(0.95rem, 2vw, 1.3rem);
+  color: rgba(255, 255, 255, 0.62);
+}
+

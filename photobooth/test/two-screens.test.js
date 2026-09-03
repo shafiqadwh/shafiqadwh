@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { startDisplay } from './helpers/display.js';
 
 /**
  * บูธสองจอ — จอหน้าให้แขก จอหลังให้ช่างภาพ
@@ -28,22 +28,7 @@ let userData;
 let xvfb = null;
 let launchError = null;
 
-async function ensureDisplay() {
-  if (process.env.DISPLAY) return;
-  const child = spawn('Xvfb', [':98', '-screen', '0', '1280x800x24', '-nolisten', 'tcp'],
-    { stdio: 'ignore', detached: true });
-  const ok = await new Promise((done) => {
-    child.once('error', () => done(false));
-    child.once('exit', () => done(false));
-    setTimeout(() => done(true), 1200);
-  });
-  if (!ok) {
-    child.kill('SIGKILL');
-    throw new Error('ไม่มีทั้ง DISPLAY และ Xvfb');
-  }
-  xvfb = child;
-  process.env.DISPLAY = ':98';
-}
+const ensureDisplay = async () => { xvfb = await startDisplay([98, 88, 78]); };
 
 /** หน้าต่างสองบานเปิดพร้อมกัน ลำดับไม่แน่นอน — แยกด้วยไฟล์ที่มันโหลด */
 async function windowsByPage() {

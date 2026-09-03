@@ -25,10 +25,13 @@ const STAGE_LABEL = {
   ready: 'พร้อมถ่าย',
   shoot: 'กำลังถ่าย',
   review: 'ให้แขกดูแผ่น',
+  pay: 'รอรับเงิน',
   done: 'ส่งมอบแล้ว',
 };
 
 const state = { deliver: 'print', sheets: 0 };
+
+const baht = (amount) => `${Number(amount).toLocaleString('th-TH')} บาท`;
 
 const send = (message) => window.booth.broadcast(message);
 
@@ -40,13 +43,18 @@ function paintStage(stage) {
     ready: 'เริ่มถ่าย',
     shoot: 'กำลังถ่าย…',
     review: DELIVERY[state.deliver] ?? DELIVERY.print,
+    // ปุ่มหลักบนจอนี้ = ปุ่มบนรีโมท · ตอนอยู่ขั้นเก็บเงิน มันแปลว่า "ได้รับเงินแล้ว"
+    // เขียนให้ตรงกับสิ่งที่มันทำจริง ไม่ใช่ "ต่อไป" ที่กดผิดแล้วเสียเงินไปหนึ่งรอบ
+    pay: 'ได้รับเงินแล้ว → พิมพ์',
     done: 'ถ่ายอีกครั้ง',
   }[stage] ?? 'เริ่มถ่าย';
 
   // ระหว่างนับถอยหลังไม่มีอะไรให้กด — ปุ่มที่กดแล้วไม่มีอะไรเกิดขึ้นทำให้คนกดซ้ำ
   el('go').disabled = stage === 'shoot';
   // "ถ่ายใหม่" มีความหมายเฉพาะตอนที่มีแผ่นให้ทิ้ง — ขั้นอื่นมันซ้ำกับปุ่มหลัก
-  el('back').hidden = stage !== 'review';
+  // ขั้นเก็บเงินก็มีแผ่นให้ทิ้งเหมือนกัน (แขกเปลี่ยนใจไม่เอาแล้ว)
+  el('back').hidden = !['review', 'pay'].includes(stage);
+  el('pay').hidden = stage !== 'pay';
 }
 
 function showImage(src, { mirror }) {
@@ -115,6 +123,12 @@ const HANDLERS = {
     el('code').textContent = code ? `รหัส ${code}` : '';
   },
   count: ({ n }) => { el('count').textContent = n > 0 ? String(n) : ''; },
+  pay: ({ price, qr, takings }) => {
+    el('pay-qr').src = qr;
+    el('pay-price').textContent = baht(price);
+    paintTakings(takings);
+  },
+  takings: ({ takings }) => paintTakings(takings),
   progress: ({ text }) => { el('progress').textContent = text ?? ''; },
   done: ({ printed, published, code, text }) => {
     state.sheets += printed ? 1 : 0;
@@ -128,8 +142,21 @@ const HANDLERS = {
   upload: ({ done, total }) => {
     el('progress').textContent = `กำลังส่งขึ้นเว็บ ${done}/${total}`;
   },
-  reset: () => { clearImage(); el('code').textContent = ''; },
+  reset: () => {
+    clearImage();
+    el('code').textContent = '';
+    // QR จ่ายเงินของรอบก่อนต้องไม่ค้าง — จอนี้เปิดทั้งวันโดยไม่มีใครรีเฟรช
+    el('pay-qr').removeAttribute('src');
+    el('pay-price').textContent = '';
+  },
 };
+
+/** ยอดวันนี้ — ว่างไว้ถ้าบูธนี้ไม่ได้ตั้งขาย จะได้ไม่มีเลข 0 บาทกวนสายตาทั้งงาน */
+function paintTakings(takings) {
+  if (!takings) return;
+  const free = takings.free > 0 ? ` (ฟรี ${takings.free})` : '';
+  el('takings').textContent = `รับแล้ว ${baht(takings.total)} · ${takings.rounds} รอบ${free}`;
+}
 
 async function boot() {
   let remote = true;
@@ -150,6 +177,8 @@ async function boot() {
 
   el('go').addEventListener('click', () => send({ type: 'action', action: 'shutter' }));
   el('back').addEventListener('click', () => send({ type: 'action', action: 'back' }));
+  // ไม่คิดเงิน — ไม่มีปุ่มบนรีโมทโดยตั้งใจ ต้องเป็นการกดที่ตั้งใจกดเท่านั้น
+  el('pay-free').addEventListener('click', () => send({ type: 'action', action: 'free' }));
 
   // รีโมทมักอยู่ในมือช่างภาพซึ่งยืนอยู่หลังบูธ — ปุ่มที่กดตรงนี้จึงต้องได้ผลเท่ากับ
   // กดที่จอหน้า · จอนี้ไม่ตัดสินใจเอง แค่ส่งต่อให้จอหน้าซึ่งเป็นเจ้าของสถานะ

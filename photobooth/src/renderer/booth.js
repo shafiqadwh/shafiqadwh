@@ -18,6 +18,8 @@ const state = {
   effect: null,
   shots: [],
   token: null,
+  // ยอดกับ QR ของรอบที่กำลังเก็บเงิน — เก็บไว้ส่งซ้ำให้จอช่างภาพที่เพิ่งรีเฟรช
+  pay: null,
   busy: false,
   stream: null,
   relay: null,
@@ -225,6 +227,51 @@ async function shoot() {
   stage('review');
 }
 
+/**
+ * ขอ QR พร้อมเพย์แล้วขึ้นหน้าจ่ายเงิน
+ *
+ * คั่นตรงนี้ — ระหว่าง "แขกเห็นแผ่นแล้ว" กับ "สั่งพิมพ์" — โดยตั้งใจ
+ * แขกเห็นของก่อนจ่าย จึงไม่มีเรื่องขอเงินคืนเพราะรูปไม่ถูกใจ และถ้ากล้องหรือการ
+ * ประกอบแผ่นล้มก่อนหน้านี้ ก็ยังไม่มีใครจ่ายอะไรไปเลย · กระดาษยังไม่ถูกใช้ด้วย
+ *
+ * บูธที่ไม่ได้ตั้งขาย (รับจ้างงาน เจ้าภาพจ่ายมาแล้ว) ข้ามขั้นนี้ไปทั้งขั้น
+ */
+async function askPayment() {
+  const sale = await guard(() => window.booth.sale());
+  if (!sale) return;
+  if (!sale.enabled) return deliver();
+
+  /*
+   * ปุ่มยืนยันรับเงินอยู่จอไหน — ตัดสินตอนนี้ ไม่ใช่ตอนบูต
+   *
+   * มีจอช่างภาพ = ปุ่มอยู่จอหลังที่เดียว **แขกกดยืนยันให้ตัวเองไม่ได้**
+   * ไม่มีจอหลัง (บูธจอเดียวกางหน้าบ้าน) = ปุ่มต้องอยู่จอนี้ ไม่งั้นบูธค้างคาแถว
+   * โดยที่เจ้าของยืนอยู่ตรงนั้นแต่ไม่มีอะไรให้กด · เจ้าของกดจากรีโมทได้ทั้งสองแบบ
+   */
+  el('pay-buttons').hidden = sale.hasOperator === true;
+  el('pay-wait').hidden = sale.hasOperator !== true;
+
+  state.pay = { type: 'pay', price: sale.price, qr: sale.qr, takings: sale.takings };
+  el('pay-price').textContent = `${sale.price.toLocaleString('th-TH')} บาท`;
+  el('pay-qr').src = sale.qr;
+  say(state.pay);
+  stage('pay');
+  return undefined;
+}
+
+/**
+ * มีคนกดยืนยันว่าได้รับเงินแล้ว — จดลงสมุดบัญชี แล้วค่อยส่งมอบ
+ *
+ * จดก่อนพิมพ์ ไม่ใช่หลังพิมพ์ · เครื่องพิมพ์กระดาษหมดกลางทางแล้วรอบนั้นหายจาก
+ * สมุดบัญชี = ยอดเงินที่ได้รับจริงไม่ตรงกับที่จดไว้ ซึ่งแก้ทีหลังไม่ได้เพราะไม่มีใครจำ
+ */
+async function confirmPaid({ free = false } = {}) {
+  const result = await guard(() => window.booth.paid({ token: state.token, free }));
+  if (!result) return;
+  say({ type: 'takings', takings: result.takings, free });
+  await deliver();
+}
+
 /** ป้ายบนปุ่มหลัก และข้อความตอนเสร็จ — ผูกกับโหมดส่งมอบที่ตั้งไว้ */
 const DELIVERY = {
   print: { button: 'พิมพ์', done: 'พิมพ์ให้แล้ว รอรับได้เลย' },
@@ -284,6 +331,10 @@ async function reset({ discard = false } = {}) {
   el('done-qr').removeAttribute('src');
   el('done-qr').hidden = true;
   el('done-code').textContent = '';
+  // QR จ่ายเงินของรอบก่อนค้างอยู่ = คนถัดไปเห็นยอดเก่าตอนหน้าจอเปลี่ยนไม่ทัน
+  el('pay-qr').removeAttribute('src');
+  el('pay-price').textContent = '';
+  state.pay = null;
   el('progress').textContent = '';
   say({ type: 'reset' });
   stage('ready');
@@ -307,8 +358,26 @@ async function reset({ discard = false } = {}) {
  * ขั้น shoot ไม่รับคำสั่งใด ๆ — ระหว่างนับถอยหลังไม่มีอะไรให้เร่งหรือย้อน
  */
 const ACTIONS = {
-  shutter: { ready: () => shoot(), review: () => deliver(), done: () => reset() },
-  back: { review: () => reset({ discard: true }), done: () => reset() },
+  shutter: {
+    ready: () => shoot(),
+    review: () => askPayment(),
+    // รีโมทอยู่ในมือเจ้าของบูธ ซึ่งเป็นคนเดียวที่เห็นแอปธนาคาร — ปุ่มถ่ายบนรีโมท
+    // จึงหมายถึง "ได้รับเงินแล้ว" ตอนอยู่ขั้นนี้ เหมือนที่มันหมายถึง "ทำขั้นต่อไป" เสมอ
+    pay: () => confirmPaid(),
+    done: () => reset(),
+  },
+  back: {
+    review: () => reset({ discard: true }),
+    pay: () => reset({ discard: true }),
+    done: () => reset(),
+  },
+  /*
+   * รอบที่ไม่คิดเงิน — ถ่ายซ้อม เพื่อน หรือถ่ายชดเชยให้ลูกค้าที่รูปไม่สวย
+   *
+   * **ไม่มีปุ่มบนรีโมทโดยตั้งใจ** (ไม่มีคีย์ไหนแมปมาที่ action นี้) การยกเว้นค่าถ่าย
+   * ต้องเป็นการกดปุ่มที่ตั้งใจกด ไม่ใช่ผลของการกดรีโมทพลาดตอนแขกยืนรอ
+   */
+  free: { pay: () => confirmPaid({ free: true }) },
 };
 
 function act(action) {
@@ -367,7 +436,10 @@ async function boot() {
   }
 
   el('start').addEventListener('click', () => shoot());
-  el('deliver').addEventListener('click', () => deliver());
+  el('deliver').addEventListener('click', () => askPayment());
+  el('pay-done').addEventListener('click', () => confirmPaid());
+  el('pay-cancel').addEventListener('click', () => reset({ discard: true }));
+
   el('again').addEventListener('click', () => reset({ discard: true }));
   el('restart').addEventListener('click', () => reset());
 
@@ -389,7 +461,12 @@ async function boot() {
     if (message?.type === 'action') act(message.action);
     // จอช่างภาพเพิ่งเปิด/รีเฟรช — บอกให้มันรู้ว่าตอนนี้อยู่ขั้นไหน ไม่ใช่ปล่อยให้
     // นั่งดูจอเปล่าจนกว่าแขกคนถัดไปจะมา
-    if (message?.type === 'hello') say({ type: 'stage', stage: body.dataset.stage });
+    if (message?.type === 'hello') {
+      say({ type: 'stage', stage: body.dataset.stage });
+      // จอช่างภาพที่รีเฟรชกลางขั้นเก็บเงิน ต้องได้ยอดกับ QR กลับไปด้วย ไม่ใช่แผงเปล่า
+      // ที่มีปุ่ม "ได้รับเงินแล้ว" ให้กดโดยไม่รู้ว่ากำลังเก็บเท่าไร
+      if (state.pay) say(state.pay);
+    }
   });
 
   stage('ready');

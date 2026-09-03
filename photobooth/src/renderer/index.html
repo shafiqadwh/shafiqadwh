@@ -44,6 +44,23 @@
       <p class="token" id="token"></p>
     </section>
 
+    <!-- 3.5 จ่ายเงิน (เฉพาะบูธที่ตั้งขายไว้) -->
+    <section class="stage stage--pay" data-stage-panel="pay">
+      <p class="pay__price" id="pay-price"></p>
+      <!-- QR ใหญ่เต็มที่ · แขกยกมือถือขึ้นสแกนจากระยะยืน ไม่ได้ก้มลงมาจ่อ -->
+      <img class="pay__qr" id="pay-qr" alt="QR พร้อมเพย์สำหรับชำระเงิน">
+      <p class="pay__hint">สแกนด้วยแอปธนาคารเพื่อชำระเงิน</p>
+      <!--
+        ปุ่มยืนยันขึ้นเฉพาะบูธที่ไม่มีจอช่างภาพ (บูธจอเดียว)
+        มีจอช่างภาพเมื่อไร ปุ่มนี้หายไป แล้วคนกดยืนยันคือคนที่เห็นแอปธนาคารเท่านั้น
+      -->
+      <div class="row" id="pay-buttons" hidden>
+        <button class="big big--ghost" id="pay-cancel" type="button">ยกเลิก</button>
+        <button class="big" id="pay-done" type="button">จ่ายแล้ว</button>
+      </div>
+      <p class="pay__wait" id="pay-wait">รอเจ้าของบูธยืนยันการชำระเงิน</p>
+    </section>
+
     <!-- 4. เสร็จแล้ว -->
     <section class="stage stage--done" data-stage-panel="done">
       <!-- QR ใหญ่พอสแกนจากระยะยืนหน้าบูธ · ไม่มี QR ก็ขึ้นเครื่องหมายถูกแทน -->

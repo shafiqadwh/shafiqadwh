@@ -14,6 +14,8 @@ import {
 import { discardSession, isToken, listSessions, reserveSession, saveSession } from './session.js';
 import { uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
+import { promptPayPayload } from '../core/promptpay.js';
+import { recordSale, takings } from './sales.js';
 import { createRemote } from '../core/keys.js';
 import { registerGlobalKeys } from './remote.js';
 import { openWindows } from './windows.js';
@@ -224,6 +226,59 @@ ipcMain.handle('booth:compose', async (event, { shots, effect }) => {
     await discardSession(sessionsDir(), token).catch(() => {});
     throw error;
   }
+});
+
+/**
+ * ขอ QR พร้อมเพย์สำหรับรอบนี้
+ *
+ * สร้างใหม่ทุกครั้งแทนที่จะทำครั้งเดียวตอนเปิดบูธ เพราะราคาถูกแก้ระหว่างวันได้
+ * (ลดราคาช่วงเย็น จัดโปรสองแผ่น) และการคิดสตริงกับวาด QR ใช้เวลาไม่กี่มิลลิวินาที
+ *
+ * `enabled: false` = บูธนี้ไม่ได้ขาย — หน้าจอข้ามขั้นจ่ายเงินไปเลย
+ */
+ipcMain.handle('booth:sale', async () => {
+  const settings = await loadSettings(dataRoot());
+  if (!settings.sale.enabled) return { enabled: false };
+
+  const payload = promptPayPayload({ target: settings.sale.target, amount: settings.sale.price });
+  if (!payload) {
+    // ผ่านตัวตรวจของ settings มาแล้วยังสร้างไม่ได้ = มีอะไรผิดที่เราไม่รู้จัก
+    // ปล่อยให้ขายฟรีดีกว่าให้บูธค้างคาแถว แต่ต้องดังพอให้เจ้าของเห็นใน log
+    console.error('[booth] สร้าง QR พร้อมเพย์ไม่ได้ทั้งที่ค่าตั้งผ่านการตรวจแล้ว');
+    return { enabled: false };
+  }
+
+  return {
+    enabled: true,
+    price: settings.sale.price,
+    qr: await QRCode.toDataURL(payload, { width: 720, margin: 1 }),
+    takings: await takings(dataRoot()),
+    /*
+     * มีจอช่างภาพอยู่จริงไหม — ตัวชี้ขาดว่า **ปุ่มยืนยันรับเงินอยู่จอไหน**
+     *
+     * ตอบตรงนี้ ไม่ใช่ตอน `booth:setup` · `openWindows` รอโหลดทั้งสองบานก่อนคืนค่า
+     * แล้ว main.js จึงค่อยจำว่าบานไหนเป็นจอช่างภาพ — จอหน้าที่ถาม setup ตอนบูต
+     * จึงถามเร็วกว่าที่ main จะรู้คำตอบ **วัดแล้วเจอจริง**: ปุ่ม "จ่ายแล้ว" โผล่บน
+     * จอแขกทั้งที่เสียบจอที่สองอยู่ ซึ่งคือให้แขกยืนยันเงินให้ตัวเองได้
+     *
+     * และมันเป็นความจริงที่เปลี่ยนได้ระหว่างงานด้วย (จอช่างภาพถูกปิด/เปิดใหม่)
+     * ถามตอนจะใช้จริงจึงถูกกว่าจำคำตอบไว้ตั้งแต่ตอนบูตทุกกรณี
+     */
+    hasOperator: alive(windows.operator),
+  };
+});
+
+/**
+ * คนกดยืนยันว่าได้รับเงินแล้ว — **นี่คือหลักฐานเดียวที่ระบบนี้มี**
+ *
+ * ไม่มีการตรวจกับธนาคาร และจะไม่แกล้งทำเป็นว่ามี · จดไว้ในสมุดบัญชีตามที่คนกด
+ * แล้วให้เจ้าของกระทบยอดกับแอปธนาคารตอนเก็บบูธ
+ */
+ipcMain.handle('booth:paid', async (event, { token, free }) => {
+  if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
+  const settings = await loadSettings(dataRoot());
+  await recordSale(dataRoot(), { token, amount: settings.sale.price, free: free === true });
+  return { takings: await takings(dataRoot()) };
 });
 
 ipcMain.handle('booth:discard', async (event, { token }) => {

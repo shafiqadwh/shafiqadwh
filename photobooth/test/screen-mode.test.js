@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { canPublish, normaliseSettings, saveSettings } from '../src/main/settings.js';
+import { spawn } from 'node:child_process';
+import { startDisplay } from './helpers/display.js';
 
 /**
  * โหมด "ไม่ต้องพิมพ์" — ถ่ายเสร็จขึ้น QR บนจอ แขกสแกนรับไฟล์ทันที
@@ -60,22 +61,7 @@ function startWeb(dataDir) {
   });
 }
 
-async function ensureDisplay() {
-  if (process.env.DISPLAY) return;
-  const child = spawn('Xvfb', [':96', '-screen', '0', '1280x800x24', '-nolisten', 'tcp'],
-    { stdio: 'ignore', detached: true });
-  const ok = await new Promise((done) => {
-    child.once('error', () => done(false));
-    child.once('exit', () => done(false));
-    setTimeout(() => done(true), 1200);
-  });
-  if (!ok) {
-    child.kill('SIGKILL');
-    throw new Error('ไม่มีทั้ง DISPLAY และ Xvfb');
-  }
-  xvfb = child;
-  process.env.DISPLAY = ':96';
-}
+const ensureDisplay = async () => { xvfb = await startDisplay([96, 86, 76]); };
 
 before(async () => {
   userData = await fs.mkdtemp(path.join(os.tmpdir(), 'booth-screen-'));

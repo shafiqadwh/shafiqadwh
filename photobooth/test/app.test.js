@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
 import { after, before, test } from 'node:test';
+import { startDisplay } from './helpers/display.js';
 
 /**
  * ขับแอปจริงทั้งตัว — Electron + หน้าจอ + กล้อง + ประกอบแผ่น + สั่งพิมพ์
@@ -34,26 +34,7 @@ let launchError = null;
  * ตรวจว่าชิ้นส่วนต่อกันติดจริง) จะถูก skip ทิ้งทุกครั้งที่ใครรัน `npm test`
  * เฉย ๆ แล้วค่อย ๆ เน่าไปโดยไม่มีใครสังเกต
  */
-async function ensureDisplay() {
-  if (process.env.DISPLAY) return;
-
-  const display = ':97';
-  const child = spawn('Xvfb', [display, '-screen', '0', '1280x800x24', '-nolisten', 'tcp'],
-    { stdio: 'ignore', detached: true });
-
-  const started = await new Promise((done) => {
-    child.once('error', () => done(false));      // ไม่มี Xvfb บนเครื่องนี้
-    child.once('exit', () => done(false));
-    setTimeout(() => done(true), 1200);          // ยังไม่ตายใน 1.2 วิ = ขึ้นแล้ว
-  });
-
-  if (!started) {
-    child.kill('SIGKILL');
-    throw new Error('ไม่มีทั้ง DISPLAY และ Xvfb — เปิดหน้าต่างของ Electron ไม่ได้');
-  }
-  xvfb = child;
-  process.env.DISPLAY = display;
-}
+const ensureDisplay = async () => { xvfb = await startDisplay([99, 89, 79]); };
 
 before(async () => {
   userData = await fs.mkdtemp(path.join(os.tmpdir(), 'booth-app-'));
@@ -127,7 +108,10 @@ test('the booth opens and reaches the ready screen', async (t) => {
   // และต้องไม่ยื่นอะไรเกินกว่าที่ตั้งใจ
   assert.deepEqual(
     (await page.evaluate(() => Object.keys(window.booth))).sort(),
-    ['broadcast', 'compose', 'deliver', 'discard', 'onMessage', 'pending', 'setup', 'upload'],
+    // รายการนี้เป็นบัญชีที่ตั้งใจ ไม่ใช่ผลข้างเคียง — เพิ่มชื่อลงมาต้องเป็นการ
+    // ตัดสินใจที่มีคนเห็น ไม่ใช่ของที่ไหลเข้ามาเงียบ ๆ พร้อมฟีเจอร์ใหม่
+    ['broadcast', 'compose', 'deliver', 'discard', 'onMessage', 'paid', 'pending',
+      'sale', 'setup', 'upload'],
   );
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined',
     'หน้าจอต้องไม่มีทางเรียกโมดูลของ Node ได้เอง');

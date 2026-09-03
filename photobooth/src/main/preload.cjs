@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('booth', {
   compose: (payload) => ipcRenderer.invoke('booth:compose', payload),
   discard: (payload) => ipcRenderer.invoke('booth:discard', payload),
   deliver: (payload) => ipcRenderer.invoke('booth:deliver', payload),
+  sale: () => ipcRenderer.invoke('booth:sale'),
+  paid: (payload) => ipcRenderer.invoke('booth:paid', payload),
   pending: () => ipcRenderer.invoke('booth:pending'),
   upload: () => ipcRenderer.invoke('booth:upload'),
   broadcast: (message) => ipcRenderer.send('booth:broadcast', message),

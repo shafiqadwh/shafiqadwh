@@ -6,6 +6,7 @@ import { EFFECT_IDS } from '../core/effects.js';
 import { TEMPLATE_IDS } from '../core/templates.js';
 import { PAGES, PAPERS } from '../core/paper.js';
 import { KEY_ACTIONS } from '../core/keys.js';
+import { isPrice, payTarget } from '../core/promptpay.js';
 
 /**
  * ค่าตั้งของบูธ — ตั้งไว้ก่อนงาน แล้วหน้างานแตะให้น้อยที่สุด
@@ -67,6 +68,16 @@ export const DEFAULTS = Object.freeze({
   baseUrl: '',
   // กุญแจเดียวกับ BOOTH_KEY ฝั่งเว็บ · เดินทางเป็น HTTP header จึงต้องเป็น ASCII
   uploadKey: '',
+  /*
+   * ขายรูปหน้าบูธด้วย QR พร้อมเพย์
+   *
+   * เปิดใช้ตอนเปิดบูธเอง (ออกงาน หรือกางหน้าบ้าน) · ปิดไว้ตอนรับจ้างงานที่
+   * เจ้าภาพจ่ายค่าบูธไปแล้ว ซึ่งเป็นค่าเริ่มต้น — แขกในงานแต่งต้องไม่เจอหน้าจ่ายเงิน
+   *
+   * `target` = เบอร์พร้อมเพย์/เลขบัตร/e-Wallet ที่รับเงิน · `price` = บาทต่อหนึ่งรอบ
+   * **โปรแกรมรู้ได้แค่ว่าโชว์ QR ไปแล้ว ไม่มีทางรู้ว่าเงินเข้าหรือยัง** คนกดยืนยันเสมอ
+   */
+  sale: { enabled: false, target: '', price: 0 },
   printer: { driver: 'file', name: '' },
   // จอที่สองสำหรับช่างภาพ · auto = ใช้เมื่อเสียบจอไว้จริง, off = ไม่ใช้แม้จะมีจอ
   operatorScreen: 'auto',
@@ -147,6 +158,21 @@ export const newAlbumCode = () => Array.from(
 export const canPublish = (settings) =>
   Boolean(settings.baseUrl) && usableKey(settings.uploadKey);
 
+/**
+ * ค่าการขาย — เปิดได้ก็ต่อเมื่อ **ทั้งเบอร์และราคาใช้ได้จริง**
+ *
+ * ตั้ง enabled ไว้แต่ลืมใส่เบอร์ = หน้าจ่ายเงินที่ไม่มี QR ให้สแกน ซึ่งแขกยืนงง
+ * อยู่หน้าบูธแล้วช่างภาพต้องมาแก้กลางแถว · บีบกลับเป็น "ไม่ขาย" ให้เลย
+ * (กติกาเดียวกับที่ `deliver` ถูกบีบกลับเป็น print เมื่อส่งขึ้นเว็บไม่ได้)
+ */
+function sale(value) {
+  const given = value && typeof value === 'object' ? value : {};
+  // เก็บเฉพาะตัวเลข — เบอร์ที่พิมพ์มาพร้อมขีดยังใช้ได้ แต่ในไฟล์เก็บรูปเดียว
+  const target = payTarget(given.target) ? String(given.target).replace(/\D/g, '') : '';
+  const price = isPrice(given.price) ? Math.round(Number(given.price) * 100) / 100 : 0;
+  return { enabled: given.enabled === true && Boolean(target) && price > 0, target, price };
+}
+
 function printer(value) {
   const given = value && typeof value === 'object' ? value : {};
   return {
@@ -192,6 +218,7 @@ export function normaliseSettings(raw) {
     albumCode: isAlbumCode(given.albumCode) ? given.albumCode : '',
     baseUrl: baseUrl(given.baseUrl),
     uploadKey: usableKey(given.uploadKey) ? given.uploadKey : '',
+    sale: sale(given.sale),
     printer: printer(given.printer),
     operatorScreen: oneOf(given.operatorScreen, ['auto', 'off'], DEFAULTS.operatorScreen),
     remote: remote(given.remote),

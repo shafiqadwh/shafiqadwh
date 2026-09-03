@@ -24,6 +24,20 @@
 
   <p class="progress" id="progress"></p>
 
+  <!--
+    แผงเก็บเงิน — ขึ้นเฉพาะขั้นจ่ายเงิน
+    ยอดกับ QR ใบเดียวกับที่แขกเห็น เจ้าของบูธจะได้ตอบได้ว่าแขกกำลังดูอะไรอยู่
+    ปุ่ม "ได้รับเงินแล้ว" อยู่ที่นี่ที่เดียวเมื่อมีจอนี้ — แขกยืนยันให้ตัวเองไม่ได้
+  -->
+  <section class="pay" id="pay" hidden>
+    <img class="pay__qr" id="pay-qr" alt="">
+    <div class="pay__side">
+      <p class="pay__price" id="pay-price"></p>
+      <p class="pay__note">ดูแอปธนาคารก่อนกดยืนยัน — โปรแกรมไม่รู้ว่าเงินเข้าหรือยัง</p>
+      <button class="key key--ghost" id="pay-free" type="button">ไม่คิดเงิน</button>
+    </div>
+  </section>
+
   <div class="controls">
     <button class="key key--ghost" id="back" type="button" hidden>ถ่ายใหม่</button>
     <button class="key" id="go" type="button">เริ่มถ่าย</button>
@@ -33,6 +47,8 @@
     <span class="foot__code" id="code"></span>
     <span class="foot__album" id="album"></span>
     <span class="foot__count" id="tally">วันนี้ 0 แผ่น</span>
+    <!-- ยอดขายวันนี้ — คำถามเดียวที่เจ้าของถามตอนเก็บบูธ -->
+    <span class="foot__takings" id="takings"></span>
     <!-- งานหลังงาน: ส่งรอบที่ยังค้างขึ้นเว็บ · ไม่มีปุ่มนี้ = QR บนกระดาษไม่มีวันมีรูป -->
     <button class="foot__send" id="send" type="button" disabled></button>
   </footer>
