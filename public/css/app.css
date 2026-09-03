@@ -3134,3 +3134,24 @@ a:focus-visible {
 
 .booth-wait--expired .section-title { color: var(--ink); }
 .booth-album__gone { margin-top: 12px; }
+
+/* ภาพเคลื่อนไหวของรอบถ่าย — เล่นเองในทุกเบราว์เซอร์ ไม่มีปุ่มเล่นให้ต้องกด */
+.booth-anim {
+  margin: 18px 0 0;
+  text-align: center;
+}
+
+.booth-anim img {
+  max-width: min(100%, 420px);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.booth-anim figcaption { margin-top: 10px; }
+
+/* ปุ่มที่แขกเกือบทุกคนมาเพื่อกด — ใหญ่กว่าปุ่มอื่นในหน้าโดยตั้งใจ */
+.button--big {
+  font-size: 1.05rem;
+  padding: 14px 26px;
+}

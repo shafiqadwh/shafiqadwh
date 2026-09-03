@@ -28,7 +28,11 @@ export function boothKeepsUntil(session) {
 }
 
 async function removeFiles(session) {
-  const names = [session.sheet_name, ...listBoothShots(session.token).map((s) => s.stored_name)];
+  const names = [
+    session.sheet_name,
+    session.gif_name,
+    ...listBoothShots(session.token).map((s) => s.stored_name),
+  ];
   for (const name of names.filter(Boolean)) {
     await fs.rm(path.join(config.paths.booth, name), { force: true });
   }

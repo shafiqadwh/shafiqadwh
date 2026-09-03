@@ -9,7 +9,7 @@ import {
   listAlbumSessions, listAlbumShots, listAllAlbumSessions, listBoothShots,
 } from '../repo.js';
 import { boothKeepsUntil, sweepExpiredBooth } from '../lib/booth-retention.js';
-import { streamBoothAlbum } from '../lib/booth-zip.js';
+import { streamBoothAlbum, streamBoothSession } from '../lib/booth-zip.js';
 import { randomName, readMagic, sniffType } from '../lib/media.js';
 import { createLimiter } from '../lib/ratelimit.js';
 import { byIp } from '../lib/device.js';
@@ -74,7 +74,7 @@ const bundle = multer({
     filename: (req, file, cb) => cb(null, randomName('part')),
   }),
   // แผ่นหนึ่งใบราว 0.5 MB รูปดิบใบละไม่กี่ MB · 25 MB ต่อไฟล์เหลือเฟือ
-  limits: { fileSize: 25 * MB, files: MAX_SHOTS + 1, fields: 10 },
+  limits: { fileSize: 25 * MB, files: MAX_SHOTS + 2, fields: 10 },
 });
 
 /**
@@ -94,6 +94,16 @@ function keyMatches(given) {
 const discard = (files) =>
   Promise.all((files ?? []).map((file) => fs.rm(file.path, { force: true })));
 
+/**
+ * ตรวจ GIF แยกจากตัวตรวจกลาง
+ *
+ * `sniffType` ที่ใช้ร่วมกับเส้นทางอัปโหลดของแขกไม่รู้จัก GIF และ **ไม่ควรไปสอน
+ * ให้รู้จัก** เพราะจะเปิดทางให้ไฟล์ GIF ไหลเข้าแกลลอรี่/สไลด์โชว์/คิวแปลงวิดีโอ
+ * ซึ่งไม่มีใครออกแบบไว้รองรับ · ของบูธเป็นเส้นทางแยกอยู่แล้ว ตรวจเองตรงนี้จบ
+ */
+const isGif = (magic) => magic.subarray(0, 6).toString('ascii') === 'GIF89a'
+  || magic.subarray(0, 6).toString('ascii') === 'GIF87a';
+
 /** ไฟล์ที่ส่งมาต้องเป็นรูปจริง ตัดสินจากไบต์ต้นไฟล์ เหมือนเส้นทางของแขก */
 async function acceptImage(file) {
   const sniffed = sniffType(await readMagic(file.path));
@@ -103,7 +113,11 @@ async function acceptImage(file) {
 boothRouter.post('/api/booth/upload', uploadLimiter, (req, res) => {
   // multer ทิ้ง Promise ที่ callback คืนมา — rejection จึงหลุดเป็น unhandled
   // แล้ว Node 22 ฆ่าทั้งโปรเซส (เหตุผลเดียวกับ /api/upload)
-  bundle.fields([{ name: 'sheet', maxCount: 1 }, { name: 'shots', maxCount: MAX_SHOTS }])(
+  bundle.fields([
+    { name: 'sheet', maxCount: 1 },
+    { name: 'shots', maxCount: MAX_SHOTS },
+    { name: 'gif', maxCount: 1 },
+  ])(
     req,
     res,
     (uploadError) => {
@@ -119,7 +133,8 @@ boothRouter.post('/api/booth/upload', uploadLimiter, (req, res) => {
 async function receive(req, res, uploadError) {
   const sheet = req.files?.sheet?.[0] ?? null;
   const shots = req.files?.shots ?? [];
-  const everything = [sheet, ...shots].filter(Boolean);
+  const gif = req.files?.gif?.[0] ?? null;
+  const everything = [sheet, ...shots, gif].filter(Boolean);
 
   if (!keyMatches(req.get('x-booth-key'))) {
     await discard(everything);
@@ -156,13 +171,18 @@ async function receive(req, res, uploadError) {
   }
 
   const accepted = [];
-  for (const file of everything) {
+  for (const file of [sheet, ...shots]) {
     const sniffed = await acceptImage(file);
     if (!sniffed) {
       await discard(everything);
       return res.status(415).json({ error: 'not_an_image' });
     }
     accepted.push({ file, sniffed });
+  }
+
+  if (gif && !isGif(await readMagic(gif.path))) {
+    await discard(everything);
+    return res.status(415).json({ error: 'not_a_gif' });
   }
 
   await fs.mkdir(config.paths.booth, { recursive: true });
@@ -188,6 +208,9 @@ async function receive(req, res, uploadError) {
     for (const [index, entry] of shotEntries.entries()) {
       savedShots.push(await place(entry, `shot-${index + 1}`));
     }
+    const savedGif = gif
+      ? await place({ file: gif, sniffed: { ext: 'gif' } }, 'anim')
+      : null;
 
     insertBoothSession({
       token,
@@ -201,9 +224,12 @@ async function receive(req, res, uploadError) {
       // — คิวรีอัลบั้มเทียบตรง ๆ ค่าที่เพี้ยนจึงเปิดอัลบั้มของใครไม่ได้อยู่แล้ว
       // แต่เก็บไว้ก็ไม่มีประโยชน์อะไรนอกจากทำให้ข้อมูลดูเหมือนมีอัลบั้มทั้งที่ไม่มี
       album: isAlbum(manifest.album) ? manifest.album : null,
+      gifName: savedGif?.name ?? null,
     }, savedShots.map((shot) => ({ storedName: shot.name, bytes: shot.bytes })));
 
-    return res.status(201).json({ ok: true, token, shots: savedShots.length });
+    return res.status(201).json({
+      ok: true, token, shots: savedShots.length, gif: Boolean(savedGif),
+    });
   } catch (error) {
     // ไฟล์ที่วางไปแล้วต้องเก็บกวาด ไม่ปล่อยเป็นขยะที่ไม่มีแถวไหนอ้างถึง
     await Promise.all(written.map((file) => fs.rm(file, { force: true })));
@@ -336,6 +362,27 @@ boothRouter.get('/p/:token/sheet', wrap(async (req, res, next) => {
   // แถวของรอบที่หมดอายุยังอยู่ (เพื่อให้หน้าอธิบายได้) แต่ไฟล์ถูกลบไปแล้วจริง ๆ
   if (!session || session.expired_at) return next();
   return sendBoothFile(res, session.sheet_name);
+}));
+
+boothRouter.get('/p/:token/gif', wrap(async (req, res, next) => {
+  const token = String(req.params.token ?? '').toUpperCase();
+  const session = isToken(token) ? getBoothSession(token) : null;
+  if (!session || session.expired_at || !session.gif_name) return next();
+  return sendBoothFile(res, session.gif_name);
+}));
+
+/**
+ * ทั้งรอบถ่ายในไฟล์เดียว — แผ่น + รูปดิบทุกใบ + ภาพเคลื่อนไหว
+ *
+ * แขกกดปุ่มเดียวแล้วได้ครบ · **ต้องเป็น ZIP ไม่ใช่การสั่งโหลดทีละไฟล์ติด ๆ กัน**
+ * เพราะเบราว์เซอร์บนมือถือบล็อกการดาวน์โหลดหลายไฟล์ซ้อน แขกจะได้ไฟล์แรกไฟล์เดียว
+ * แล้วเดินจากไปโดยคิดว่าได้ครบแล้ว
+ */
+boothRouter.get('/p/:token/zip', wrap(async (req, res, next) => {
+  const token = String(req.params.token ?? '').toUpperCase();
+  const session = isToken(token) ? getBoothSession(token) : null;
+  if (!session || session.expired_at) return next();
+  return streamBoothSession(res, { session, shots: listBoothShots(token) });
 }));
 
 boothRouter.get('/p/:token/shot/:n', wrap(async (req, res, next) => {

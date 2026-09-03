@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { themeById } from '../../../shared/themes.js';
 import { composeSheet } from '../core/sheet.js';
+import { makeGif } from '../core/animation.js';
 import { listEffects } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
 import {
@@ -186,8 +187,19 @@ ipcMain.handle('booth:compose', async (event, { shots, effect }) => {
       qrUrl,
     });
 
+    /*
+     * GIF เป็นของแถม ไม่ใช่ของหลัก — ทำไม่สำเร็จต้องไม่ทำให้รอบถ่ายล้ม
+     * แขกยืนรออยู่หน้าบูธเพื่อเอาแผ่น ไม่ใช่เพื่อเอาไฟล์เคลื่อนไหว
+     */
+    const gif = settings.gif
+      ? await makeGif(photos, { effect }).catch((error) => {
+        console.warn('[booth] ทำภาพเคลื่อนไหวไม่สำเร็จ ข้ามไป:', error.message);
+        return null;
+      })
+      : null;
+
     await saveSession(sessionsDir(), {
-      token, photos, sheet, settings, effect, template: settings.template,
+      token, photos, sheet, gif, settings, effect, template: settings.template,
     });
 
     return {

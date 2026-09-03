@@ -41,10 +41,22 @@
   <section class="card booth-photos booth-photos--mine">
     <h2 class="section-title"><%= t('booth.album_mine') %></h2>
 
+    <p class="booth-album__actions">
+      <a class="button button--primary button--big" href="/p/<%= mine.token %>/zip">
+        <%= t('booth.download_bundle') %>
+      </a>
+    </p>
+
+    <% if (mine.gif_name) { %>
+      <figure class="booth-anim">
+        <img src="/p/<%= mine.token %>/gif" alt="<%= t('booth.gif') %>" loading="lazy">
+      </figure>
+    <% } %>
+
     <figure class="booth-sheet">
       <img src="/p/<%= mine.token %>/sheet" alt="<%= t('booth.sheet') %>" loading="lazy">
       <figcaption>
-        <a class="button button--primary" href="/p/<%= mine.token %>/sheet" download>
+        <a class="button button--tiny" href="/p/<%= mine.token %>/sheet" download>
           <%= t('booth.download_sheet') %>
         </a>
       </figcaption>

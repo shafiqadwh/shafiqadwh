@@ -161,6 +161,10 @@ if (!boothColumns.includes('album')) {
 if (!boothColumns.includes('expired_at')) {
   db.exec('ALTER TABLE booth_sessions ADD COLUMN expired_at TEXT');
 }
+// ภาพเคลื่อนไหวจากรูปชุดเดียวกับที่พิมพ์ · ว่างได้ (ถ่ายใบเดียว หรือรอบเก่าก่อนมีฟีเจอร์นี้)
+if (!boothColumns.includes('gif_name')) {
+  db.exec('ALTER TABLE booth_sessions ADD COLUMN gif_name TEXT');
+}
 db.exec('CREATE INDEX IF NOT EXISTS idx_booth_sessions_album ON booth_sessions (album, created_at DESC)');
 
 const readSetting = db.prepare('SELECT value FROM settings WHERE key = ?');

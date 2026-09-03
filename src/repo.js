@@ -362,8 +362,8 @@ const boothStatements = {
   get: db.prepare('SELECT * FROM booth_sessions WHERE token = ?'),
   insert: db.prepare(`
     INSERT INTO booth_sessions
-      (token, taken_at, event_title, template, effect, sheet_name, bytes, album)
-    VALUES (@token, @takenAt, @eventTitle, @template, @effect, @sheetName, @bytes, @album)
+      (token, taken_at, event_title, template, effect, sheet_name, bytes, album, gif_name)
+    VALUES (@token, @takenAt, @eventTitle, @template, @effect, @sheetName, @bytes, @album, @gifName)
   `),
   insertShot: db.prepare(`
     INSERT INTO booth_shots (token, stored_name, sort_order, bytes)

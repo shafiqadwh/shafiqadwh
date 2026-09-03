@@ -308,6 +308,9 @@
     "expired_hint": "Gambar booth disimpan {days} hari sahaja kemudian dipadam, demi privasi semua tetamu · Jika anda masih mahukannya, cuba hubungi tuan rumah, mungkin ada salinan",
     "expired_on": "Dipadam pada {date}",
     "keeps_until": "Gambar ini ada sehingga {date} · muat turun sebelum tarikh itu",
-    "album_expired": "{n} sesi lagi telah tamat tempoh dan dipadam"
+    "album_expired": "{n} sesi lagi telah tamat tempoh dan dipadam",
+    "gif": "Gambar bergerak",
+    "download_gif": "Muat turun GIF",
+    "download_bundle": "Muat turun semua (semua gambar + GIF)"
   }
 }

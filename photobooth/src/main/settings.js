@@ -57,6 +57,13 @@ export const DEFAULTS = Object.freeze({
   qrTarget: 'session',
   // รหัสอัลบั้มของงานนี้ · สร้างครั้งเดียวตอนเปิดบูธในโหมด album แล้วห้ามเปลี่ยน
   albumCode: '',
+  /*
+   * ทำภาพเคลื่อนไหว (GIF) จากรูปชุดเดียวกับที่พิมพ์
+   *
+   * เป็นของที่แขกได้กลับไปใช้จริงมากที่สุด — แผ่นอยู่ในกระเป๋า แต่ GIF ถูกส่งต่อ
+   * ในไลน์กลุ่มครอบครัวคืนนั้นเลย · ปิดได้ถ้าเครื่องช้าหรือแบบที่ใช้ถ่ายใบเดียว
+   */
+  gif: true,
   baseUrl: '',
   // กุญแจเดียวกับ BOOTH_KEY ฝั่งเว็บ · เดินทางเป็น HTTP header จึงต้องเป็น ASCII
   uploadKey: '',
@@ -181,6 +188,7 @@ export function normaliseSettings(raw) {
     copies: clampInt(given.copies, 1, 4, DEFAULTS.copies),
     qrMode: oneOf(given.qrMode, ['off', 'later', 'live'], DEFAULTS.qrMode),
     qrTarget: oneOf(given.qrTarget, ['session', 'album'], DEFAULTS.qrTarget),
+    gif: given.gif !== false,
     albumCode: isAlbumCode(given.albumCode) ? given.albumCode : '',
     baseUrl: baseUrl(given.baseUrl),
     uploadKey: usableKey(given.uploadKey) ? given.uploadKey : '',

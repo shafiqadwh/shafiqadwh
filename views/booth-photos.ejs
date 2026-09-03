@@ -33,10 +33,29 @@
     <h1 class="section-title"><%= session.event_title || t('booth.title') %></h1>
     <p class="section-hint"><%= t('booth.hint') %></p>
 
+    <%# ปุ่มเดียวได้ครบทุกไฟล์ อยู่บนสุดเพราะเป็นสิ่งที่แขกเกือบทุกคนมาเพื่อกด %>
+    <p class="booth-album__actions">
+      <a class="button button--primary button--big" href="/p/<%= token %>/zip">
+        <%= t('booth.download_bundle') %>
+      </a>
+    </p>
+
+    <% if (session.gif_name) { %>
+      <figure class="booth-anim">
+        <%# GIF เล่นเองในทุกเบราว์เซอร์และทุกแอปแชท ไม่ต้องกดเล่น ไม่ต้องมีตัวควบคุม %>
+        <img src="/p/<%= token %>/gif" alt="<%= t('booth.gif') %>" loading="lazy">
+        <figcaption>
+          <a class="button button--tiny" href="/p/<%= token %>/gif" download>
+            <%= t('booth.download_gif') %>
+          </a>
+        </figcaption>
+      </figure>
+    <% } %>
+
     <figure class="booth-sheet">
       <img src="/p/<%= token %>/sheet" alt="<%= t('booth.sheet') %>" loading="lazy">
       <figcaption>
-        <a class="button button--primary" href="/p/<%= token %>/sheet" download>
+        <a class="button button--tiny" href="/p/<%= token %>/sheet" download>
           <%= t('booth.download_sheet') %>
         </a>
       </figcaption>

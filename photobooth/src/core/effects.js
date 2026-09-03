@@ -121,13 +121,18 @@ async function grainTile(width, height, strength) {
  * ครอบ (`cover`) ไม่ใช่ยืด — หน้าคนที่ถูกยืดให้พอดีกรอบคือของเสียที่พิมพ์ออกมาแล้ว
  * แก้ไม่ได้ · ตัดขอบทิ้งบ้างยอมรับได้ ยืดหน้าไม่ได้
  */
-export async function applyEffect(input, effectId, { width, height }) {
+export async function applyEffect(input, effectId, { width, height, position = 'attention' }) {
   const effect = effectById(effectId);
 
+  /*
+   * `attention` เลือกกรอบตัดจากจุดที่น่าสนใจในภาพนั้น ๆ ซึ่งดีสำหรับรูปนิ่งบนแผ่น
+   * แต่ **ใช้กับเฟรมของภาพเคลื่อนไหวไม่ได้** เพราะแต่ละเฟรมจะถูกตัดคนละที่
+   * แล้วภาพจะกระตุกไปมาเหมือนกล้องสั่น — ตัวเรียกฝั่ง GIF จึงส่ง 'centre' มาแทน
+   */
   const base = effect.apply(
     sharp(input, { failOn: 'none' })
       .rotate()
-      .resize(width, height, { fit: 'cover', position: 'attention' }),
+      .resize(width, height, { fit: 'cover', position }),
   );
 
   if (!effect.grain) return base.jpeg({ quality: 95, mozjpeg: true }).toBuffer();

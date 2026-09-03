@@ -34,6 +34,12 @@ async function bundleFor(root, manifest) {
   for (const name of manifest.shots ?? []) {
     form.append('shots', new Blob([await fs.readFile(path.join(dir, 'shots', name))]), name);
   }
+
+  // รอบเก่าที่บันทึกไว้ก่อนมีฟีเจอร์นี้ไม่มีไฟล์ GIF — ส่งเท่าที่มี ไม่ใช่ล้มทั้งรอบ
+  if (manifest.gif) {
+    const gif = await fs.readFile(path.join(dir, manifest.gif)).catch(() => null);
+    if (gif) form.append('gif', new Blob([gif]), manifest.gif);
+  }
   return form;
 }
 

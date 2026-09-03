@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import sharp from 'sharp';
 import { startTestServer, useTempDataDir } from './helpers/app.js';
 import { makeJpeg } from './helpers/fixtures.js';
+import { makeGif } from '../photobooth/src/core/animation.js';
 
 /**
  * อัลบั้มรวมของบูธ — QR แบบ "สแกนแล้วดูได้ทุกรูป"
@@ -34,7 +36,20 @@ async function jpeg(size = { width: 600, height: 400 }) {
   return fs.readFile(await makeJpeg(path.join(dataDir, `a-${counter}.jpg`), size));
 }
 
-async function send({ token, album, shots = 1 }) {
+/*
+ * เฟรมของ GIF ต้องเป็นคนละภาพจริง ๆ
+ *
+ * ตัวเข้ารหัส GIF ยุบเฟรมที่เหมือนกันเป๊ะให้เหลือเฟรมเดียว (วัดแล้ว: สามเฟรมสีเดียวกัน
+ * ได้ไฟล์ 721 ไบต์ เฟรมเดียว) · fixture ที่คืนภาพสีเดียวกันทุกใบจึงทำให้เทสต์
+ * "ผ่าน" หรือ "ล้ม" ด้วยเหตุผลที่ไม่เกี่ยวกับโค้ดเลย — ของจริงคนขยับตัวทุกเฟรม
+ */
+const poses = () => Promise.all(['#c8a27a', '#7aa2c8', '#8ac87a'].map(async (colour) => {
+  counter += 1;
+  return fs.readFile(await makeJpeg(
+    path.join(dataDir, `pose-${counter}.jpg`), { width: 600, height: 400, colour }));
+}));
+
+async function send({ token, album, shots = 1, gif = false }) {
   const form = new FormData();
   form.append('manifest', JSON.stringify({
     token,
@@ -48,6 +63,12 @@ async function send({ token, album, shots = 1 }) {
   for (let i = 0; i < shots; i += 1) {
     form.append('shots', new Blob([await jpeg()]), `shot-${i + 1}.jpg`);
   }
+  if (gif) {
+    // สร้างด้วยตัวสร้างจริงของบูธ ไม่ใช่ไฟล์ปลอม — รอยต่อระหว่างสองโปรแกรมคือ
+    // จุดที่พัง และเทสต์ที่ป้อนไฟล์ปลอมเข้าไปจะไม่มีวันจับได้
+    const animation = await makeGif(await poses(), { effect: 'clean' });
+    form.append('gif', new Blob([animation]), 'strip.gif');
+  }
   const response = await fetch(`${app.baseUrl}/api/booth/upload`, {
     method: 'POST', headers: { 'x-booth-key': KEY }, body: form,
   });
@@ -56,7 +77,7 @@ async function send({ token, album, shots = 1 }) {
 
 // สามรอบ: สองรอบในอัลบั้มเดียวกัน · หนึ่งรอบอัลบั้มอื่น · หนึ่งรอบไม่สังกัดอัลบั้ม
 await send({ token: 'AAA111', album: ALBUM });
-await send({ token: 'BBB222', album: ALBUM, shots: 2 });
+await send({ token: 'BBB222', album: ALBUM, shots: 3, gif: true });
 await send({ token: 'CCC333', album: OTHER });
 await send({ token: 'DDD444', album: undefined });
 
@@ -118,7 +139,7 @@ test('the host can take the whole event home in one file', async () => {
   const originals = new Set(names.filter((name) => name.startsWith('originals/')));
 
   assert.equal(sheets.size, 2, 'แผ่นครบทั้งสองรอบของอัลบั้มนี้');
-  assert.equal(originals.size, 3, 'รูปดิบครบทุกใบ (1 + 2)');
+  assert.equal(originals.size, 4, 'รูปดิบครบทุกใบ (1 + 3)');
   assert.ok(![...sheets, ...originals].some((name) => name.includes('CCC333')),
     'ไฟล์ของงานอื่นต้องไม่ติดไปใน ZIP ที่เจ้าภาพเก็บไว้ตลอดชีวิต');
 
@@ -131,4 +152,42 @@ test('the per-take page still works on its own, album or not', async () => {
   // ที่พิมพ์ไปแล้วในงานก่อน ๆ ต้องใช้ได้ตลอดไป
   assert.equal((await fetch(`${app.baseUrl}/p/DDD444`)).status, 200);
   assert.equal((await fetch(`${app.baseUrl}/p/AAA111/sheet`)).status, 200);
+});
+
+
+test('the animation the booth made survives the trip and still plays', async () => {
+  const response = await fetch(`${app.baseUrl}/p/BBB222/gif`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'image/gif');
+
+  // ตัวตัดสินคือไฟล์ที่ปลายทางยัง **เล่นได้** ไม่ใช่แค่มีไบต์ตรงกัน
+  const meta = await sharp(Buffer.from(await response.arrayBuffer()), { animated: true }).metadata();
+  assert.equal(meta.pages, 4, 'ต้องยังเป็นภาพเคลื่อนไหวสี่เฟรม ไม่ใช่ภาพนิ่ง');
+  assert.ok(meta.delay.every((one) => one > 0), 'ทุกเฟรมต้องยังมีจังหวะของตัวเอง');
+
+  // รอบที่ไม่มี GIF (ถ่ายใบเดียว) ต้องไม่หลอกว่ามี
+  assert.equal((await fetch(`${app.baseUrl}/p/AAA111/gif`)).status, 404);
+});
+
+test('one tap gives the guest every photo and the animation together', async () => {
+  /*
+   * ต้องเป็นไฟล์เดียว ไม่ใช่สั่งโหลดทีละไฟล์ติด ๆ กัน — เบราว์เซอร์บนมือถือบล็อก
+   * การดาวน์โหลดหลายไฟล์ซ้อน แขกจะได้ไฟล์แรกไฟล์เดียวแล้วเดินจากไปโดยคิดว่าครบแล้ว
+   */
+  const zip = await fetch(`${app.baseUrl}/p/BBB222/zip`);
+  assert.equal(zip.status, 200);
+  assert.equal(zip.headers.get('content-type'), 'application/zip');
+  assert.match(zip.headers.get('content-disposition'), /photobooth-BBB222\.zip/);
+
+  const body = Buffer.from(await zip.arrayBuffer());
+  const names = new Set([...body.toString('latin1').matchAll(/photobooth-BBB222[\w-]*\.(?:jpg|gif)/g)]
+    .map((match) => match[0]));
+
+  assert.ok(names.has('photobooth-BBB222-sheet.jpg'), 'ต้องมีแผ่นที่พิมพ์');
+  assert.ok(names.has('photobooth-BBB222.gif'), 'ต้องมีภาพเคลื่อนไหว');
+  assert.equal([...names].filter((name) => /-\d\.jpg$/.test(name)).length, 3,
+    'ต้องมีรูปดิบครบทั้งสามใบ ไม่ใช่แค่ใบแรก');
+
+  // รอบที่หมดอายุหรือไม่มีจริง ต้องไม่ให้ดาวน์โหลดไฟล์เปล่า
+  assert.equal((await fetch(`${app.baseUrl}/p/ZZ9999/zip`)).status, 404);
 });

@@ -308,6 +308,9 @@
     "expired_hint": "Booth photos are kept for {days} days and then deleted, for every guest’s privacy · If you still want this set, ask the host — they may have a copy",
     "expired_on": "Deleted on {date}",
     "keeps_until": "These photos stay up until {date} — do download them before then",
-    "album_expired": "{n} more takes have expired and been deleted"
+    "album_expired": "{n} more takes have expired and been deleted",
+    "gif": "Animation",
+    "download_gif": "Download the GIF",
+    "download_bundle": "Download the lot (every photo + GIF)"
   }
 }

@@ -73,7 +73,7 @@ async function claimToken(root, attempts = 8) {
  * ไฟล์นั้นคือสัญญาณว่า "รอบนี้ครบแล้ว" ตัวอ่านจึงข้ามโฟลเดอร์ที่ไฟดับกลางทาง
  * ไปได้เองโดยไม่ต้องมีใครมาเก็บกวาด และไม่มีทางอัปโหลดของครึ่ง ๆ กลาง ๆ ขึ้นเว็บ
  */
-export async function saveSession(root, { token, photos, sheet, settings, effect, template }) {
+export async function saveSession(root, { token, photos, sheet, gif, settings, effect, template }) {
   if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   const dir = dirFor(root, token);
   const shotNames = [];
@@ -86,6 +86,9 @@ export async function saveSession(root, { token, photos, sheet, settings, effect
       shotNames.push(name);
     }
     await fs.writeFile(path.join(dir, 'sheet.jpg'), sheet.data);
+    // ภาพเคลื่อนไหวเป็นของแถม ไม่ใช่ของหลัก · รอบที่ทำไม่ได้ (ถ่ายใบเดียว) ต้อง
+    // บันทึกได้ตามปกติ ไม่ใช่ล้มทั้งรอบเพราะขาดไฟล์นี้
+    if (gif) await fs.writeFile(path.join(dir, 'strip.gif'), gif);
 
     const manifest = {
       token,
@@ -99,6 +102,7 @@ export async function saveSession(root, { token, photos, sheet, settings, effect
       effect,
       paper: settings.paper,
       sheet: { file: 'sheet.jpg', width: sheet.width, height: sheet.height, dpi: sheet.dpi },
+      gif: gif ? 'strip.gif' : null,
       shots: shotNames,
       uploaded: false,
     };
