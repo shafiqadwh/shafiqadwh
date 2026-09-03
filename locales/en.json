@@ -312,5 +312,23 @@
     "gif": "Animation",
     "download_gif": "Download the GIF",
     "download_bundle": "Download the lot (every photo + GIF)"
+  },
+  "tv": {
+    "pair_title": "Connect a TV to this event",
+    "pair_hint": "Scan this QR with the host’s phone camera, or open admin → Connect TV and type the code below",
+    "code_label": "Pairing code",
+    "code_expiry": "This code lasts {minutes} minutes · refresh this page when it expires",
+    "admin_title": "Connect TV",
+    "admin_hint": "Open the app on the TV until a code appears, then enter that code here",
+    "label": "Name this screen",
+    "label_hint": "e.g. hall screen",
+    "mode": "Slideshow style",
+    "pair_now": "Connect now",
+    "paired_ok": "Connected · the TV will change over within seconds",
+    "code_bad": "Wrong or expired code — check the TV screen for a fresh one",
+    "scan": "Open camera to scan",
+    "connected": "Connected TVs",
+    "unnamed": "Unnamed TV",
+    "unpair": "Disconnect"
   }
 }

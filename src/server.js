@@ -12,6 +12,7 @@ import { startLimiterCleanup } from './lib/ratelimit.js';
 import { themeStyle } from './lib/theme.js';
 import { adminRouter, isAdmin } from './routes/admin.js';
 import { boothRouter } from './routes/booth.js';
+import { tvRouter } from './routes/tv.js';
 import { sweepExpiredBooth } from './lib/booth-retention.js';
 import { galleryRouter } from './routes/gallery.js';
 import { guestbookRouter } from './routes/guestbook.js';
@@ -61,6 +62,7 @@ export function createApp() {
   app.get('/healthz', (req, res) => res.json({ ok: true }));
 
   app.use(boothRouter);
+  app.use(tvRouter);
   app.use(galleryRouter);
   app.use(uploadRouter);
   app.use(guestbookRouter);

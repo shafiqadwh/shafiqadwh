@@ -86,9 +86,21 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ error: req.t('admin.wrong_password') });
 }
 
+/**
+ * ที่ที่จะพากลับไปหลังใส่รหัสผ่านถูก
+ *
+ * **รับเฉพาะเส้นทางภายในเว็บนี้** — ขึ้นต้นด้วย / เดี่ยว ๆ เท่านั้น
+ * `//evil.example` เป็นลิงก์ข้ามเว็บที่หน้าตาเหมือนเส้นทางภายใน และเป็นวิธีมาตรฐาน
+ * ของการหลอกให้คนล็อกอินแล้วถูกส่งไปหน้าปลอม
+ */
+function safeNext(value) {
+  const wanted = String(value ?? '');
+  return /^\/[^/\\]/.test(wanted) ? wanted.slice(0, 200) : '/admin';
+}
+
 adminRouter.get('/admin', wrap(async (req, res) => {
   if (!isAdmin(req)) {
-    return res.render('admin-login', { page: 'admin', error: null });
+    return res.render('admin-login', { page: 'admin', error: null, next: safeNext(req.query.next) });
   }
 
   await purgeExpiredTrash();
@@ -138,8 +150,10 @@ adminRouter.get('/admin', wrap(async (req, res) => {
 }));
 
 adminRouter.post('/admin/login', loginLimiter, express.urlencoded({ extended: false }), (req, res) => {
+  const next = safeNext(req.body?.next);
   if (!passwordMatches(req.body?.password)) {
-    return res.status(401).render('admin-login', { page: 'admin', error: req.t('admin.wrong_password') });
+    return res.status(401)
+      .render('admin-login', { page: 'admin', error: req.t('admin.wrong_password'), next });
   }
 
   pruneExpiredSessions();
@@ -152,7 +166,7 @@ adminRouter.post('/admin/login', loginLimiter, express.urlencoded({ extended: fa
     secure: req.protocol === 'https',
     maxAge: config.admin.sessionHours * 60 * 60 * 1000,
   });
-  res.redirect('/admin');
+  res.redirect(next);
 });
 
 adminRouter.post('/admin/logout', requireAdmin, (req, res) => {

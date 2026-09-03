@@ -312,5 +312,23 @@
     "gif": "Gambar bergerak",
     "download_gif": "Muat turun GIF",
     "download_bundle": "Muat turun semua (semua gambar + GIF)"
+  },
+  "tv": {
+    "pair_title": "Sambungkan TV ke majlis ini",
+    "pair_hint": "Imbas kod QR ini dengan kamera telefon tuan rumah, atau buka admin → Sambung TV dan taip kod di bawah",
+    "code_label": "Kod sambungan",
+    "code_expiry": "Kod ini sah {minutes} minit · muat semula halaman ini bila tamat",
+    "admin_title": "Sambung TV",
+    "admin_hint": "Buka aplikasi pada TV sehingga kod muncul, kemudian masukkan kod itu di sini",
+    "label": "Nama skrin ini",
+    "label_hint": "contoh: skrin depan",
+    "mode": "Jenis paparan",
+    "pair_now": "Sambung sekarang",
+    "paired_ok": "Sudah bersambung · TV akan bertukar dalam beberapa saat",
+    "code_bad": "Kod salah atau sudah tamat — lihat kod baharu pada skrin TV",
+    "scan": "Buka kamera untuk imbas",
+    "connected": "TV yang bersambung",
+    "unnamed": "TV tanpa nama",
+    "unpair": "Putuskan"
   }
 }

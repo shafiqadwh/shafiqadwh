@@ -42,6 +42,12 @@
       <span class="tool__name"><%= t('admin.open_slideshow') %></span>
       <span class="tool__hint"><%= t('admin.slideshow_hint') %></span>
     </a>
+    <%# เชื่อมต่อทีวี — อยู่ติดกับปุ่มเปิดสไลด์โชว์เพราะเป็นงานเดียวกันคนละทาง
+        (เปิดบนคอมเอง vs สั่งให้ทีวีเปิด) %>
+    <a class="tool" href="/admin/tv">
+      <span class="tool__name"><%= t('tv.admin_title') %></span>
+      <span class="tool__hint"><%= t('tv.admin_hint') %></span>
+    </a>
     <a class="tool" href="/admin/qr" target="_blank" rel="noopener">
       <span class="tool__name"><%= t('admin.qr') %></span>
       <span class="tool__hint"><%= t('admin.qr_hint') %></span>

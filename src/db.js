@@ -116,6 +116,28 @@ db.exec(`
     bytes       INTEGER NOT NULL
   );
 
+  /*
+   * จอทีวีที่จับคู่กับงานนี้แล้ว
+   *
+   * ทีวีตั้งอยู่ไกลมือ มีแค่รีโมต — การพิมพ์ URL ด้วยปุ่มลูกศรคือขั้นตอนที่ช้าที่สุด
+   * และพิมพ์ผิดบ่อยที่สุดของการติดตั้งหน้างาน · แทนที่ด้วยการให้ทีวีโชว์รหัสหกตัว
+   * แล้วเจ้าภาพยืนยันจากมือถือตัวเอง (ซึ่งล็อกอินแอดมินอยู่แล้ว)
+   *
+   * คอลัมน์ device คือโทเคนในคุกกี้ของเครื่องทีวี — จับคู่ครั้งเดียวแล้วรีบูตกี่ครั้งก็
+   * กลับเข้าสไลด์โชว์เดิมเอง ไม่ต้องจับคู่ใหม่ทุกเช้า
+   */
+  CREATE TABLE IF NOT EXISTS tv_screens (
+    device     TEXT PRIMARY KEY,
+    code       TEXT,
+    code_at    TEXT,
+    mode       TEXT,
+    label      TEXT,
+    paired_at  TEXT,
+    seen_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_code ON tv_screens (code) WHERE code IS NOT NULL;
+
   CREATE INDEX IF NOT EXISTS idx_booth_shots_token ON booth_shots (token, sort_order);
   CREATE INDEX IF NOT EXISTS idx_booth_sessions_created ON booth_sessions (created_at DESC);
 `);

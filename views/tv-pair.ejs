@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="<%= htmlLang %>" dir="<%= htmlDir %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= event.title %> · <%= t('tv.pair_title') %></title>
+  <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<%#
+  หน้าที่ทีวีขึ้นตอนยังไม่ได้จับคู่
+
+  คนดูหน้านี้ยืนอยู่ไกลจากจอหลายเมตรและถือรีโมตที่กดอะไรไม่ได้มาก
+  ทุกอย่างจึงต้องใหญ่ อ่านออกจากท้ายห้อง และ **ไม่มีอะไรให้กด** — งานทั้งหมด
+  เกิดบนมือถือของเจ้าภาพ
+%>
+<body class="tv-body">
+  <main class="tv">
+    <h1 class="tv__title"><%= t('tv.pair_title') %></h1>
+    <p class="tv__hint"><%= t('tv.pair_hint') %></p>
+
+    <div class="tv__pair">
+      <img class="tv__qr" src="<%= qrImage %>" alt="">
+      <div class="tv__codebox">
+        <span class="tv__codelabel"><%= t('tv.code_label') %></span>
+        <strong class="tv__code"><%= code %></strong>
+        <span class="tv__expiry"><%= t('tv.code_expiry', { minutes }) %></span>
+      </div>
+    </div>
+
+    <p class="tv__url"><%= claimUrl.replace(/^https?:\/\//, '') %></p>
+  </main>
+
+  <script>
+    /*
+     * ถามทุกสามวินาทีว่าจับคู่หรือยัง
+     *
+     * ใช้การถามซ้ำ ไม่ใช่ WebSocket — ทีวีในงานอยู่บนไวไฟที่หลุด ๆ ติด ๆ และ
+     * WebView ของทีวีรุ่นเก่าจัดการการเชื่อมต่อค้างได้แย่กว่าการยิงคำขอสั้น ๆ ทีละครั้ง
+     * เน็ตหลุดกลางทางก็แค่รอบนั้นพลาด รอบถัดไปถามใหม่เอง
+     */
+    (function () {
+      var tries = 0;
+      function ask() {
+        fetch('/api/tv/state', { headers: { accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (state) {
+            if (state && state.paired && state.next) window.location.href = state.next;
+          })
+          .catch(function () { /* เน็ตสะดุด — รอบหน้าเอาใหม่ */ })
+          .then(function () {
+            tries += 1;
+            // เปิดค้างไว้ทั้งวันโดยไม่มีใครจับคู่ ก็ไม่ควรยิงถี่เท่าเดิมไปตลอด
+            setTimeout(ask, tries > 200 ? 15000 : 3000);
+          });
+      }
+      setTimeout(ask, 3000);
+    }());
+  </script>
+</body>
+</html>

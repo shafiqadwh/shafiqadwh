@@ -4,6 +4,9 @@
   <h1 class="section-title"><%= t('admin.title') %></h1>
 
   <form method="post" action="/admin/login" class="form">
+    <%# พากลับไปหน้าที่ตั้งใจจะไป (เช่นหน้าเชื่อมต่อทีวีพร้อมรหัสในลิงก์)
+        ไม่งั้นเจ้าภาพต้องเดินกลับไปหน้าทีวีเพื่ออ่านรหัสใหม่อีกรอบ %>
+    <input type="hidden" name="next" value="<%= next %>">
     <label class="field">
       <span class="field__label"><%= t('admin.password') %></span>
       <input type="password" name="password" autocomplete="current-password" required autofocus>

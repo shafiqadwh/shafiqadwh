@@ -1,0 +1,119 @@
+<%- include('partials/head', { pageTitle: t('tv.admin_title') }) %>
+
+<%#
+  หน้ายืนยันฝั่งมือถือของเจ้าภาพ
+
+  มาถึงหน้านี้ได้สองทาง และต้องใช้ได้ทั้งคู่
+  · สแกน QR บนจอทีวีด้วยกล้องมือถือ — รหัสติดมากับลิงก์แล้ว เหลือแค่เลือกโหมด
+  · กดเมนูนี้เอง แล้วพิมพ์รหัสหกตัวที่อ่านจากจอ (กล้องเสีย/สแกนไม่ติด/จอสะท้อน)
+%>
+
+<section class="card">
+  <h1 class="section-title"><%= t('tv.admin_title') %></h1>
+  <p class="section-hint"><%= t('tv.admin_hint') %></p>
+
+  <% if (query && query.done) { %>
+    <p class="notice notice--ok"><%= t('tv.paired_ok') %></p>
+  <% } %>
+  <% if ((query && query.bad) || found === false) { %>
+    <p class="notice notice--error"><%= t('tv.code_bad') %></p>
+  <% } %>
+
+  <form method="post" action="/admin/tv" class="form tv-claim">
+    <label class="field">
+      <span class="field__label"><%= t('tv.code_label') %></span>
+      <input class="tv-claim__code" type="text" name="code" value="<%= code %>"
+             inputmode="latin" autocapitalize="characters" autocomplete="off"
+             maxlength="6" pattern="[0-9A-Za-z]{6}" required <%= code ? '' : 'autofocus' %>>
+    </label>
+
+    <label class="field">
+      <span class="field__label"><%= t('tv.label') %></span>
+      <input type="text" name="label" maxlength="60" placeholder="<%= t('tv.label_hint') %>">
+    </label>
+
+    <fieldset class="field">
+      <legend class="field__label"><%= t('tv.mode') %></legend>
+      <% modes.forEach(function (mode, index) { %>
+        <label class="tv-claim__mode">
+          <input type="radio" name="mode" value="<%= mode %>" <%= index === 0 ? 'checked' : '' %>>
+          <span>
+            <strong><%= t('slideshow.mode_' + mode) %></strong>
+            <small><%= t('slideshow.mode_' + mode + '_hint') %></small>
+          </span>
+        </label>
+      <% }); %>
+    </fieldset>
+
+    <button type="submit" class="button button--primary button--big"><%= t('tv.pair_now') %></button>
+  </form>
+
+  <%# สแกนในเบราว์เซอร์เป็นทางเลือก ไม่ใช่ทางหลัก — กล้องของมือถือเปิดลิงก์ให้เอง
+      อยู่แล้ว และ BarcodeDetector ยังไม่มีใน Safari/Firefox %>
+  <p class="tv-claim__scan">
+    <button type="button" class="button button--ghost" id="tv-scan" hidden><%= t('tv.scan') %></button>
+  </p>
+  <video id="tv-camera" class="tv-claim__camera" playsinline muted hidden></video>
+</section>
+
+<% if (screens.length > 0) { %>
+  <section class="card">
+    <h2 class="section-title"><%= t('tv.connected') %></h2>
+    <ul class="tv-list">
+      <% screens.forEach(function (screen) { %>
+        <li class="tv-list__row">
+          <span>
+            <strong><%= screen.label || t('tv.unnamed') %></strong>
+            <small><%= t('slideshow.mode_' + screen.mode) %></small>
+          </span>
+          <form method="post" action="/admin/tv/unpair">
+            <input type="hidden" name="device" value="<%= screen.device %>">
+            <button type="submit" class="button button--tiny"><%= t('tv.unpair') %></button>
+          </form>
+        </li>
+      <% }); %>
+    </ul>
+  </section>
+<% } %>
+
+<script>
+  /*
+   * สแกน QR ในเบราว์เซอร์ — ของเสริมล้วน
+   *
+   * ปุ่มจะโผล่ก็ต่อเมื่อเบราว์เซอร์มี BarcodeDetector จริง (วันนี้คือ Chrome บน
+   * Android เป็นหลัก) · ไม่มีก็ไม่เป็นไร ทางหลักคือกล้องของมือถือที่เปิดลิงก์
+   * จาก QR ให้เองอยู่แล้ว และยังพิมพ์รหัสหกตัวได้เสมอ
+   */
+  (function () {
+    var button = document.getElementById('tv-scan');
+    var video = document.getElementById('tv-camera');
+    var field = document.querySelector('.tv-claim__code');
+    if (!button || !video || !('BarcodeDetector' in window)) return;
+    button.hidden = false;
+
+    button.addEventListener('click', function () {
+      var detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(function (stream) {
+          video.hidden = false;
+          video.srcObject = stream;
+          return video.play().then(function () {
+            var timer = setInterval(function () {
+              detector.detect(video).then(function (found) {
+                if (!found.length) return;
+                var code = String(found[0].rawValue || '').match(/code=([0-9A-Za-z]{6})/);
+                if (!code) return;
+                clearInterval(timer);
+                stream.getTracks().forEach(function (track) { track.stop(); });
+                video.hidden = true;
+                field.value = code[1].toUpperCase();
+              }).catch(function () { /* เฟรมนี้อ่านไม่ออก รอเฟรมถัดไป */ });
+            }, 400);
+          });
+        })
+        .catch(function () { button.disabled = true; });
+    });
+  }());
+</script>
+
+<%- include('partials/foot') %>
