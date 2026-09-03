@@ -31,6 +31,7 @@ async function removeFiles(session) {
   const names = [
     session.sheet_name,
     session.gif_name,
+    session.thumb_name,
     ...listBoothShots(session.token).map((s) => s.stored_name),
   ];
   for (const name of names.filter(Boolean)) {

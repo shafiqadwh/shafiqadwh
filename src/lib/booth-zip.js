@@ -36,9 +36,11 @@ export function streamBoothSession(res, { session, shots }) {
   });
   archive.pipe(res);
 
+  // เช็คชื่อก่อนต่อ path — path.join(dir, null) โยน TypeError ไม่ใช่คืนค่าว่าง
   const add = (name, as) => {
+    if (!name) return;
     const source = path.join(config.paths.booth, name);
-    if (name && fs.existsSync(source)) archive.file(source, { name: as });
+    if (fs.existsSync(source)) archive.file(source, { name: as });
   };
 
   add(session.sheet_name, `${stem}-sheet.jpg`);

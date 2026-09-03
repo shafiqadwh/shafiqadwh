@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
+import sharp from 'sharp';
 import { config } from '../config.js';
 import {
   countAlbumSessions, countExpiredAlbumSessions, getBoothSession, insertBoothSession,
@@ -67,6 +68,18 @@ const albumLimiter = createLimiter({
 });
 
 const PER_PAGE = 60;
+
+// กว้างพอสำหรับการ์ดในกริดบนจอมือถือความละเอียดสูง (การ์ดจริงกว้างราว 140 px)
+const THUMB_WIDTH = 320;
+
+/**
+ * งานบ้านต้องไม่พังหน้าที่แขกเปิด
+ *
+ * ตัวกวาดรูปหมดอายุถูกเรียกก่อนเรนเดอร์ทุกหน้าที่ QR ชี้มา · ดิสก์เต็มหรือไฟล์ถูก
+ * ล็อกอยู่แล้วมันโยน error ออกมา แขกจะได้หน้า 500 แทนรูปของตัวเอง ทั้งที่รูปยังอยู่ดี
+ */
+const sweep = () => sweepExpiredBooth()
+  .catch((error) => console.error('[booth] กวาดรูปหมดอายุไม่สำเร็จ:', error));
 
 const bundle = multer({
   storage: multer.diskStorage({
@@ -212,6 +225,27 @@ async function receive(req, res, uploadError) {
       ? await place({ file: gif, sniffed: { ext: 'gif' } }, 'anim')
       : null;
 
+    /*
+     * รูปย่อของแผ่น สำหรับกริดในหน้าอัลบั้ม
+     *
+     * ทำตอนรับไฟล์ครั้งเดียว ไม่ใช่ย่อสด ๆ ทุกครั้งที่มีคนเปิดหน้า — แขกสี่สิบคน
+     * เปิดอัลบั้มพร้อมกันตอนงานเลิกคือ NAS ที่ต้องย่อภาพพันครั้งในนาทีเดียว
+     * ล้มก็ไม่เป็นไร กริดจะตกไปใช้แผ่นเต็มแทน (ช้าแต่ยังเห็นรูป)
+     */
+    const thumbName = `${token}-thumb.jpg`;
+    const thumb = await sharp(path.join(config.paths.booth, savedSheet.name))
+      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .jpeg({ quality: 72, mozjpeg: true })
+      .toFile(path.join(config.paths.booth, thumbName))
+      .then(() => {
+        written.push(path.join(config.paths.booth, thumbName));
+        return thumbName;
+      })
+      .catch((error) => {
+        console.warn('[booth] ย่อรูปแผ่นไม่สำเร็จ ใช้แผ่นเต็มแทน:', error.message);
+        return null;
+      });
+
     insertBoothSession({
       token,
       takenAt: String(manifest.createdAt ?? new Date().toISOString()).slice(0, 40),
@@ -219,12 +253,14 @@ async function receive(req, res, uploadError) {
       template: String(manifest.template ?? '').slice(0, 40) || null,
       effect: String(manifest.effect ?? '').slice(0, 40) || null,
       sheetName: savedSheet.name,
-      bytes: savedSheet.bytes,
+      // นับไฟล์แถมเข้าไปด้วย ไม่งั้นพื้นที่ใช้ไปในหน้าแอดมินต่ำกว่าความจริงเรื่อย ๆ
+      bytes: savedSheet.bytes + (savedGif?.bytes ?? 0),
       // รหัสที่ไม่ได้รูปแบบต้องกลายเป็น "ไม่สังกัดอัลบั้ม" ไม่ใช่เก็บไว้ทั้งอย่างนั้น
       // — คิวรีอัลบั้มเทียบตรง ๆ ค่าที่เพี้ยนจึงเปิดอัลบั้มของใครไม่ได้อยู่แล้ว
       // แต่เก็บไว้ก็ไม่มีประโยชน์อะไรนอกจากทำให้ข้อมูลดูเหมือนมีอัลบั้มทั้งที่ไม่มี
       album: isAlbum(manifest.album) ? manifest.album : null,
       gifName: savedGif?.name ?? null,
+      thumbName: thumb,
     }, savedShots.map((shot) => ({ storedName: shot.name, bytes: shot.bytes })));
 
     return res.status(201).json({
@@ -260,7 +296,7 @@ const showDate = (date, lang) => (date
 boothRouter.get('/p/:token', wrap(async (req, res, next) => {
   const token = String(req.params.token ?? '').toUpperCase();
   if (!isToken(token)) return next();
-  await sweepExpiredBooth();
+  await sweep();
 
   const session = getBoothSession(token);
   const expired = Boolean(session?.expired_at);
@@ -331,7 +367,7 @@ function renderAlbum(req, res, next) {
 }
 
 boothRouter.get('/b/:album', albumLimiter, wrap(async (req, res, next) => {
-  await sweepExpiredBooth();
+  await sweep();
   return renderAlbum(req, res, next);
 }));
 
@@ -352,7 +388,7 @@ boothRouter.get('/b/:album/zip', albumLimiter, wrap(async (req, res, next) => {
 }));
 
 boothRouter.get('/b/:album/:token', albumLimiter, wrap(async (req, res, next) => {
-  await sweepExpiredBooth();
+  await sweep();
   return renderAlbum(req, res, next);
 }));
 
@@ -362,6 +398,14 @@ boothRouter.get('/p/:token/sheet', wrap(async (req, res, next) => {
   // แถวของรอบที่หมดอายุยังอยู่ (เพื่อให้หน้าอธิบายได้) แต่ไฟล์ถูกลบไปแล้วจริง ๆ
   if (!session || session.expired_at) return next();
   return sendBoothFile(res, session.sheet_name);
+}));
+
+/** รูปย่อของแผ่น — ใช้ในกริดอัลบั้มเท่านั้น · ไม่มีรูปย่อก็ตกไปใช้แผ่นเต็ม */
+boothRouter.get('/p/:token/thumb', wrap(async (req, res, next) => {
+  const token = String(req.params.token ?? '').toUpperCase();
+  const session = isToken(token) ? getBoothSession(token) : null;
+  if (!session || session.expired_at) return next();
+  return sendBoothFile(res, session.thumb_name || session.sheet_name);
 }));
 
 boothRouter.get('/p/:token/gif', wrap(async (req, res, next) => {

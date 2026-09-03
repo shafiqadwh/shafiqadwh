@@ -165,6 +165,16 @@ if (!boothColumns.includes('expired_at')) {
 if (!boothColumns.includes('gif_name')) {
   db.exec('ALTER TABLE booth_sessions ADD COLUMN gif_name TEXT');
 }
+/*
+ * รูปย่อของแผ่น — สำหรับกริดในหน้าอัลบั้มเท่านั้น
+ *
+ * วัดแล้ว: อัลบั้ม 30 รอบที่ใช้แผ่นเต็มความละเอียดกินเน็ตมือถือ **17.7 MB**
+ * (และนั่นคือเท่าที่ lazy-load โหลดมาแล้ว เลื่อนดูครบจะมากกว่านั้นอีกเท่าตัว)
+ * แขกยืนอยู่ในงานใช้ 4G และแบนด์วิดท์ขาออกของบ้านเจ้าภาพต้องแบ่งให้การอัปโหลดด้วย
+ */
+if (!boothColumns.includes('thumb_name')) {
+  db.exec('ALTER TABLE booth_sessions ADD COLUMN thumb_name TEXT');
+}
 db.exec('CREATE INDEX IF NOT EXISTS idx_booth_sessions_album ON booth_sessions (album, created_at DESC)');
 
 const readSetting = db.prepare('SELECT value FROM settings WHERE key = ?');

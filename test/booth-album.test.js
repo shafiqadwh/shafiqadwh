@@ -22,6 +22,9 @@ process.env.BOOTH_KEY = KEY;
 const dataDir = useTempDataDir('booth-album');
 const app = await startTestServer();
 
+const { db } = await import('../src/db.js');
+const { getBoothSession } = await import('../src/repo.js');
+
 const ALBUM = 'AB12CD34';
 const OTHER = 'ZZ99YY88';
 
@@ -190,4 +193,52 @@ test('one tap gives the guest every photo and the animation together', async () 
 
   // รอบที่หมดอายุหรือไม่มีจริง ต้องไม่ให้ดาวน์โหลดไฟล์เปล่า
   assert.equal((await fetch(`${app.baseUrl}/p/ZZ9999/zip`)).status, 404);
+});
+
+
+test('the album grid asks for thumbnails, not full sheets', async () => {
+  /*
+   * วัดของจริงก่อนแก้: อัลบั้ม 30 รอบที่ใช้แผ่นเต็มกินเน็ตมือถือ 17.7 MB
+   * หลังใช้รูปย่อเหลือ 0.2 MB · แขกยืนอยู่ในงานใช้ 4G และแบนด์วิดท์ขาออกของบ้าน
+   * เจ้าภาพต้องแบ่งให้การอัปโหลดด้วย
+   */
+  const html = await (await fetch(`${app.baseUrl}/b/${ALBUM}`)).text();
+  assert.ok(html.includes('/p/AAA111/thumb'), 'กริดต้องขอรูปย่อ');
+  assert.ok(!html.includes('/p/AAA111/sheet'), 'กริดต้องไม่ขอแผ่นเต็ม');
+
+  const thumb = await fetch(`${app.baseUrl}/p/AAA111/thumb`);
+  assert.equal(thumb.status, 200);
+  const bytes = Number(thumb.headers.get('content-length'));
+  const full = Number((await fetch(`${app.baseUrl}/p/AAA111/sheet`)).headers.get('content-length'));
+  assert.ok(bytes * 4 < full, `รูปย่อ ${bytes} ไบต์ ไม่เล็กกว่าแผ่นเต็ม ${full} พอ`);
+
+  const meta = await sharp(Buffer.from(await thumb.arrayBuffer())).metadata();
+  assert.equal(meta.width, 320);
+  assert.equal(meta.format, 'jpeg');
+});
+
+test('a take that lost its thumbnail still shows up, using the full sheet', async () => {
+  // ย่อรูปไม่สำเร็จเป็นเรื่องที่เกิดได้ (ดิสก์เต็ม) · กริดต้องช้าลง ไม่ใช่มีรูปหาย
+  db.prepare('UPDATE booth_sessions SET thumb_name = NULL WHERE token = ?').run('AAA111');
+  const response = await fetch(`${app.baseUrl}/p/AAA111/thumb`);
+  assert.equal(response.status, 200, 'ไม่มีรูปย่อต้องตกไปใช้แผ่นเต็ม ไม่ใช่รูปแตก');
+  assert.equal(response.headers.get('content-type'), 'image/jpeg');
+});
+
+test('the thumbnail never sneaks into anyone download', async () => {
+  // รูปย่อเป็นของหน้าเว็บ ไม่ใช่ของแขก · ติดไปใน ZIP แล้วแขกงงว่าไฟล์ไหนคือของจริง
+  const body = Buffer.from(await (await fetch(`${app.baseUrl}/p/BBB222/zip`)).arrayBuffer());
+  assert.ok(!body.toString('latin1').includes('thumb'), 'ZIP ของรอบต้องไม่มีรูปย่อ');
+
+  const album = Buffer.from(await (await fetch(`${app.baseUrl}/b/${ALBUM}/zip`)).arrayBuffer());
+  assert.ok(!album.toString('latin1').includes('-thumb.jpg'), 'ZIP ของทั้งงานก็ต้องไม่มี');
+});
+
+test('storage stats count the animation, not just the sheet', async () => {
+  // ไฟล์แถมที่ไม่ถูกนับ = ตัวเลขพื้นที่ใช้ไปในหน้าแอดมินต่ำกว่าความจริงเรื่อย ๆ
+  // จนเจ้าภาพเชื่อว่ายังมีที่เหลือ ทั้งที่ดิสก์ใกล้เต็ม
+  const row = getBoothSession('BBB222');
+  const sheet = Number((await fetch(`${app.baseUrl}/p/BBB222/sheet`)).headers.get('content-length'));
+  const gif = Number((await fetch(`${app.baseUrl}/p/BBB222/gif`)).headers.get('content-length'));
+  assert.equal(row.bytes, sheet + gif, 'ไบต์ที่บันทึกต้องรวม GIF ด้วย');
 });

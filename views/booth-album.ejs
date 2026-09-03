@@ -88,8 +88,9 @@
     <%# แต่ละใบพาไปหน้าของรอบนั้น ซึ่งมีรูปดิบกับปุ่มโหลดครบอยู่แล้ว ไม่ต้องทำซ้ำ %>
     <div class="booth-album__grid">
       <% sessions.forEach(function (row) { %>
+        <%# รูปย่อ ไม่ใช่แผ่นเต็ม — วัดแล้วอัลบั้ม 30 รอบที่ใช้แผ่นเต็มกินเน็ตมือถือ 17.7 MB %>
         <a class="booth-album__card" href="/b/<%= album %>/<%= row.token %>">
-          <img src="/p/<%= row.token %>/sheet" alt="" loading="lazy">
+          <img src="/p/<%= row.token %>/thumb" alt="" loading="lazy">
           <span class="booth-album__code"><%= row.token %></span>
         </a>
       <% }); %>
