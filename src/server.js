@@ -15,6 +15,7 @@ import {
 } from './lib/tenancy.js';
 import { adminRouter, isAdmin } from './routes/admin.js';
 import { boothRouter } from './routes/booth.js';
+import { consoleRouter } from './routes/console.js';
 import { tvRouter } from './routes/tv.js';
 import { sweepExpiredBooth } from './lib/booth-retention.js';
 import { galleryRouter } from './routes/gallery.js';
@@ -109,6 +110,7 @@ export function createApp() {
   app.use('/static', express.static(config.paths.public, { maxAge: '7d' }));
   app.get('/healthz', (req, res) => res.json({ ok: true }));
 
+  app.use(consoleRouter);
   app.use(boothRouter);
   app.use(tvRouter);
   app.use(galleryRouter);

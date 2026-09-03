@@ -73,6 +73,19 @@ function controlDb() {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_events_host
       ON events (host) WHERE host IS NOT NULL AND host != '';
+
+    /*
+     * การล็อกอินของเจ้าของระบบ — **ต้องอยู่ในทะเบียน ไม่ใช่ในฐานข้อมูลของงานใดงานหนึ่ง**
+     *
+     * คอนโซลพูดถึงทุกงานพร้อมกัน ถ้าเก็บ session ไว้ในงานใดงานหนึ่งก็แปลว่าคอนโซล
+     * มีเจ้าของเป็นงานนั้น ซึ่งกลับหัวกับสิ่งที่มันเป็น · และแยกจาก admin_sessions
+     * ของลูกค้าโดยสิ้นเชิง คุกกี้ของลูกค้าจึงไม่มีทางกลายเป็นกุญแจของคอนโซล
+     */
+    CREATE TABLE IF NOT EXISTS console_sessions (
+      token      TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    );
   `);
   return control;
 }
@@ -266,6 +279,27 @@ export function passwordMatches(stored, candidate) {
   const expected = Buffer.from(hashHex, 'hex');
   const given = crypto.scryptSync(String(candidate ?? ''), Buffer.from(saltHex, 'hex'), expected.length);
   return crypto.timingSafeEqual(expected, given);
+}
+
+/* การล็อกอินของคอนโซล — เก็บในทะเบียน ไม่ผูกกับงานใดงานหนึ่ง */
+export function openConsoleSession(hours) {
+  const token = crypto.randomBytes(32).toString('hex');
+  controlDb().prepare("DELETE FROM console_sessions WHERE expires_at < datetime('now')").run();
+  controlDb().prepare(
+    "INSERT INTO console_sessions (token, expires_at) VALUES (?, datetime('now', ?))",
+  ).run(token, `+${Number(hours) || 12} hours`);
+  return token;
+}
+
+export function consoleSessionValid(token) {
+  if (!token) return false;
+  return Boolean(controlDb().prepare(
+    "SELECT token FROM console_sessions WHERE token = ? AND expires_at > datetime('now')",
+  ).get(String(token)));
+}
+
+export function closeConsoleSession(token) {
+  controlDb().prepare('DELETE FROM console_sessions WHERE token = ?').run(String(token ?? ''));
 }
 
 export function setEventPassword(slug, plain) {

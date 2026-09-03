@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>คอนโซลผู้ดูแลระบบ</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<%#
+  ทางเข้าคอนโซลของเจ้าของระบบ
+
+  ไม่มีหัวเว็บ ไม่มีปุ่มภาษา ไม่มีแท็บของงาน — หน้านี้ไม่ได้เป็นของงานไหนเลย
+  และคนที่เปิดถูกหน้ามีคนเดียว · หน้าตาที่ไม่เหมือน /admin เป็นเรื่องตั้งใจ
+  จะได้ไม่มีวันเผลอคิดว่ากำลังยืนอยู่หน้าเดียวกัน
+%>
+<body class="console-body" data-page="console">
+  <main class="console">
+    <h1 class="console__title">คอนโซลผู้ดูแลระบบ</h1>
+    <p class="console__hint">หน้านี้ดูแลทุกงานในเครื่องนี้ · ไม่ใช่หน้าของเจ้าภาพงานใดงานหนึ่ง</p>
+
+    <form method="post" action="/console/login" class="form card card--narrow">
+      <label class="field">
+        <span class="field__label">รหัสผ่านผู้ดูแลระบบ</span>
+        <input type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <% if (error) { %><p class="notice notice--error"><%= error %></p><% } %>
+      <button type="submit" class="button button--primary">เข้าสู่ระบบ</button>
+    </form>
+  </main>
+</body>
+</html>

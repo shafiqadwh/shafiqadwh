@@ -3249,3 +3249,104 @@ a:focus-visible {
 }
 
 .tv-list__row small { display: block; color: var(--ink-soft); }
+
+/*
+ * คอนโซลของเจ้าของระบบ — หน้าเดียวที่ไม่ได้เป็นของงานไหน
+ *
+ * จงใจให้หน้าตาไม่เหมือน /admin ของลูกค้า (พื้นหลังเข้ม ไม่มีหัวเว็บของงาน)
+ * เพราะสองหน้านี้มีอำนาจคนละระดับ และการเผลอคิดว่ายืนอยู่หน้าเดียวกันคือ
+ * ทางที่จะทำให้ตั้งค่าของลูกค้ารายหนึ่งไปทับอีกราย
+ */
+.console-body { background: #16120f; color: #f4ece2; }
+
+.console { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
+
+.console__bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.console__title { font-size: 1.5rem; margin: 0 0 4px; }
+.console__hint { margin: 0 0 20px; color: #c3b4a4; }
+.console__muted { color: #9d8f80; }
+
+.console .card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: inherit;
+  margin-bottom: 16px;
+}
+
+.console__event.is-archived { opacity: 0.62; }
+
+.console__slug,
+.console__tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.console__where { margin: 4px 0 12px; font-size: 0.9rem; }
+.console__where a { color: #e8c9a0; }
+
+.console__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 26px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.console__totals li { display: flex; flex-direction: column; }
+.console__totals strong { font-size: 1.5rem; line-height: 1.1; }
+.console__totals span { font-size: 0.78rem; color: #b6a696; }
+.console__totals--small strong { font-size: 1.15rem; }
+
+/* งานสามวันต้องอ่านแยกวันได้ — ตารางแคบ ๆ ที่เลื่อนเองได้บนมือถือ */
+.console__days {
+  width: 100%;
+  margin-top: 14px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.console__days th,
+.console__days td {
+  padding: 6px 8px;
+  text-align: left;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.console__days th { color: #b6a696; font-weight: 500; }
+
+.console__edit { margin-top: 16px; }
+.console__edit summary { cursor: pointer; color: #e8c9a0; }
+
+.console__form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.console__form .field__label { color: #c3b4a4; }
+
+.console__form input,
+.console__form select {
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}

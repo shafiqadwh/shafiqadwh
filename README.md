@@ -69,6 +69,8 @@ ADMIN_PASSWORD=changeme123 npm start        # http://localhost:3000
 5. [ดาวน์โหลดและสำรองข้อมูล](docs/05-download-backup.md)
 6. [เช็คลิสต์วันงาน](docs/06-checklist.md) — พิมพ์แผ่นนี้ติดตัวไว้
 7. [ติดตั้งบน Shafiq-NAS (as-built)](docs/07-shafiq-nas.md) — ค่าจริงของ infra ชุดนั้น: `wedding.shafiq-lap.com`, AdGuard + Cloudflare, wildcard cert, MikroTik NAT และวิธีส่งโค้ดขึ้น NAS ที่ไม่มี git
+8. [export หนังงานแต่ง](docs/08-export-film.md) — คลังเพลง ความยาวที่คำนวณเอง และ GPU
+9. [หลายงานในเครื่องเดียว](docs/09-many-events.md) — คอนโซล `/console`, โดเมนต่องาน, รหัสแอดมินของลูกค้าแต่ละราย
 
 ## การตั้งค่า
 

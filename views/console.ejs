@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>คอนโซลผู้ดูแลระบบ</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<%#
+  ทุกงานในเครื่องนี้ อยู่ในหน้าเดียว
+
+  สิ่งที่หน้านี้ต้องตอบให้ได้ในสิบวินาทีแรกที่เปิด
+  · ตอนนี้มีงานอะไรอยู่บ้าง งานไหนกำลังจัด งานไหนจบแล้ว
+  · แต่ละงานมีของเข้ามาแล้วเท่าไร แยกเป็นรายวัน (งานหนึ่งกินเวลาสามวัน)
+  · โดเมนของแต่ละงานคืออะไร และรหัสที่ให้ลูกค้าไปคืออันไหน
+
+  ที่ไม่มีในหน้านี้โดยตั้งใจ: ปุ่มลบงาน · เหตุผลอยู่ใน src/routes/console.js
+%>
+<body class="console-body" data-page="console">
+  <main class="console">
+    <header class="console__bar">
+      <h1 class="console__title">คอนโซลผู้ดูแลระบบ</h1>
+      <form method="post" action="/console/logout">
+        <button type="submit" class="button button--tiny">ออกจากระบบ</button>
+      </form>
+    </header>
+
+    <% if (query.saved) { %><p class="notice notice--ok">บันทึกแล้ว</p><% } %>
+    <% if (query.made) { %><p class="notice notice--ok">สร้างงาน “<%= query.made %>” แล้ว</p><% } %>
+    <% if (query.bad === 'slug') { %>
+      <p class="notice notice--error">ชื่อย่อใช้ได้เฉพาะ a–z 0–9 และขีดกลาง ยาว 1–40 ตัว</p>
+    <% } %>
+    <% if (query.bad === 'taken') { %><p class="notice notice--error">ชื่อย่อนี้มีงานใช้อยู่แล้ว</p><% } %>
+    <% if (query.bad === 'missing') { %><p class="notice notice--error">ไม่พบงานนั้น</p><% } %>
+
+    <section class="card">
+      <h2 class="section-title">รวมทุกงาน</h2>
+      <ul class="console__totals">
+        <li><strong><%= total.photos %></strong><span>รูป</span></li>
+        <li><strong><%= total.videos %></strong><span>วิดีโอ</span></li>
+        <li><strong><%= total.messages %></strong><span>คำอวยพร</span></li>
+        <li><strong><%= total.booth %></strong><span>รอบถ่ายจากบูธ</span></li>
+        <li><strong><%= total.storage %></strong><span>พื้นที่ที่ใช้</span></li>
+      </ul>
+    </section>
+
+    <% events.forEach(function (event) { %>
+      <section class="card console__event <%= event.archived_at ? 'is-archived' : '' %>">
+        <h2 class="section-title">
+          <%= event.title %>
+          <small class="console__slug"><%= event.slug %></small>
+          <% if (event.archived_at) { %><small class="console__tag">เก็บเข้าลิ้นชักแล้ว</small><% } %>
+        </h2>
+
+        <p class="console__where">
+          <% if (event.host) { %>
+            <a href="https://<%= event.host %>/" rel="noreferrer"><%= event.host %></a>
+          <% } else { %>
+            <span class="console__muted">ยังไม่ได้ตั้งโดเมน — เปิดด้วย</span>
+            <a href="/?event=<%= event.slug %>">?event=<%= event.slug %></a>
+          <% } %>
+          <span class="console__muted">·</span>
+          <%= event.password ? 'ลูกค้าตั้งรหัสของตัวเองแล้ว' : 'ยังไม่มีรหัสของลูกค้า (ใช้กุญแจหลัก)' %>
+        </p>
+
+        <ul class="console__totals console__totals--small">
+          <li><strong><%= event.stats.photos %></strong><span>รูป</span></li>
+          <li><strong><%= event.stats.videos %></strong><span>วิดีโอ</span></li>
+          <li><strong><%= event.stats.messages %></strong><span>คำอวยพร</span></li>
+          <li><strong><%= event.stats.pending %></strong><span>รอตรวจ</span></li>
+          <li><strong><%= event.booth %></strong><span>บูธ</span></li>
+          <li><strong><%= event.stats.storage %></strong><span>พื้นที่</span></li>
+        </ul>
+
+        <% if (event.days.length > 0) { %>
+          <table class="console__days">
+            <thead><tr><th>วัน</th><th>รูป</th><th>วิดีโอ</th><th>คำอวยพร</th></tr></thead>
+            <tbody>
+              <% event.days.forEach(function (day) { %>
+                <tr>
+                  <td><%= day.day %></td>
+                  <td><%= day.photos %></td>
+                  <td><%= day.videos %></td>
+                  <td><%= day.messages %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+
+        <details class="console__edit">
+          <summary>แก้ไขงานนี้</summary>
+
+          <form method="post" action="/console/events/<%= event.slug %>" class="form console__form">
+            <label class="field">
+              <span class="field__label">ชื่องาน</span>
+              <input type="text" name="title" value="<%= event.title %>" maxlength="120" required>
+            </label>
+            <label class="field">
+              <span class="field__label">โดเมน (เช่น rina-adam.example.com)</span>
+              <input type="text" name="host" value="<%= event.host || '' %>" maxlength="200"
+                     inputmode="url" autocapitalize="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span class="field__label">ประเภทงาน</span>
+              <select name="kind">
+                <% kinds.forEach(function (kind) { %>
+                  <option value="<%= kind %>" <%= event.kind === kind ? 'selected' : '' %>><%= kind %></option>
+                <% }); %>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">ชื่อผู้ร่วมงาน (เช่น Rina &amp; Adam)</span>
+              <input type="text" name="names" value="<%= event.names || '' %>" maxlength="120">
+            </label>
+            <label class="field">
+              <span class="field__label">สถานที่</span>
+              <input type="text" name="venue" value="<%= event.venue || '' %>" maxlength="160">
+            </label>
+            <label class="field">
+              <span class="field__label">เวลา</span>
+              <input type="text" name="time" value="<%= event.time || '' %>" maxlength="60">
+            </label>
+            <label class="field">
+              <span class="field__label">โมโนแกรม (ว่าง = คิดจากชื่อให้เอง)</span>
+              <input type="text" name="monogram" value="<%= event.monogram || '' %>" maxlength="20">
+            </label>
+            <label class="field">
+              <span class="field__label">วันเริ่มงาน</span>
+              <input type="date" name="starts_on" value="<%= event.starts_on || '' %>">
+            </label>
+            <label class="field">
+              <span class="field__label">วันสุดท้าย</span>
+              <input type="date" name="ends_on" value="<%= event.ends_on || '' %>">
+            </label>
+            <button type="submit" class="button button--primary">บันทึก</button>
+          </form>
+
+          <form method="post" action="/console/events/<%= event.slug %>/password" class="form console__form">
+            <label class="field">
+              <span class="field__label">ตั้งรหัสแอดมินให้ลูกค้า (ว่าง = ล้างทิ้ง)</span>
+              <input type="text" name="password" autocomplete="off" maxlength="120">
+            </label>
+            <button type="submit" class="button">ตั้งรหัสให้ลูกค้า</button>
+          </form>
+
+          <form method="post" action="/console/events/<%= event.slug %>/archive" class="form console__form">
+            <label class="field field--inline">
+              <input type="checkbox" name="archived" <%= event.archived_at ? 'checked' : '' %>>
+              <span>เก็บงานนี้เข้าลิ้นชัก (งานจบแล้ว)</span>
+            </label>
+            <button type="submit" class="button button--tiny">บันทึกสถานะ</button>
+          </form>
+        </details>
+      </section>
+    <% }); %>
+
+    <section class="card">
+      <h2 class="section-title">เปิดงานใหม่</h2>
+      <form method="post" action="/console/events" class="form console__form">
+        <label class="field">
+          <span class="field__label">ชื่อย่อ (a–z 0–9 ขีดกลาง) — เป็นชื่อโฟลเดอร์ของงานด้วย</span>
+          <input type="text" name="slug" maxlength="40" required pattern="[a-z0-9][a-z0-9-]*[a-z0-9]"
+                 autocapitalize="off" spellcheck="false" placeholder="rina-adam">
+        </label>
+        <label class="field">
+          <span class="field__label">ชื่องาน</span>
+          <input type="text" name="title" maxlength="120" required placeholder="งานแต่งงานรินา &amp; อาดัม">
+        </label>
+        <label class="field">
+          <span class="field__label">โดเมน (ตั้งทีหลังก็ได้)</span>
+          <input type="text" name="host" maxlength="200" autocapitalize="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field__label">ประเภทงาน</span>
+          <select name="kind">
+            <% kinds.forEach(function (kind) { %><option value="<%= kind %>"><%= kind %></option><% }); %>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">ชื่อผู้ร่วมงาน</span>
+          <input type="text" name="names" maxlength="120">
+        </label>
+        <label class="field">
+          <span class="field__label">วันเริ่มงาน</span>
+          <input type="date" name="starts_on">
+        </label>
+        <label class="field">
+          <span class="field__label">วันสุดท้าย</span>
+          <input type="date" name="ends_on">
+        </label>
+        <label class="field">
+          <span class="field__label">รหัสแอดมินของลูกค้า (ตั้งทีหลังก็ได้)</span>
+          <input type="text" name="password" autocomplete="off" maxlength="120">
+        </label>
+        <button type="submit" class="button button--primary">เปิดงานใหม่</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

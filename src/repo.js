@@ -247,6 +247,35 @@ export function stats() {
 }
 
 /**
+ * ยอดต่อวันของงานนี้ — งานสามวันต้องอ่านแยกวันได้ ไม่ใช่เห็นแต่ยอดรวมก้อนเดียว
+ *
+ * `date(created_at)` ใน SQLite อ่านเวลาที่เก็บเป็น UTC · งานที่ข้ามเที่ยงคืนจึงถูก
+ * ตัดวันตามเวลา UTC ไม่ใช่เวลาไทย — เขียนไว้ตรงนี้เพราะเป็นเรื่องที่จะงงได้ทีหลัง
+ * ตอนเทียบกับความรู้สึกว่า "คืนนั้นมีรูปกี่ใบ"
+ */
+export function dailyCounts() {
+  const items = db.prepare(`
+    SELECT date(created_at) AS day,
+           SUM(kind = 'image') AS photos,
+           SUM(kind = 'video') AS videos
+    FROM items WHERE deleted_at IS NULL
+    GROUP BY day
+  `).all();
+  const messages = db.prepare(`
+    SELECT date(created_at) AS day, COUNT(*) AS messages FROM messages GROUP BY day
+  `).all();
+
+  const days = new Map();
+  const row = (day) => {
+    if (!days.has(day)) days.set(day, { day, photos: 0, videos: 0, messages: 0 });
+    return days.get(day);
+  };
+  for (const one of items) Object.assign(row(one.day), { photos: one.photos, videos: one.videos });
+  for (const one of messages) row(one.day).messages = one.messages;
+  return [...days.values()].sort((a, b) => a.day.localeCompare(b.day));
+}
+
+/**
  * ทุกอย่างที่ต้องใช้ทำรายชื่อแขก — ดึงเฉพาะคอลัมน์ที่ใช้จริง
  *
  * จัดกลุ่มใน JS ไม่ใช่ `GROUP BY` ใน SQL เพราะการตัดสินว่าชื่อสองอันคือคนเดียวกัน
