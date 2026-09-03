@@ -50,6 +50,7 @@ import { queueLength } from '../lib/queue.js';
 import { qrDataUrl, qrPngBuffer, shareUrl } from '../lib/qr.js';
 import { streamArchive } from '../lib/zip.js';
 import { createLimiter } from '../lib/ratelimit.js';
+import { byIp } from '../lib/device.js';
 import { currentEvent, passwordMatches as eventPasswordMatches } from '../lib/tenancy.js';
 import { uploadsOpen } from './gallery.js';
 import { wrap } from '../lib/async-route.js';
@@ -66,7 +67,11 @@ const findSession = db.prepare(
 );
 const dropSession = db.prepare('DELETE FROM admin_sessions WHERE token = ?');
 
-const loginLimiter = createLimiter({ name: 'admin-login', limit: 10, windowMs: 15 * 60 * 1000 });
+// นับแยกตามงาน — เจ้าภาพของงานหนึ่งใส่รหัสผิดสิบครั้ง ต้องไม่ล็อกเจ้าภาพของอีกงาน
+// ที่บังเอิญอยู่หลังไอพีเดียวกัน (ไวไฟของสถานที่จัดงานเดียวกัน เกิดขึ้นได้จริง)
+const loginLimiter = createLimiter({
+  name: 'admin-login', limit: 10, windowMs: 15 * 60 * 1000, key: byIp,
+});
 
 /**
  * รหัสผ่านของงานนี้ — ของลูกค้ารายนี้ก่อน แล้วค่อยตกมาที่กุญแจหลักใน `.env`

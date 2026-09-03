@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { createLock } from './film-lock.js';
 import { uploadersPages, wishesPages } from './paper.js';
 import { writePdf } from './pdf.js';
+import { currentEvent } from './tenancy.js';
 
 /**
  * งานสร้าง PDF ที่สั่งจากหน้าแอดมิน — โครงเดียวกับงาน export หนัง
@@ -17,17 +18,29 @@ import { writePdf } from './pdf.js';
 
 export const KINDS = ['wishes', 'uploaders'];
 
-const STATUS_PATH = path.join(config.paths.export, 'paper-status.json');
+/*
+ * ที่อยู่ของไฟล์สถานะ **ต้องคิดตอนใช้ ไม่ใช่ตอนโหลดโมดูล**
+ *
+ * เดิมเป็นค่าคงที่ระดับโมดูล ซึ่งถูกคำนวณครั้งเดียวตอนบูต = โฟลเดอร์ของงาน
+ * เริ่มต้นเสมอ · วัดแล้วเห็นจริง: สั่ง export ของงาน alpha แล้วไฟล์สถานะไป
+ * โผล่ในโฟลเดอร์ของงาน main และงาน beta เปิดหน้าแอดมินเห็น state=running
+ * ทั้งที่ไม่ได้สั่งอะไรเลย
+ */
+const statusPath = () => path.join(config.paths.export, 'paper-status.json');
 const lock = createLock('.paper-lock', {
   busyMessage: () => 'มีงานสร้างเอกสารกำลังทำอยู่แล้ว',
 });
 
-let current = null;
+// สถานะในหน่วยความจำ **ต่องาน** — ตัวแปรเดียวทั้งโปรเซสทำให้หน้าแอดมินของ
+// งานหนึ่งเห็นความคืบหน้าของอีกงานที่กำลังเรนเดอร์อยู่
+const memory = new Map();
+const current = () => memory.get(currentEvent().slug) ?? null;
+const remember = (status) => memory.set(currentEvent().slug, status);
 
 async function persist(status) {
   try {
     await fs.mkdir(config.paths.export, { recursive: true });
-    await fs.writeFile(STATUS_PATH, JSON.stringify(status));
+    await fs.writeFile(statusPath(), JSON.stringify(status));
   } catch {
     // เขียนไม่ได้ก็ยังทำงานต่อได้ แค่หน้าเว็บจะไม่เห็นความคืบหน้าหลังรีเฟรช
   }
@@ -35,16 +48,17 @@ async function persist(status) {
 
 async function readPersisted() {
   try {
-    return JSON.parse(await fs.readFile(STATUS_PATH, 'utf8'));
+    return JSON.parse(await fs.readFile(statusPath(), 'utf8'));
   } catch {
     return null;
   }
 }
 
 function update(patch) {
-  current = { ...current, ...patch, updatedAt: new Date().toISOString() };
-  void persist(current);
-  return current;
+  const status = { ...current(), ...patch, updatedAt: new Date().toISOString() };
+  remember(status);
+  void persist(status);
+  return status;
 }
 
 function fileName(kind) {
@@ -129,13 +143,13 @@ export async function deletePaper(id) {
  * ต้องรายงานตามจริง ไม่ใช่ปล่อยให้หน้าเว็บหมุนรอตลอดกาล
  */
 export async function jobStatus() {
-  const stored = current ?? (await readPersisted());
+  const stored = current() ?? (await readPersisted());
   const papers = await listPapers();
   const owner = await lock.owner();
 
   if (stored?.state === 'running' && !owner) {
     const stopped = { ...stored, state: 'stopped', error: 'งานหยุดกลางทาง (เซิร์ฟเวอร์รีสตาร์ท) — กดเริ่มใหม่ได้' };
-    current = stopped;
+    remember(stopped);
     void persist(stopped);
     return { ...stopped, papers };
   }
@@ -155,7 +169,7 @@ export async function startJob({ kind, t, lang }) {
     error.code = 'BAD_KIND';
     throw error;
   }
-  if (current?.state === 'running') {
+  if (current()?.state === 'running') {
     const error = new Error('มีงานสร้างเอกสารกำลังทำอยู่แล้ว');
     error.code = 'BUSY';
     throw error;
@@ -185,7 +199,7 @@ export async function startJob({ kind, t, lang }) {
   });
 
   void run({ kind, t, lang, handle });
-  return current;
+  return current();
 }
 
 async function run({ kind, t, lang, handle }) {

@@ -9,6 +9,7 @@ import { normaliseName } from '../lib/guests.js';
 import { ensureDisplayCopy, safeOriginalName } from '../lib/media.js';
 import { trackDetails } from '../lib/music.js';
 import { wrap } from '../lib/async-route.js';
+import { currentEvent } from '../lib/tenancy.js';
 
 export const galleryRouter = express.Router();
 
@@ -31,7 +32,16 @@ export function toPublicItem(row) {
   };
 }
 
+/**
+ * งานนี้ยังรับของจากแขกอยู่ไหม
+ *
+ * งานที่เจ้าของระบบ "เก็บเข้าลิ้นชัก" จากคอนโซลถือว่าจบแล้ว — ต้องปิดรับจริง ๆ
+ * ไม่ใช่แค่หายจากรายการ · ไม่งั้นลิงก์เก่าหรือ QR บนกระดาษที่ยังอยู่ในมือแขกจะยัง
+ * ยัดรูปเข้างานที่ปิดไปแล้วได้เรื่อย ๆ กินดิสก์และเลยกำหนดที่สัญญาไว้กับลูกค้า
+ * (หน้าเว็บยังเปิดดูของเดิมได้ตามปกติ — ปิดแค่ทางเข้าของใหม่)
+ */
 export function uploadsOpen() {
+  if (currentEvent().archived_at) return false;
   return getFlag('uploads_enabled', true) && withinUploadWindow();
 }
 

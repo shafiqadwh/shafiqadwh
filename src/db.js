@@ -216,7 +216,7 @@ function connect(file) {
   if (!read.get('uploads_enabled')) write.run('uploads_enabled', String(config.uploads.defaultEnabled));
   if (!read.get('require_review')) write.run('require_review', String(config.uploads.defaultRequireReview));
 
-  return { database, statements: new Map(), transactions: new Map() };
+  return { database, statements: new Map(), transactions: new WeakMap() };
 }
 
 /*
@@ -274,6 +274,9 @@ export const db = {
    */
   transaction: (fn) => (...args) => {
     const entry = open();
+    // WeakMap ไม่ใช่ Map — `moveHostMedia` เรียก `db.transaction(() => …)()` โดยสร้าง
+    // ฟังก์ชันใหม่ทุกครั้ง · แคชแบบธรรมดาจึงโตขึ้นเรื่อย ๆ ตลอดอายุโปรเซส
+    // (วัดแล้ว: เรียกห้าพันครั้ง heap โตขึ้น 6.4 MB และไม่มีอะไรคืนเลย)
     let wrapped = entry.transactions.get(fn);
     if (!wrapped) {
       wrapped = entry.database.transaction(fn);

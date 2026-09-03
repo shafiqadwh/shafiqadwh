@@ -16,6 +16,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { deleteItemRow, listTrash } from '../repo.js';
 import { formatBytes } from '../lib/media.js';
+import { forEachEvent } from '../lib/tenancy.js';
 
 /** ไฟล์ทุกก้อนที่เป็นของ item นี้ — ต้นฉบับ สำเนาที่แปลงแล้ว และรูปย่อ */
 function filesOf(row) {
@@ -26,31 +27,42 @@ function filesOf(row) {
   ].filter(Boolean);
 }
 
-const rows = listTrash();
-const bytes = rows.reduce((sum, row) => sum + (row.bytes || 0), 0);
+/*
+ * เครื่องหนึ่งเครื่องรับได้หลายงาน — ต้องเทให้ครบทุกงาน
+ *
+ * เดิมทำกับงานเดียวเพราะมีงานเดียว · ถ้าไม่วนให้ครบ สคริปต์จะรายงานว่า "ถังขยะ
+ * ว่างอยู่แล้ว" ทั้งที่ของทดสอบของงานอื่นยังกองอยู่ ซึ่งเป็นคำตอบที่ผิดในจังหวะ
+ * ที่เจ้าของกำลังเก็บกวาดก่อนวันงานพอดี
+ */
+const go = process.argv.includes('--yes');
+let total = 0;
+let totalBytes = 0;
 
-if (rows.length === 0) {
-  console.log('ถังขยะว่างอยู่แล้ว ไม่มีอะไรต้องลบ');
-  process.exit(0);
-}
+await forEachEvent(async (event) => {
+  const rows = listTrash();
+  if (rows.length === 0) return;
 
-const images = rows.filter((row) => row.kind === 'image').length;
-const videos = rows.length - images;
-console.log(`ในถังขยะ: รูป ${images} ใบ · วิดีโอ ${videos} คลิป · รวม ${formatBytes(bytes)}`);
+  const bytes = rows.reduce((sum, row) => sum + (row.bytes || 0), 0);
+  const images = rows.filter((row) => row.kind === 'image').length;
+  console.log(`[${event.slug}] ในถังขยะ: รูป ${images} ใบ · วิดีโอ ${rows.length - images} คลิป`
+    + ` · รวม ${formatBytes(bytes)}`);
+  total += rows.length;
+  totalBytes += bytes;
+  if (!go) return;
 
-if (!process.argv.includes('--yes')) {
+  for (const row of rows) {
+    // ลบไฟล์ก่อนแล้วค่อยลบแถว — สลับกันแล้วถ้าล้มกลางทางจะเหลือไฟล์กำพร้าที่ไม่มี
+    // อะไรอ้างถึงอีกเลย กินพื้นที่ไปเงียบ ๆ จนกว่าจะมีคนไปไล่ดูด้วยมือ
+    await Promise.all(filesOf(row).map((file) => fs.rm(file, { force: true })));
+    deleteItemRow(row.id);
+  }
+});
+
+if (total === 0) {
+  console.log('ถังขยะว่างอยู่แล้วทุกงาน ไม่มีอะไรต้องลบ');
+} else if (!go) {
   console.log('');
   console.log('นี่คือการลบถาวร กู้คืนไม่ได้ ถ้าแน่ใจแล้วสั่งซ้ำโดยเติม --yes ต่อท้าย');
-  process.exit(0);
+} else {
+  console.log(`ลบถาวรแล้ว ${total} รายการ · คืนพื้นที่ ${formatBytes(totalBytes)}`);
 }
-
-let removed = 0;
-for (const row of rows) {
-  // ลบไฟล์ก่อนแล้วค่อยลบแถว — สลับกันแล้วถ้าล้มกลางทางจะเหลือไฟล์กำพร้าที่ไม่มี
-  // อะไรอ้างถึงอีกเลย กินพื้นที่ไปเงียบ ๆ จนกว่าจะมีคนไปไล่ดูด้วยมือ
-  await Promise.all(filesOf(row).map((file) => fs.rm(file, { force: true })));
-  deleteItemRow(row.id);
-  removed += 1;
-}
-
-console.log(`ลบถาวรแล้ว ${removed} รายการ · คืนพื้นที่ ${formatBytes(bytes)}`);

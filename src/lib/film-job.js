@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { acquireLock, lockOwner } from './film-lock.js';
 import { STYLES, runExport } from './film-run.js';
+import { currentEvent } from './tenancy.js';
 
 /**
  * งาน export ที่สั่งจากหน้าแอดมิน — เก็บสถานะไว้บนดิสก์ ไม่ใช่แค่ในหน่วยความจำ
@@ -16,15 +17,27 @@ import { STYLES, runExport } from './film-run.js';
  * งานรันชนกันจริง ๆ คือ film-lock.js ซึ่งกันข้ามคอนเทนเนอร์ได้ด้วย
  */
 
-const STATUS_PATH = path.join(config.paths.export, 'status.json');
+/*
+ * ที่อยู่ของไฟล์สถานะ **ต้องคิดตอนใช้ ไม่ใช่ตอนโหลดโมดูล**
+ *
+ * เดิมเป็นค่าคงที่ระดับโมดูล ซึ่งถูกคำนวณครั้งเดียวตอนบูต = โฟลเดอร์ของงาน
+ * เริ่มต้นเสมอ · วัดแล้วเห็นจริง: สั่ง export ของงาน alpha แล้วไฟล์สถานะไป
+ * โผล่ในโฟลเดอร์ของงาน main และงาน beta เปิดหน้าแอดมินเห็น state=running
+ * ทั้งที่ไม่ได้สั่งอะไรเลย
+ */
+const statusPath = () => path.join(config.paths.export, 'status.json');
 
 // สถานะในหน่วยความจำของโปรเซสนี้ ใช้ตอบเร็ว ๆ โดยไม่ต้องอ่านดิสก์ทุกครั้งที่ poll
-let current = null;
+// **แยกต่องาน** — ตัวแปรเดียวทั้งโปรเซสทำให้หน้าแอดมินของงานหนึ่งเห็น
+// ความคืบหน้าของอีกงานที่กำลังเรนเดอร์อยู่
+const memory = new Map();
+const current = () => memory.get(currentEvent().slug) ?? null;
+const remember = (status) => memory.set(currentEvent().slug, status);
 
 async function persist(status) {
   try {
     await fs.mkdir(config.paths.export, { recursive: true });
-    await fs.writeFile(STATUS_PATH, JSON.stringify(status));
+    await fs.writeFile(statusPath(), JSON.stringify(status));
   } catch {
     // เขียนไม่ได้ก็ยังทำงานต่อได้ แค่หน้าเว็บจะไม่เห็นความคืบหน้าหลังรีเฟรช
   }
@@ -32,16 +45,17 @@ async function persist(status) {
 
 async function readPersisted() {
   try {
-    return JSON.parse(await fs.readFile(STATUS_PATH, 'utf8'));
+    return JSON.parse(await fs.readFile(statusPath(), 'utf8'));
   } catch {
     return null;
   }
 }
 
 function update(patch) {
-  current = { ...current, ...patch, updatedAt: new Date().toISOString() };
-  void persist(current);
-  return current;
+  const status = { ...current(), ...patch, updatedAt: new Date().toISOString() };
+  remember(status);
+  void persist(status);
+  return status;
 }
 
 /**
@@ -129,13 +143,13 @@ export async function deleteFilm(id) {
  * ไม่ใช่ปล่อยให้หน้าเว็บหมุนรอตลอดกาล
  */
 export async function jobStatus() {
-  const stored = current ?? (await readPersisted());
+  const stored = current() ?? (await readPersisted());
   const films = await listFilms();
   const owner = await lockOwner();
 
   if (stored?.state === 'running' && !owner) {
     const stopped = { ...stored, state: 'stopped', error: 'งานหยุดกลางทาง (เซิร์ฟเวอร์รีสตาร์ท) — กดเริ่มใหม่ได้ ระบบจะทำต่อจากเดิม' };
-    current = stopped;
+    remember(stopped);
     void persist(stopped);
     return { ...stopped, films, busyElsewhere: false };
   }
@@ -155,7 +169,7 @@ export async function jobStatus() {
  * เบราว์เซอร์กับ reverse proxy ตัดการเชื่อมต่อไปก่อนนานแล้ว
  */
 export async function startJob(options = {}) {
-  if (current?.state === 'running') {
+  if (current()?.state === 'running') {
     const error = new Error('มีงาน export กำลังทำอยู่แล้ว');
     error.code = 'BUSY';
     throw error;
@@ -201,7 +215,7 @@ export async function startJob(options = {}) {
   });
 
   void runAll(styles, options, held);
-  return current;
+  return current();
 }
 
 /**
@@ -224,7 +238,7 @@ async function runAll(styles, options, held) {
           phase: progress.phase,
           done: progress.done ?? 0,
           total: progress.total ?? 0,
-          counts: progress.counts ?? current?.counts ?? null,
+          counts: progress.counts ?? current()?.counts ?? null,
           secondsLeft: progress.secondsLeft ?? null,
           styleIndex: index,
         });

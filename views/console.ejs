@@ -33,6 +33,9 @@
     <% } %>
     <% if (query.bad === 'taken') { %><p class="notice notice--error">ชื่อย่อนี้มีงานใช้อยู่แล้ว</p><% } %>
     <% if (query.bad === 'missing') { %><p class="notice notice--error">ไม่พบงานนั้น</p><% } %>
+    <% if (query.bad === 'host') { %>
+      <p class="notice notice--error">โดเมนนี้มีงานอื่นใช้อยู่แล้ว — หนึ่งโดเมนเป็นของงานเดียวเท่านั้น</p>
+    <% } %>
 
     <section class="card">
       <h2 class="section-title">รวมทุกงาน</h2>
@@ -148,7 +151,7 @@
           <form method="post" action="/console/events/<%= event.slug %>/archive" class="form console__form">
             <label class="field field--inline">
               <input type="checkbox" name="archived" <%= event.archived_at ? 'checked' : '' %>>
-              <span>เก็บงานนี้เข้าลิ้นชัก (งานจบแล้ว)</span>
+              <span>เก็บงานนี้เข้าลิ้นชัก — ปิดรับรูปและคำอวยพรใหม่ ของเดิมยังดูได้ครบ</span>
             </label>
             <button type="submit" class="button button--tiny">บันทึกสถานะ</button>
           </form>

@@ -156,6 +156,24 @@ test('setting a domain sends that domain to that event, and takes ?event= away',
    */
   const crossed = await asHost('sara-yusuf.example.com', '/api/items?event=main');
   assert.equal(crossed.items.length, 1, 'โดเมนของลูกค้าต้องหมายถึงงานของลูกค้าเท่านั้น');
+
+  // คุกกี้ที่ค้างมาจากการเปิดด้วย ?event= ที่อื่น ก็ต้องไม่มีผลบนโดเมนของลูกค้าเช่นกัน
+  // (ทางลัดที่เงียบกว่า ?event= เพราะไม่มีอะไรให้เห็นในแถบที่อยู่)
+  const withCookie = await new Promise((resolve, reject) => {
+    const request = http.request({
+      host: '127.0.0.1',
+      port: app.server.address().port,
+      path: '/api/items',
+      headers: { host: 'sara-yusuf.example.com', cookie: 'event=main' },
+    }, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve(JSON.parse(body)));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+  assert.equal(withCookie.items.length, 1, 'คุกกี้ค้างต้องไม่พาไปงานอื่นบนโดเมนของลูกค้า');
 });
 
 test('the console counts each day of a three-day event separately', async () => {
@@ -238,4 +256,35 @@ test('a TV on a customer domain cannot be pulled into an event that has no domai
     headers: { cookie: jar },
   })).text();
   assert.ok(shown.replace(/<script[\s\S]*?<\/script>/g, '').includes('ตั้งโดเมนของงานนี้ก่อน'));
+});
+
+test('one domain belongs to one event — and a refused domain leaves nothing behind', async () => {
+  /*
+   * เดิมปล่อยให้ไปชนดัชนี unique เอง ผลคือหน้า 500 เปล่า ๆ กับ SQLITE_CONSTRAINT
+   * ใน log · และที่แย่กว่านั้นคือ `createEvent` แทรกแถวกับสร้างโฟลเดอร์ไปแล้ว
+   * ก่อนถึงบรรทัดที่ล้ม เหลืองานครึ่ง ๆ กลาง ๆ ค้างในทะเบียนที่ไม่มีใครสั่งให้มี
+   */
+  const cookie = await operator();
+
+  const clash = await post('/console/events', {
+    slug: 'clash', title: 'ชนโดเมน', host: 'sara-yusuf.example.com',
+  }, cookie);
+  assert.equal(clash.headers.get('location'), '/console?bad=host');
+
+  const { findEvent } = await import('../src/lib/tenancy.js');
+  assert.equal(findEvent('clash'), null, 'งานที่ถูกปฏิเสธต้องไม่ถูกสร้างครึ่ง ๆ กลาง ๆ');
+  await assert.rejects(() => fs.access(path.join(dataDir, 'events', 'clash')));
+
+  // แก้งานที่มีอยู่ให้ไปใช้โดเมนของงานอื่นก็ต้องถูกปฏิเสธเหมือนกัน
+  const moved = await post('/console/events/bintang', {
+    title: 'บินตัง', host: 'sara-yusuf.example.com',
+  }, cookie);
+  assert.equal(moved.headers.get('location'), '/console?bad=host');
+  assert.ok(!findEvent('bintang').host, 'งานที่ถูกปฏิเสธต้องไม่ได้โดเมนติดไปด้วย');
+
+  // แต่บันทึกโดเมนเดิมของตัวเองซ้ำต้องได้ ไม่ใช่ชนกับตัวเอง
+  const same = await post('/console/events/sara-yusuf', {
+    title: 'งานแต่งซาร่า และ ยูซุฟ', host: 'sara-yusuf.example.com',
+  }, cookie);
+  assert.equal(same.headers.get('location'), '/console?saved=1');
 });

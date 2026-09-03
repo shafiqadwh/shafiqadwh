@@ -7,6 +7,7 @@ import { createLimiter } from '../lib/ratelimit.js';
 import { byDevice, byIp } from '../lib/device.js';
 import { ingestFile, singleAttachment } from './upload.js';
 import { uploadsOpen } from './gallery.js';
+import { currentEvent } from '../lib/tenancy.js';
 
 export const guestbookRouter = express.Router();
 
@@ -82,6 +83,18 @@ async function postMessage(req, res, uploadError) {
     return res.status(tooLarge ? 413 : 400).json({
       error: req.t(tooLarge ? 'errors.too_large_request' : 'errors.server_error'),
     });
+  }
+
+  /*
+   * งานที่ถูกเก็บเข้าลิ้นชักแล้ว ปิดรับทุกอย่าง ไม่ใช่แค่รูป
+   *
+   * ต่างจาก `uploadsOpen()` ที่เป็นสวิตช์ของ "รับรูปไหม" — คำอวยพรยังเขียนได้ตอน
+   * เจ้าภาพปิดรับรูปท้ายงานโดยตั้งใจ · แต่ "งานจบแล้ว" คือจบทั้งงาน ไม่งั้นลิงก์เก่า
+   * ในมือถือแขกจะยังเขียนเข้าไปในงานที่ส่งมอบให้ลูกค้าไปแล้วได้เรื่อย ๆ
+   */
+  if (currentEvent().archived_at) {
+    await dropAttachment();
+    return res.status(403).json({ error: req.t('errors.upload_closed') });
   }
 
   const body = String(req.body?.body ?? '').trim().slice(0, 2000);

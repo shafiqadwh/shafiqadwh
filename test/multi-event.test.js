@@ -306,3 +306,64 @@ test('a made-up event name falls back to the default, it never invents one', asy
   const strays = await fs.readdir(path.join(dataDir, 'events'));
   assert.deepEqual(strays, ['rina'], 'ห้ามมีโฟลเดอร์งานโผล่มาจากค่าที่ผู้ใช้พิมพ์');
 });
+
+test('one event exporting a film does not show up as the other event\'s progress', async () => {
+  /*
+   * สถานะของงาน export เคยเป็นค่าคงที่ระดับโมดูล + ตัวแปรเดียวทั้งโปรเซส
+   *
+   * วัดแล้วเห็นจริงก่อนแก้: สั่ง export ของงานหนึ่ง ไฟล์ status.json ไปโผล่ใน
+   * โฟลเดอร์ของ **งานเริ่มต้น** และเจ้าภาพของอีกงานเปิดหน้าแอดมินเห็น
+   * "กำลังสร้างหนัง" ทั้งที่ไม่ได้กดอะไรเลย — แถบความคืบหน้าของคนอื่นเดินอยู่ในหน้าตัวเอง
+   */
+  const { runInEvent, findEvent, pathsFor, DEFAULT_SLUG } = await import('../src/lib/tenancy.js');
+  const film = await import('../src/lib/film-job.js');
+
+  await runInEvent(findEvent('rina'), () => film.startJob({ styles: ['cinema'], limit: 1 }))
+    .catch(() => {});
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  const statusIn = (slug) => path.join(pathsFor(slug).export, 'status.json');
+  await fs.access(statusIn('rina'));
+  await assert.rejects(() => fs.access(statusIn(DEFAULT_SLUG)),
+    'สถานะของงานหนึ่งต้องไม่ไปเขียนในโฟลเดอร์ของอีกงาน');
+
+  const elsewhere = await runInEvent(findEvent(DEFAULT_SLUG), () => film.jobStatus());
+  assert.notEqual(elsewhere.state, 'running', 'งานที่ไม่ได้สั่งอะไร ต้องไม่เห็นว่ามีงานกำลังทำอยู่');
+});
+
+test('an archived event stops taking anything new, but still shows what it has', async () => {
+  const { updateEvent } = await import('../src/lib/tenancy.js');
+  const before = (await items('rina')).length;
+
+  updateEvent('rina', { archived: true });
+  try {
+    // QR บนกระดาษกับลิงก์เก่าในมือถือแขกยังอยู่ตลอดไป — งานที่ส่งมอบให้ลูกค้าแล้ว
+    // ต้องไม่รับของใหม่เข้ามาอีก ไม่งั้นดิสก์โตต่อและเลยกำหนดเก็บที่สัญญาไว้
+    assert.equal((await upload('rina', 'สายไป', '#333333')).status, 403);
+
+    const wish = new FormData();
+    wish.append('author', 'สายไป');
+    wish.append('body', 'มาช้าไปหน่อย');
+    assert.equal((await fetch(url('rina', '/api/messages'), { method: 'POST', body: wish })).status, 403);
+
+    // แต่ของเดิมต้องยังเปิดดูได้ — "เก็บเข้าลิ้นชัก" ไม่ใช่ "ลบ"
+    assert.equal((await fetch(url('rina', '/'))).status, 200);
+    assert.equal((await items('rina')).length, before);
+  } finally {
+    updateEvent('rina', { archived: false });
+  }
+
+  assert.equal((await upload('rina', 'กลับมาแล้ว', '#444444')).status, 201);
+});
+
+test('a busy event cannot spend the other event\'s rate-limit budget', async () => {
+  // เพดานรวมต่อไอพีตั้งไว้เผื่อ "แขกทั้งงานหลังไอพีเดียว" ซึ่งเป็นเลขของหนึ่งงาน
+  // ถ้าใช้ถังเดียวกันทั้งเครื่อง งานที่คนเยอะจะทำให้แขกของลูกค้าอีกรายโดน 429
+  // โดยที่เจ้าภาพสองคนหาสาเหตุกันไม่เจอ เพราะต่างคนต่างเห็นแค่ฝั่งตัวเอง
+  const { byDevice, byIp } = await import('../src/lib/device.js');
+  const guest = (slug) => ({ event: { slug }, ip: '203.0.113.9', deviceId: 'a'.repeat(32) });
+
+  assert.notEqual(byIp(guest('main')), byIp(guest('rina')));
+  assert.notEqual(byDevice(guest('main')), byDevice(guest('rina')));
+  assert.match(byIp(guest('rina')), /^rina:/);
+});

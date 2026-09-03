@@ -66,7 +66,7 @@ function controlDb() {
       monogram    TEXT,
       starts_on   TEXT,
       ends_on     TEXT,
-      -- งานที่จบแล้วและปิดรับทุกอย่าง · แถวยังอยู่เพื่อให้รายงานย้อนหลังได้
+      -- งานที่จบแล้ว: ปิดรับของใหม่ แต่ของเดิมยังเปิดดูได้ และยังอยู่ในรายงาน
       archived_at TEXT,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -277,6 +277,21 @@ export function eventForHost(host) {
   if (!name) return null;
   ensureDefault();
   return decorate(controlDb().prepare('SELECT * FROM events WHERE host = ?').get(name));
+}
+
+/**
+ * โดเมนนี้มีงานอื่นจองไว้แล้วไหม
+ *
+ * ดัชนี unique กันการชนไว้อยู่แล้ว แต่ถ้าปล่อยให้ไปชนกับดัชนี ผลที่เจ้าของเห็น
+ * คือหน้า 500 เปล่า ๆ กับ SQLITE_CONSTRAINT_UNIQUE ใน log · และ `createEvent`
+ * ได้แทรกแถวกับสร้างโฟลเดอร์ไปแล้วก่อนจะถึงบรรทัดที่ล้ม เหลืองานครึ่ง ๆ กลาง ๆ
+ * ค้างอยู่ในทะเบียน — ถามก่อนลงมือจึงถูกกว่าทั้งสองทาง
+ */
+export function hostTaken(host, exceptSlug = null) {
+  const name = String(host ?? '').toLowerCase().trim();
+  if (!name) return false;
+  const owner = eventForHost(name);
+  return Boolean(owner) && owner.slug !== exceptSlug;
 }
 
 /** ช่องที่ super admin แก้ได้ → ชื่อคอลัมน์ในทะเบียน */

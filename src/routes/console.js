@@ -8,6 +8,7 @@ import {
   consoleSessionValid,
   createEvent,
   findEvent,
+  hostTaken,
   isSlug,
   listEvents,
   openConsoleSession,
@@ -130,6 +131,9 @@ consoleRouter.post('/console/events', requireOperator, form, (req, res) => {
   if (findEvent(slug)) return res.redirect('/console?bad=taken');
 
   const fields = fieldsFrom(req.body);
+  // ถามก่อนลงมือ — ไม่งั้นแถวกับโฟลเดอร์ถูกสร้างไปแล้วก่อนจะไปชนดัชนี unique
+  // แล้วเหลืองานครึ่ง ๆ กลาง ๆ ค้างในทะเบียนพร้อมหน้า 500 ที่อ่านไม่รู้เรื่อง
+  if (hostTaken(fields.host)) return res.redirect('/console?bad=host');
   createEvent({ slug, ...fields });
   // รหัสของลูกค้าตั้งตอนสร้างได้เลย · ไม่ตั้งก็เข้าด้วยกุญแจหลักไปก่อนได้
   if (req.body?.password) setEventPassword(slug, String(req.body.password));
@@ -138,7 +142,9 @@ consoleRouter.post('/console/events', requireOperator, form, (req, res) => {
 
 consoleRouter.post('/console/events/:slug', requireOperator, form, (req, res) => {
   if (!findEvent(req.params.slug)) return res.redirect('/console?bad=missing');
-  updateEvent(req.params.slug, fieldsFrom(req.body));
+  const fields = fieldsFrom(req.body);
+  if (hostTaken(fields.host, req.params.slug)) return res.redirect('/console?bad=host');
+  updateEvent(req.params.slug, fields);
   return res.redirect('/console?saved=1');
 });
 
