@@ -5,9 +5,10 @@ import express from 'express';
 import multer from 'multer';
 import { config } from '../config.js';
 import {
-  countAlbumSessions, getBoothSession, insertBoothSession, listAlbumSessions,
-  listAlbumShots, listAllAlbumSessions, listBoothShots,
+  countAlbumSessions, countExpiredAlbumSessions, getBoothSession, insertBoothSession,
+  listAlbumSessions, listAlbumShots, listAllAlbumSessions, listBoothShots,
 } from '../repo.js';
+import { boothKeepsUntil, sweepExpiredBooth } from '../lib/booth-retention.js';
 import { streamBoothAlbum } from '../lib/booth-zip.js';
 import { randomName, readMagic, sniffType } from '../lib/media.js';
 import { createLimiter } from '../lib/ratelimit.js';
@@ -222,17 +223,41 @@ function sendBoothFile(res, name) {
   });
 }
 
+/**
+ * วันที่แบบอ่านง่ายตามภาษาของคนที่เปิดหน้า — ไทยได้ พ.ศ. อาหรับได้เลขอาหรับ
+ * แขกต้องรู้ว่า "ต้องโหลดภายในวันไหน" ไม่ใช่รู้ตอนที่มันหายไปแล้ว
+ */
+const showDate = (date, lang) => (date
+  ? new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long', year: 'numeric' }).format(date)
+  : '');
+
 boothRouter.get('/p/:token', wrap(async (req, res, next) => {
   const token = String(req.params.token ?? '').toUpperCase();
   if (!isToken(token)) return next();
+  await sweepExpiredBooth();
 
   const session = getBoothSession(token);
-  return res.status(session ? 200 : 404).render('booth-photos', {
+  const expired = Boolean(session?.expired_at);
+
+  /*
+   * สามสถานะ ไม่ใช่สองสถานะ — และการแยกสองอันหลังออกจากกันคือหัวใจของหน้านี้
+   *
+   * ยังไม่ขึ้นระบบ = "เก็บรหัสไว้แล้วกลับมาใหม่" (รูปกำลังจะมา)
+   * หมดอายุแล้ว   = "รูปถูกลบไปแล้ว ติดต่อเจ้าภาพ" (รูปไม่มีวันกลับมาอีก)
+   * บอกผิดข้อ แขกจะรอเก้อไปตลอด หรือเลิกรอทั้งที่รูปกำลังจะขึ้น
+   */
+  return res.status(session && !expired ? 200 : 404).render('booth-photos', {
     page: 'booth',
     pageTitle: req.t('booth.title'),
     token,
-    session,
-    shots: session ? listBoothShots(token) : [],
+    session: expired ? null : session,
+    expired,
+    retentionDays: config.boothRetentionDays,
+    expiredOn: expired
+      ? showDate(new Date(`${session.expired_at.replace(' ', 'T')}Z`), req.lang) : '',
+    keepsUntil: session && !expired
+      ? showDate(boothKeepsUntil(session), req.lang) : '',
+    shots: session && !expired ? listBoothShots(token) : [],
   });
 }));
 
@@ -256,8 +281,9 @@ function renderAlbum(req, res, next) {
   const sessions = listAlbumSessions(album, { limit: PER_PAGE, offset: (page - 1) * PER_PAGE });
 
   // รอบของคนที่สแกนอาจอยู่หน้าอื่น (หรือยังไม่ได้อัปโหลด) — ดึงมาต่างหากเสมอ
-  const mine = token ? sessions.find((one) => one.token === token)
+  const own = token ? sessions.find((one) => one.token === token)
     ?? [getBoothSession(token)].find((one) => one?.album === album) ?? null : null;
+  const mine = own?.expired_at ? null : own;
 
   return res.render('booth-album', {
     page: 'booth',
@@ -265,6 +291,12 @@ function renderAlbum(req, res, next) {
     album,
     mine,
     mineShots: mine ? listBoothShots(mine.token) : [],
+    // รอบของคนที่สแกนหมดอายุไปแล้ว ต้องบอกตรง ๆ ไม่ใช่แสดงอัลบั้มเฉย ๆ แล้วให้เขา
+    // หาของตัวเองไม่เจอโดยไม่รู้ว่าทำไม
+    mineExpired: Boolean(own?.expired_at),
+    retentionDays: config.boothRetentionDays,
+    keepsUntil: mine ? showDate(boothKeepsUntil(mine), req.lang) : '',
+    expiredCount: countExpiredAlbumSessions(album),
     sessions: sessions.filter((one) => one.token !== mine?.token),
     total,
     pageNumber: page,
@@ -272,7 +304,10 @@ function renderAlbum(req, res, next) {
   });
 }
 
-boothRouter.get('/b/:album', albumLimiter, wrap(async (req, res, next) => renderAlbum(req, res, next)));
+boothRouter.get('/b/:album', albumLimiter, wrap(async (req, res, next) => {
+  await sweepExpiredBooth();
+  return renderAlbum(req, res, next);
+}));
 
 /**
  * โหลดทั้งงานเป็นไฟล์เดียว — สตรีมออกไป ไม่ประกอบไว้ในหน่วยความจำก่อน
@@ -290,12 +325,16 @@ boothRouter.get('/b/:album/zip', albumLimiter, wrap(async (req, res, next) => {
   });
 }));
 
-boothRouter.get('/b/:album/:token', albumLimiter, wrap(async (req, res, next) => renderAlbum(req, res, next)));
+boothRouter.get('/b/:album/:token', albumLimiter, wrap(async (req, res, next) => {
+  await sweepExpiredBooth();
+  return renderAlbum(req, res, next);
+}));
 
 boothRouter.get('/p/:token/sheet', wrap(async (req, res, next) => {
   const token = String(req.params.token ?? '').toUpperCase();
   const session = isToken(token) ? getBoothSession(token) : null;
-  if (!session) return next();
+  // แถวของรอบที่หมดอายุยังอยู่ (เพื่อให้หน้าอธิบายได้) แต่ไฟล์ถูกลบไปแล้วจริง ๆ
+  if (!session || session.expired_at) return next();
   return sendBoothFile(res, session.sheet_name);
 }));
 

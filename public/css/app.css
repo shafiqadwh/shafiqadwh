@@ -3123,3 +3123,14 @@ a:focus-visible {
   margin-top: 22px;
   color: var(--ink-soft);
 }
+
+/* วันหมดอายุของรูปจากบูธ — ต้องอ่านเจอตอนที่ยังโหลดได้ ไม่ใช่ตอนที่มันหายไปแล้ว
+   จึงไม่จางเท่าข้อความประกอบอื่น แต่ก็ไม่แย่งสายตาไปจากปุ่มดาวน์โหลด */
+.booth-keeps {
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.booth-wait--expired .section-title { color: var(--ink); }
+.booth-album__gone { margin-top: 12px; }

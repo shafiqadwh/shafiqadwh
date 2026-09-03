@@ -385,12 +385,35 @@ const boothStatements = {
    */
   album: db.prepare(`
     SELECT * FROM booth_sessions
-    WHERE album = ? ORDER BY created_at DESC, token DESC LIMIT ? OFFSET ?
+    WHERE album = ? AND expired_at IS NULL
+    ORDER BY created_at DESC, token DESC LIMIT ? OFFSET ?
   `),
-  albumCount: db.prepare('SELECT COUNT(*) AS count FROM booth_sessions WHERE album = ?'),
+  albumCount: db.prepare(
+    'SELECT COUNT(*) AS count FROM booth_sessions WHERE album = ? AND expired_at IS NULL'),
+  albumExpired: db.prepare(
+    'SELECT COUNT(*) AS count FROM booth_sessions WHERE album = ? AND expired_at IS NOT NULL'),
   // ไม่มี LIMIT โดยตั้งใจ — ใช้ตอนทำ ZIP ซึ่งต้องได้ครบทั้งงาน · ZIP ที่ตกรอบที่ 201
   // ไปเงียบ ๆ คือไฟล์ที่เจ้าภาพเก็บไว้ตลอดชีวิตโดยไม่รู้ว่าขาด
-  albumAll: db.prepare('SELECT * FROM booth_sessions WHERE album = ? ORDER BY created_at, token'),
+  albumAll: db.prepare(`
+    SELECT * FROM booth_sessions
+    WHERE album = ? AND expired_at IS NULL ORDER BY created_at, token
+  `),
+  /*
+   * รอบที่พ้นกำหนดเก็บแล้วแต่ยังไม่ได้ลบไฟล์
+   *
+   * นับจาก `created_at` (วันที่ขึ้นระบบ) ไม่ใช่ `taken_at` (วันที่ถ่าย) — บูธอัปโหลด
+   * หลังงานได้หลายวัน ถ้านับจากวันถ่ายรูปจะหมดอายุตั้งแต่วันแรกที่แขกสแกนได้
+   */
+  overdue: db.prepare(`
+    SELECT * FROM booth_sessions
+    WHERE expired_at IS NULL AND created_at < datetime('now', ?)
+    ORDER BY created_at
+  `),
+  expire: db.prepare(`
+    UPDATE booth_sessions SET expired_at = datetime('now'), bytes = 0
+    WHERE token = ? AND expired_at IS NULL
+  `),
+  dropShots: db.prepare('DELETE FROM booth_shots WHERE token = ?'),
   albumShots: db.prepare(`
     SELECT s.* FROM booth_shots s
     JOIN booth_sessions b ON b.token = s.token
@@ -412,6 +435,25 @@ export const countAlbumSessions = (album) =>
   (album ? boothStatements.albumCount.get(album).count : 0);
 
 export const listAllAlbumSessions = (album) => (album ? boothStatements.albumAll.all(album) : []);
+
+export const countExpiredAlbumSessions = (album) =>
+  (album ? boothStatements.albumExpired.get(album).count : 0);
+
+/** รอบที่พ้นกำหนดเก็บแล้ว · `days <= 0` = เก็บถาวร ไม่มีอะไรหมดอายุ */
+export const listOverdueBoothSessions = (days) =>
+  (days > 0 ? boothStatements.overdue.all(`-${Math.floor(days)} days`) : []);
+
+/**
+ * หมดอายุหนึ่งรอบ — ทิ้งรูป เก็บทะเบียนไว้
+ *
+ * แถวที่เหลือไว้คือสิ่งเดียวที่ทำให้ QR บนกระดาษยังตอบได้ว่า "รูปหมดอายุแล้ว"
+ * แทนที่จะเป็นหน้าหาย · `bytes = 0` เพราะไฟล์ไม่ได้กินพื้นที่แล้ว ปล่อยไว้จะทำให้
+ * ตัวเลขพื้นที่ใช้ไปในหน้าแอดมินสูงกว่าความจริงไปเรื่อย ๆ
+ */
+export const expireBoothSession = db.transaction((token) => {
+  boothStatements.dropShots.run(token);
+  return boothStatements.expire.run(token).changes > 0;
+});
 
 /** รูปดิบทุกใบของทั้งอัลบั้ม — ใช้ตอนทำ ZIP ให้เจ้าภาพโหลดทั้งงานทีเดียว */
 export const listAlbumShots = (album) =>

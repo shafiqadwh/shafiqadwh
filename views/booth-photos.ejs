@@ -7,7 +7,22 @@
   อธิบายตัวเองได้โดยไม่ต้องมีใครมาบอก และต้องบอกตรง ๆ เมื่อของยังไม่พร้อม
 %>
 
-<% if (!session) { %>
+<%#
+  สามสถานะ ไม่ใช่สองสถานะ — และการแยกสองอันแรกออกจากกันคือหัวใจของหน้านี้
+  · ยังไม่ขึ้นระบบ = รูปกำลังจะมา ให้เก็บรหัสไว้แล้วกลับมาใหม่
+  · หมดอายุแล้ว  = รูปถูกลบไปแล้ว ไม่มีวันกลับมา ให้ไปถามเจ้าภาพ
+  บอกผิดข้อ แขกจะรอเก้อไปตลอด หรือเลิกรอทั้งที่รูปกำลังจะขึ้น
+%>
+<% if (expired) { %>
+  <section class="card booth-wait booth-wait--expired">
+    <h1 class="section-title"><%= t('booth.expired') %></h1>
+    <p class="section-hint"><%= t('booth.expired_hint', { days: retentionDays }) %></p>
+    <% if (expiredOn) { %>
+      <p class="section-hint"><%= t('booth.expired_on', { date: expiredOn }) %></p>
+    <% } %>
+    <p class="booth-token"><%= t('booth.code') %> <strong><%= token %></strong></p>
+  </section>
+<% } else if (!session) { %>
   <section class="card booth-wait">
     <h1 class="section-title"><%= t('booth.not_yet') %></h1>
     <p class="section-hint"><%= t('booth.not_yet_hint') %></p>
@@ -40,6 +55,11 @@
           </figure>
         <% }); %>
       </div>
+    <% } %>
+
+    <%# บอกวันหมดอายุตั้งแต่ตอนที่ยังโหลดได้ ไม่ใช่ตอนที่มันหายไปแล้ว %>
+    <% if (keepsUntil) { %>
+      <p class="booth-keeps"><%= t('booth.keeps_until', { date: keepsUntil }) %></p>
     <% } %>
 
     <p class="booth-token"><%= t('booth.code') %> <strong><%= token %></strong></p>

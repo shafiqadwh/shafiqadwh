@@ -150,6 +150,17 @@ const boothColumns = db.prepare('PRAGMA table_info(booth_sessions)').all().map((
 if (!boothColumns.includes('album')) {
   db.exec('ALTER TABLE booth_sessions ADD COLUMN album TEXT');
 }
+/*
+ * `expired_at` = วันที่ไฟล์ของรอบนี้ถูกลบทิ้งตามกำหนดเก็บ
+ *
+ * **แถวไม่ถูกลบตาม** และนั่นคือทั้งหมดที่ทำให้ QR บนกระดาษยังทำงานอยู่: สแกนแล้ว
+ * ได้หน้าที่บอกว่ารูปหมดอายุไปแล้วเมื่อไร ไม่ใช่หน้าที่บอกว่า "ยังไม่ขึ้นระบบ
+ * กลับมาใหม่" (ซึ่งเป็นคำตอบของอีกสถานะหนึ่งคนละเรื่องกัน) และไม่ใช่หน้าหาย
+ * แถวที่เหลือไว้เป็นแค่ทะเบียน ไม่มีรูปอยู่ในนั้นแล้ว
+ */
+if (!boothColumns.includes('expired_at')) {
+  db.exec('ALTER TABLE booth_sessions ADD COLUMN expired_at TEXT');
+}
 db.exec('CREATE INDEX IF NOT EXISTS idx_booth_sessions_album ON booth_sessions (album, created_at DESC)');
 
 const readSetting = db.prepare('SELECT value FROM settings WHERE key = ?');

@@ -303,6 +303,11 @@
     "album_empty": "Nothing uploaded yet — booth photos go up after the event, so do come back",
     "album_newer": "Newer",
     "album_older": "Older",
-    "download_all": "Download everything"
+    "download_all": "Download everything",
+    "expired": "These photos have expired",
+    "expired_hint": "Booth photos are kept for {days} days and then deleted, for every guest’s privacy · If you still want this set, ask the host — they may have a copy",
+    "expired_on": "Deleted on {date}",
+    "keeps_until": "These photos stay up until {date} — do download them before then",
+    "album_expired": "{n} more takes have expired and been deleted"
   }
 }

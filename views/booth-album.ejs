@@ -19,8 +19,23 @@
         <%= t('booth.download_all') %>
       </a>
     </p>
+    <% if (keepsUntil) { %>
+      <p class="booth-keeps"><%= t('booth.keeps_until', { date: keepsUntil }) %></p>
+    <% } %>
+  <% } %>
+
+  <%# รูปที่หมดอายุไปแล้วต้องนับให้เห็น ไม่ใช่หายไปเงียบ ๆ ราวกับไม่เคยมี %>
+  <% if (expiredCount > 0) { %>
+    <p class="section-hint booth-album__gone"><%= t('booth.album_expired', { n: expiredCount }) %></p>
   <% } %>
 </section>
+
+<% if (mineExpired) { %>
+  <section class="card booth-wait booth-wait--expired">
+    <h2 class="section-title"><%= t('booth.expired') %></h2>
+    <p class="section-hint"><%= t('booth.expired_hint', { days: retentionDays }) %></p>
+  </section>
+<% } %>
 
 <% if (mine) { %>
   <section class="card booth-photos booth-photos--mine">

@@ -303,6 +303,11 @@
     "album_empty": "Belum ada gambar dimuat naik · gambar booth dimuat naik selepas majlis, sila datang semula",
     "album_newer": "Lebih baharu",
     "album_older": "Lebih lama",
-    "download_all": "Muat turun semua"
+    "download_all": "Muat turun semua",
+    "expired": "Gambar ini telah tamat tempoh",
+    "expired_hint": "Gambar booth disimpan {days} hari sahaja kemudian dipadam, demi privasi semua tetamu · Jika anda masih mahukannya, cuba hubungi tuan rumah, mungkin ada salinan",
+    "expired_on": "Dipadam pada {date}",
+    "keeps_until": "Gambar ini ada sehingga {date} · muat turun sebelum tarikh itu",
+    "album_expired": "{n} sesi lagi telah tamat tempoh dan dipadam"
   }
 }

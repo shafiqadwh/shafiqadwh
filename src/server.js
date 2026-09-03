@@ -12,6 +12,7 @@ import { startLimiterCleanup } from './lib/ratelimit.js';
 import { themeStyle } from './lib/theme.js';
 import { adminRouter, isAdmin } from './routes/admin.js';
 import { boothRouter } from './routes/booth.js';
+import { sweepExpiredBooth } from './lib/booth-retention.js';
 import { galleryRouter } from './routes/gallery.js';
 import { guestbookRouter } from './routes/guestbook.js';
 import { slideshowRouter } from './routes/slideshow.js';
@@ -121,6 +122,17 @@ export async function start() {
   await ensureDirs();
   resumeQueue();
   startLimiterCleanup();
+
+  /*
+   * รูปจากบูธที่พ้นกำหนดเก็บ — กวาดตอนบูตหนึ่งครั้ง
+   *
+   * ปกติกวาดตอนมีคนเปิดหน้าที่ QR ชี้มา (ชั่วโมงละครั้ง) แต่ถ้าไม่มีใครสแกนเลย
+   * หลายวัน รูปจะยังนอนอยู่บนดิสก์เกินที่สัญญาไว้กับลูกค้า · ตัวนี้ทำให้การรีสตาร์ต
+   * (หรือรีบูต NAS) เป็นอีกจังหวะที่ได้กวาดเสมอ
+   */
+  sweepExpiredBooth({ force: true })
+    .then(({ swept }) => swept > 0 && console.log(`[booth] ลบรูปที่พ้นกำหนดเก็บ ${swept} รอบ`))
+    .catch((error) => console.error('[booth] กวาดรูปที่หมดอายุไม่สำเร็จ:', error));
 
   const app = createApp();
   const server = app.listen(config.port, config.host, () => {
