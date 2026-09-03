@@ -5,8 +5,10 @@ import express from 'express';
 import multer from 'multer';
 import { config } from '../config.js';
 import {
-  getBoothSession, insertBoothSession, listBoothShots,
+  countAlbumSessions, getBoothSession, insertBoothSession, listAlbumSessions,
+  listAlbumShots, listAllAlbumSessions, listBoothShots,
 } from '../repo.js';
+import { streamBoothAlbum } from '../lib/booth-zip.js';
 import { randomName, readMagic, sniffType } from '../lib/media.js';
 import { createLimiter } from '../lib/ratelimit.js';
 import { byIp } from '../lib/device.js';
@@ -30,6 +32,15 @@ export const boothRouter = express.Router();
 const TOKEN = /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{6}$/;
 const isToken = (value) => typeof value === 'string' && TOKEN.test(value);
 
+/*
+ * รหัสอัลบั้ม — ยาว 8 ตัวจากอักษรชุดเดียวกัน
+ *
+ * ยาวกว่าโทเคนรอบถ่ายโดยตั้งใจ เพราะมันเปิดรูป **ทั้งงาน** ไม่ใช่รอบเดียว
+ * 8 ตัว = 1.1 ล้านล้านแบบ · เดาสุ่มด้วยตัวจำกัดอัตราข้างล่างนี้ใช้เวลาเป็นล้านปี
+ */
+const ALBUM = /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{8}$/;
+const isAlbum = (value) => typeof value === 'string' && ALBUM.test(value);
+
 const MB = 1024 * 1024;
 const MAX_SHOTS = 8;
 
@@ -39,6 +50,22 @@ const uploadLimiter = createLimiter({
   windowMs: 60 * 60 * 1000,
   key: byIp,
 });
+
+/*
+ * กันเดารหัสอัลบั้ม
+ *
+ * ลิงก์อัลบั้มคือกุญแจดอกเดียวที่เปิดรูปทั้งงาน · 8 ตัวเดาไม่ไหวอยู่แล้วในทางทฤษฎี
+ * แต่การปล่อยให้ยิงได้ไม่จำกัดก็ไม่มีเหตุผลอะไรรองรับ · 300 ครั้ง/ชม./ไอพี
+ * เผื่อทั้งงานที่แขกหลายสิบคนอยู่หลัง NAT เดียวกันสแกนพร้อมกันแล้วยังเหลือ
+ */
+const albumLimiter = createLimiter({
+  name: 'booth-album',
+  limit: 300,
+  windowMs: 60 * 60 * 1000,
+  key: byIp,
+});
+
+const PER_PAGE = 60;
 
 const bundle = multer({
   storage: multer.diskStorage({
@@ -169,6 +196,10 @@ async function receive(req, res, uploadError) {
       effect: String(manifest.effect ?? '').slice(0, 40) || null,
       sheetName: savedSheet.name,
       bytes: savedSheet.bytes,
+      // รหัสที่ไม่ได้รูปแบบต้องกลายเป็น "ไม่สังกัดอัลบั้ม" ไม่ใช่เก็บไว้ทั้งอย่างนั้น
+      // — คิวรีอัลบั้มเทียบตรง ๆ ค่าที่เพี้ยนจึงเปิดอัลบั้มของใครไม่ได้อยู่แล้ว
+      // แต่เก็บไว้ก็ไม่มีประโยชน์อะไรนอกจากทำให้ข้อมูลดูเหมือนมีอัลบั้มทั้งที่ไม่มี
+      album: isAlbum(manifest.album) ? manifest.album : null,
     }, savedShots.map((shot) => ({ storedName: shot.name, bytes: shot.bytes })));
 
     return res.status(201).json({ ok: true, token, shots: savedShots.length });
@@ -204,6 +235,62 @@ boothRouter.get('/p/:token', wrap(async (req, res, next) => {
     shots: session ? listBoothShots(token) : [],
   });
 }));
+
+/**
+ * อัลบั้มของทั้งงาน — ปลายทางของ QR แบบ "สแกนแล้วดูได้ทุกรูป"
+ *
+ * `/b/<รหัสอัลบั้ม>` เปล่า ๆ = เจ้าภาพเปิดดูทั้งงาน
+ * `/b/<รหัสอัลบั้ม>/<รหัสรอบ>` = แขกสแกนจากกระดาษของตัวเอง — **รอบของเขาถูกยกขึ้น
+ * มาไว้บนสุด** ไม่งั้นต้องไล่หารูปตัวเองในกองเป็นร้อย ซึ่งเป็นเหตุผลเดียวที่ QR
+ * บนแผ่นต้องมีรหัสรอบติดไปด้วยแทนที่จะเป็นลิงก์เดียวกันทุกใบ
+ *
+ * รอบที่ไม่ได้สังกัดอัลบั้มนี้ไม่มีทางโผล่ — คิวรีเทียบ `album = ?` ตรง ๆ
+ */
+function renderAlbum(req, res, next) {
+  const album = String(req.params.album ?? '').toUpperCase();
+  const token = String(req.params.token ?? '').toUpperCase();
+  if (!isAlbum(album) || (req.params.token && !isToken(token))) return next();
+
+  const page = Math.max(1, Math.min(999, Math.floor(Number(req.query.page)) || 1));
+  const total = countAlbumSessions(album);
+  const sessions = listAlbumSessions(album, { limit: PER_PAGE, offset: (page - 1) * PER_PAGE });
+
+  // รอบของคนที่สแกนอาจอยู่หน้าอื่น (หรือยังไม่ได้อัปโหลด) — ดึงมาต่างหากเสมอ
+  const mine = token ? sessions.find((one) => one.token === token)
+    ?? [getBoothSession(token)].find((one) => one?.album === album) ?? null : null;
+
+  return res.render('booth-album', {
+    page: 'booth',
+    pageTitle: sessions[0]?.event_title || req.t('booth.album_title'),
+    album,
+    mine,
+    mineShots: mine ? listBoothShots(mine.token) : [],
+    sessions: sessions.filter((one) => one.token !== mine?.token),
+    total,
+    pageNumber: page,
+    pages: Math.max(1, Math.ceil(total / PER_PAGE)),
+  });
+}
+
+boothRouter.get('/b/:album', albumLimiter, wrap(async (req, res, next) => renderAlbum(req, res, next)));
+
+/**
+ * โหลดทั้งงานเป็นไฟล์เดียว — สตรีมออกไป ไม่ประกอบไว้ในหน่วยความจำก่อน
+ *
+ * งานสามวันคือแผ่นหลายร้อยใบบวกรูปดิบอีกหลายเท่า · NAS ที่รันอยู่มีแรมจำกัด
+ * และคนกดคือเจ้าภาพที่นั่งรอดูแถบดาวน์โหลดเดินอยู่
+ */
+boothRouter.get('/b/:album/zip', albumLimiter, wrap(async (req, res, next) => {
+  const album = String(req.params.album ?? '').toUpperCase();
+  if (!isAlbum(album) || countAlbumSessions(album) === 0) return next();
+  return streamBoothAlbum(res, {
+    album,
+    sessions: listAllAlbumSessions(album),
+    shots: listAlbumShots(album),
+  });
+}));
+
+boothRouter.get('/b/:album/:token', albumLimiter, wrap(async (req, res, next) => renderAlbum(req, res, next)));
 
 boothRouter.get('/p/:token/sheet', wrap(async (req, res, next) => {
   const token = String(req.params.token ?? '').toUpperCase();

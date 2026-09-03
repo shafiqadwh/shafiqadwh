@@ -294,6 +294,15 @@
     "download": "Download",
     "code": "Code",
     "not_yet": "Not uploaded yet",
-    "not_yet_hint": "Booth photos are uploaded after the event. Keep this code and scan again later — this link stays valid."
+    "not_yet_hint": "Booth photos are uploaded after the event. Keep this code and scan again later — this link stays valid.",
+    "album_title": "Every photo from the booth",
+    "album_hint": "Every sheet the booth printed at this event — {n} in all · tap one to view and download",
+    "album_mine": "Your photos",
+    "album_others": "Other photos from this event",
+    "album_everything": "Every take from this event",
+    "album_empty": "Nothing uploaded yet — booth photos go up after the event, so do come back",
+    "album_newer": "Newer",
+    "album_older": "Older",
+    "download_all": "Download everything"
   }
 }

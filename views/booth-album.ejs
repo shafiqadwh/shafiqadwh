@@ -1,0 +1,89 @@
+<%- include('partials/head', { pageTitle }) %>
+
+<%#
+  อัลบั้มรวมของบูธ — ปลายทางของ QR แบบ "สแกนแล้วดูได้ทุกรูป"
+
+  คนที่มาถึงหน้านี้มีสองแบบ และต้องการคนละอย่าง
+  · แขกที่สแกนจากกระดาษของตัวเอง — อยากได้ "รูปของฉัน" ก่อน แล้วค่อยดูของคนอื่น
+  · เจ้าภาพที่เปิดจากลิงก์เปล่า — อยากได้ทั้งงานและปุ่มโหลดทีเดียวจบ
+  หน้าเดียวจึงเริ่มด้วยรอบของคนที่สแกน (ถ้ามี) แล้วต่อด้วยของทั้งงานเสมอ
+%>
+
+<section class="card booth-album">
+  <h1 class="section-title"><%= t('booth.album_title') %></h1>
+  <p class="section-hint"><%= t('booth.album_hint', { n: total }) %></p>
+
+  <% if (total > 0) { %>
+    <p class="booth-album__actions">
+      <a class="button button--primary" href="/b/<%= album %>/zip">
+        <%= t('booth.download_all') %>
+      </a>
+    </p>
+  <% } %>
+</section>
+
+<% if (mine) { %>
+  <section class="card booth-photos booth-photos--mine">
+    <h2 class="section-title"><%= t('booth.album_mine') %></h2>
+
+    <figure class="booth-sheet">
+      <img src="/p/<%= mine.token %>/sheet" alt="<%= t('booth.sheet') %>" loading="lazy">
+      <figcaption>
+        <a class="button button--primary" href="/p/<%= mine.token %>/sheet" download>
+          <%= t('booth.download_sheet') %>
+        </a>
+      </figcaption>
+    </figure>
+
+    <% if (mineShots.length > 0) { %>
+      <div class="booth-grid">
+        <% mineShots.forEach(function (shot, index) { %>
+          <figure class="booth-shot">
+            <img src="/p/<%= mine.token %>/shot/<%= index + 1 %>" alt="" loading="lazy">
+            <a class="button button--tiny" href="/p/<%= mine.token %>/shot/<%= index + 1 %>" download>
+              <%= t('booth.download') %>
+            </a>
+          </figure>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <p class="booth-token"><%= t('booth.code') %> <strong><%= mine.token %></strong></p>
+  </section>
+<% } %>
+
+<section class="card booth-album__all">
+  <h2 class="section-title"><%= mine ? t('booth.album_others') : t('booth.album_everything') %></h2>
+
+  <% if (total === 0) { %>
+    <p class="section-hint"><%= t('booth.album_empty') %></p>
+  <% } else { %>
+    <%# แต่ละใบพาไปหน้าของรอบนั้น ซึ่งมีรูปดิบกับปุ่มโหลดครบอยู่แล้ว ไม่ต้องทำซ้ำ %>
+    <div class="booth-album__grid">
+      <% sessions.forEach(function (row) { %>
+        <a class="booth-album__card" href="/b/<%= album %>/<%= row.token %>">
+          <img src="/p/<%= row.token %>/sheet" alt="" loading="lazy">
+          <span class="booth-album__code"><%= row.token %></span>
+        </a>
+      <% }); %>
+    </div>
+
+    <% if (pages > 1) { %>
+      <nav class="booth-album__pages">
+        <% if (pageNumber > 1) { %>
+          <a class="button button--ghost" href="/b/<%= album %>?page=<%= pageNumber - 1 %>">
+            <%= t('booth.album_newer') %>
+          </a>
+        <% } %>
+        <span><%= pageNumber %> / <%= pages %></span>
+        <% if (pageNumber < pages) { %>
+          <a class="button button--ghost" href="/b/<%= album %>?page=<%= pageNumber + 1 %>">
+            <%= t('booth.album_older') %>
+          </a>
+        <% } %>
+      </nav>
+    <% } %>
+  <% } %>
+</section>
+
+<%- include('partials/foot') %>

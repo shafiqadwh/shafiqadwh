@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { THEME_IDS } from '../../../shared/themes.js';
@@ -44,6 +45,18 @@ export const DEFAULTS = Object.freeze({
   deliver: 'print',
   // off = ไม่มี QR เลย · later = ชี้ไปที่ลิงก์ที่จะมีของหลังงาน · live = บูธอยู่บนเน็ตแล้ว
   qrMode: 'later',
+  /*
+   * QR พาไปไหน — **เลือกก่อนตั้งบูธ เปลี่ยนกลางงานไม่ได้**
+   *
+   * session = เห็นเฉพาะรอบของตัวเอง (ค่าเริ่มต้น · เหมาะกับงานที่แขกไม่รู้จักกัน)
+   * album   = เห็นรูปทั้งงานและโหลดทั้งหมดได้ โดยรอบของคนที่สแกนถูกยกขึ้นมาบนสุด
+   *
+   * เปลี่ยนกลางงานแล้วแผ่นที่พิมพ์ไปก่อนหน้าจะพาไปคนละที่กับแผ่นหลังจากนั้น
+   * และแขกที่ถือกระดาษกลับบ้านไปแล้วเราตามไปแก้ไม่ได้
+   */
+  qrTarget: 'session',
+  // รหัสอัลบั้มของงานนี้ · สร้างครั้งเดียวตอนเปิดบูธในโหมด album แล้วห้ามเปลี่ยน
+  albumCode: '',
   baseUrl: '',
   // กุญแจเดียวกับ BOOTH_KEY ฝั่งเว็บ · เดินทางเป็น HTTP header จึงต้องเป็น ASCII
   uploadKey: '',
@@ -103,6 +116,26 @@ function effects(value) {
 const usableKey = (value) =>
   typeof value === 'string' && value.length >= 16 && /^[\x20-\x7e]+$/.test(value);
 
+/*
+ * รหัสอัลบั้มของงาน — 8 ตัวจากอักษรชุดเดียวกับโทเคนรอบถ่าย (Crockford ตัด I L O U)
+ *
+ * ยาวกว่าโทเคนรอบถ่ายเพราะมันเปิดรูป **ทั้งงาน** ไม่ใช่รอบเดียว · ต้องตรงกับ
+ * ตัวตรวจฝั่งเว็บใน src/routes/booth.js — รหัสที่ฝั่งนั้นไม่รับ จะกลายเป็นรอบที่
+ * ไม่สังกัดอัลบั้มไหนเลย แล้ว QR ที่พิมพ์ไปแล้วจะเปิดอัลบั้มว่าง
+ */
+const ALBUM_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+export const ALBUM_LENGTH = 8;
+
+export const isAlbumCode = (value) =>
+  typeof value === 'string'
+  && value.length === ALBUM_LENGTH
+  && [...value].every((char) => ALBUM_ALPHABET.includes(char));
+
+export const newAlbumCode = () => Array.from(
+  { length: ALBUM_LENGTH },
+  () => ALBUM_ALPHABET[randomInt(ALBUM_ALPHABET.length)],
+).join('');
+
 /** ส่งรูปขึ้นเว็บได้จริงไหม — โหมด screen ทั้งหมดขึ้นอยู่กับข้อนี้ */
 export const canPublish = (settings) =>
   Boolean(settings.baseUrl) && usableKey(settings.uploadKey);
@@ -147,6 +180,8 @@ export function normaliseSettings(raw) {
     // เพดาน 4 ใบต่อครั้ง กันมือลั่นสั่งพิมพ์ทีละร้อยใบซึ่งกินม้วนหมดใน 20 นาที
     copies: clampInt(given.copies, 1, 4, DEFAULTS.copies),
     qrMode: oneOf(given.qrMode, ['off', 'later', 'live'], DEFAULTS.qrMode),
+    qrTarget: oneOf(given.qrTarget, ['session', 'album'], DEFAULTS.qrTarget),
+    albumCode: isAlbumCode(given.albumCode) ? given.albumCode : '',
     baseUrl: baseUrl(given.baseUrl),
     uploadKey: usableKey(given.uploadKey) ? given.uploadKey : '',
     printer: printer(given.printer),
@@ -166,9 +201,19 @@ export function normaliseSettings(raw) {
  *
  * ขึ้นกับ baseUrl อย่างเดียว ไม่เกี่ยวกับ qrMode เลย · โหมดจอใช้ตัวนี้ เพราะ QR
  * บนจอ **คือตัวส่งมอบ** ไม่ใช่ของแถมที่ปิดได้
+ *
+ * โหมดอัลบั้มพาไปที่อัลบั้มของทั้งงาน **โดยมีรหัสรอบติดไปด้วย** เพื่อให้หน้านั้น
+ * ยกรูปของคนที่สแกนขึ้นมาไว้บนสุด — ถ้า QR ทุกใบเหมือนกันหมด แขกจะต้องไล่หา
+ * รูปตัวเองในกองเป็นร้อยใบ ซึ่งทำให้โหมดนี้ใช้ไม่ได้จริงกับคนที่ถือกระดาษมาใบเดียว
  */
 export function photoUrl(settings, token) {
   if (!settings.baseUrl || !token) return null;
+  if (settings.qrTarget === 'album') {
+    // ตั้งโหมดอัลบั้มไว้แต่ยังไม่มีรหัสอัลบั้ม = ยังไม่มีที่ให้ไป · ตกกลับไปหน้า
+    // ของรอบตัวเอง ซึ่งถูกต้องเสมอ ดีกว่า QR ที่พาไปหน้าที่ไม่มีอยู่จริง
+    if (isAlbumCode(settings.albumCode)) return `${settings.baseUrl}/b/${settings.albumCode}/${token}`;
+    console.warn('[settings] โหมดอัลบั้มแต่ยังไม่มีรหัสอัลบั้ม — ใช้ลิงก์รอบเดี่ยวแทน');
+  }
   return `${settings.baseUrl}/p/${token}`;
 }
 
@@ -205,6 +250,20 @@ export async function loadSettings(dir) {
  * ไฟฟ้าดับกลางเขียน (บูธรันด้วยแบตเตอรี่ในเต็นท์) แล้วได้ JSON ครึ่งไฟล์
  * คือบูธที่เปิดไม่ขึ้นในงานถัดไป · rename เป็นการกระทำเดียวจบในระบบไฟล์
  */
+/**
+ * โหมดอัลบั้มต้องมีรหัสอัลบั้มก่อนถ่ายรูปแรก
+ *
+ * สร้างครั้งเดียวแล้วเขียนลงไฟล์ทันที · **ห้ามสร้างใหม่ถ้ามีอยู่แล้ว** เพราะแผ่นที่
+ * พิมพ์ไปแล้วมี QR ที่ชี้ไปที่รหัสเดิม — สร้างใหม่กลางงานแปลว่าแขกครึ่งแรกถือกระดาษ
+ * ที่พาไปอัลบั้มที่ไม่มีรูปของใครเลย และเราตามไปแก้ไม่ได้
+ */
+export async function ensureAlbumCode(dir, settings) {
+  if (settings.qrTarget !== 'album' || isAlbumCode(settings.albumCode)) return settings;
+  const saved = await saveSettings(dir, { albumCode: newAlbumCode() });
+  console.log(`[booth] สร้างรหัสอัลบั้มของงานนี้: ${saved.albumCode} (ห้ามเปลี่ยนระหว่างงาน)`);
+  return saved;
+}
+
 export async function saveSettings(dir, patch) {
   const merged = normaliseSettings({ ...(await loadSettings(dir)), ...patch });
   await fs.mkdir(dir, { recursive: true });

@@ -294,6 +294,15 @@
     "download": "Muat turun",
     "code": "Kod",
     "not_yet": "Gambar belum dimuat naik",
-    "not_yet_hint": "Gambar gerai dimuat naik selepas majlis. Simpan kod ini dan imbas semula kemudian — pautan ini kekal sah."
+    "not_yet_hint": "Gambar gerai dimuat naik selepas majlis. Simpan kod ini dan imbas semula kemudian — pautan ini kekal sah.",
+    "album_title": "Semua gambar dari photo booth",
+    "album_hint": "Semua keping yang dicetak booth di majlis ini, {n} sesi kesemuanya · tekan gambar untuk lihat dan muat turun",
+    "album_mine": "Gambar anda",
+    "album_others": "Gambar lain di majlis ini",
+    "album_everything": "Semua sesi di majlis ini",
+    "album_empty": "Belum ada gambar dimuat naik · gambar booth dimuat naik selepas majlis, sila datang semula",
+    "album_newer": "Lebih baharu",
+    "album_older": "Lebih lama",
+    "download_all": "Muat turun semua"
   }
 }

@@ -90,6 +90,10 @@ export async function saveSession(root, { token, photos, sheet, settings, effect
     const manifest = {
       token,
       createdAt: new Date().toISOString(),
+      // รอบนี้สังกัดอัลบั้มไหน · โหมด "เห็นเฉพาะรูปตัวเอง" ไม่สังกัดอัลบั้มใดเลย
+      // และต้องเป็น null จริง ๆ ไม่ใช่รหัสว่าง ไม่งั้นทุกรอบของทุกงานจะไปกองรวมกัน
+      // อยู่ในอัลบั้มชื่อ "" เดียวกันบนเว็บ
+      album: settings.qrTarget === 'album' ? settings.albumCode || null : null,
       event: { title: settings.eventTitle, subtitle: settings.eventSubtitle, theme: settings.theme },
       template,
       effect,

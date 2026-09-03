@@ -7,7 +7,9 @@ import { themeById } from '../../../shared/themes.js';
 import { composeSheet } from '../core/sheet.js';
 import { listEffects } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
-import { canPublish, loadSettings, photoUrl, sheetQrUrl } from './settings.js';
+import {
+  canPublish, ensureAlbumCode, isAlbumCode, loadSettings, photoUrl, sheetQrUrl,
+} from './settings.js';
 import { discardSession, isToken, listSessions, reserveSession, saveSession } from './session.js';
 import { uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
@@ -60,7 +62,7 @@ const press = createRemote((action) => {
 });
 
 async function createWindow() {
-  const settings = await loadSettings(dataRoot());
+  const settings = await ensureAlbumCode(dataRoot(), await loadSettings(dataRoot()));
   const opened = await openWindows({ BrowserWindow, screen }, {
     renderer,
     preload: path.join(here, 'preload.cjs'),
@@ -124,7 +126,9 @@ ipcMain.handle('booth:pending', async () => {
     pending: sessions.filter((one) => !one.uploaded).length,
     total: sessions.length,
     canPublish: canPublish(settings),
-    baseUrl: settings.baseUrl,
+    // ลิงก์อัลบั้มของทั้งงาน — เจ้าภาพขอดูตรงหน้าบูธได้โดยไม่ต้องรอสแกนกระดาษใคร
+    album: settings.qrTarget === 'album' && settings.baseUrl && isAlbumCode(settings.albumCode)
+      ? `${settings.baseUrl}/b/${settings.albumCode}` : '',
   };
 });
 

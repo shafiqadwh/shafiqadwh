@@ -1,0 +1,57 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import archiver from 'archiver';
+import { config } from '../config.js';
+
+/**
+ * ทั้งอัลบั้มของบูธเป็นไฟล์เดียว
+ *
+ * แยกจาก `zip.js` (ของแขกที่อัปโหลดผ่านเว็บ) เพราะเป็นคนละงานคนละตาราง — ความ
+ * แยกขาดระหว่างรูปเว็บกับรูปบูธเป็นกติกาของโปรเจกต์นี้ ไม่ใช่เรื่องบังเอิญ
+ *
+ * สตรีมออกไปเลย ไม่ประกอบไว้ในหน่วยความจำก่อน · งานสามวันคือแผ่นหลายร้อยใบบวก
+ * รูปดิบอีกหลายเท่า ส่วน NAS ที่รันอยู่มีแรมจำกัด
+ */
+
+/** ชื่อในไฟล์ zip: เรียงตามเวลาถ่ายจริง แล้วต่อด้วยรหัสรอบเพื่อให้ย้อนกลับไปหาได้ */
+const stamp = (row) => String(row.taken_at || row.created_at || '')
+  .replace(/[:T]/g, '-').replace(/\..*$/, '').slice(0, 19) || 'unknown';
+
+export function streamBoothAlbum(res, { album, sessions, shots }) {
+  const day = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="photobooth-${album}-${day}.zip"`);
+
+  const archive = archiver('zip', { store: true }); // ไฟล์ JPEG ถูกบีบมาแล้ว
+  archive.on('warning', (error) => console.warn('[booth-zip]', error.message));
+  archive.on('error', (error) => {
+    console.error('[booth-zip]', error);
+    res.destroy(error);
+  });
+  archive.pipe(res);
+
+  /*
+   * แยกสองโฟลเดอร์: แผ่นที่พิมพ์ กับรูปดิบ
+   *
+   * เจ้าภาพส่วนใหญ่อยากได้แผ่น (คือของที่แขกได้ถือกลับบ้าน) ส่วนรูปดิบมีไว้ให้
+   * คนที่จะเอาไปทำอย่างอื่นต่อ · กองรวมกันแล้วต้องมานั่งคัดเองทีหลัง
+   */
+  const byToken = new Map(sessions.map((row) => [row.token, row]));
+
+  for (const row of sessions) {
+    const source = path.join(config.paths.booth, row.sheet_name);
+    if (!fs.existsSync(source)) continue;
+    archive.file(source, { name: `sheets/${stamp(row)}-${row.token}.jpg` });
+  }
+
+  for (const shot of shots) {
+    const source = path.join(config.paths.booth, shot.stored_name);
+    const row = byToken.get(shot.token);
+    if (!row || !fs.existsSync(source)) continue;
+    archive.file(source, {
+      name: `originals/${stamp(row)}-${shot.token}-${shot.sort_order}${path.extname(shot.stored_name)}`,
+    });
+  }
+
+  return archive.finalize();
+}

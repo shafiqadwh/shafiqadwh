@@ -361,8 +361,9 @@ export function moveHostMedia(id, direction) {
 const boothStatements = {
   get: db.prepare('SELECT * FROM booth_sessions WHERE token = ?'),
   insert: db.prepare(`
-    INSERT INTO booth_sessions (token, taken_at, event_title, template, effect, sheet_name, bytes)
-    VALUES (@token, @takenAt, @eventTitle, @template, @effect, @sheetName, @bytes)
+    INSERT INTO booth_sessions
+      (token, taken_at, event_title, template, effect, sheet_name, bytes, album)
+    VALUES (@token, @takenAt, @eventTitle, @template, @effect, @sheetName, @bytes, @album)
   `),
   insertShot: db.prepare(`
     INSERT INTO booth_shots (token, stored_name, sort_order, bytes)
@@ -374,6 +375,27 @@ const boothStatements = {
   count: db.prepare('SELECT COUNT(*) AS count FROM booth_sessions'),
   bytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM booth_sessions'),
   shotBytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM booth_shots'),
+  /*
+   * อัลบั้มของงาน — รอบถ่ายทั้งงานที่ QR แบบ "ดูได้ทั้งงาน" พาไปถึง
+   *
+   * `album = ?` ตรง ๆ เท่านั้น ไม่มี OR IS NULL — รอบที่ไม่ได้สังกัดอัลบั้มไหน
+   * (บูธโหมดเห็นเฉพาะรูปตัวเอง หรือรอบเก่าก่อนมีฟีเจอร์นี้) ต้องไม่โผล่ในอัลบั้ม
+   * ของใครทั้งนั้น · เจ้าภาพเปลี่ยนโหมดกลางงานแล้วรูปช่วงก่อนหน้าหลุดไปอยู่ในลิงก์
+   * ที่แจกทีหลัง คือสิ่งที่ต้องกันตั้งแต่ชั้นคิวรี ไม่ใช่ชั้นหน้าเว็บ
+   */
+  album: db.prepare(`
+    SELECT * FROM booth_sessions
+    WHERE album = ? ORDER BY created_at DESC, token DESC LIMIT ? OFFSET ?
+  `),
+  albumCount: db.prepare('SELECT COUNT(*) AS count FROM booth_sessions WHERE album = ?'),
+  // ไม่มี LIMIT โดยตั้งใจ — ใช้ตอนทำ ZIP ซึ่งต้องได้ครบทั้งงาน · ZIP ที่ตกรอบที่ 201
+  // ไปเงียบ ๆ คือไฟล์ที่เจ้าภาพเก็บไว้ตลอดชีวิตโดยไม่รู้ว่าขาด
+  albumAll: db.prepare('SELECT * FROM booth_sessions WHERE album = ? ORDER BY created_at, token'),
+  albumShots: db.prepare(`
+    SELECT s.* FROM booth_shots s
+    JOIN booth_sessions b ON b.token = s.token
+    WHERE b.album = ? ORDER BY s.token, s.sort_order, s.id
+  `),
 };
 
 export const getBoothSession = (token) => boothStatements.get.get(token);
@@ -381,6 +403,19 @@ export const listBoothShots = (token) => boothStatements.shots.all(token);
 export const listBoothSessions = (limit = 200) => boothStatements.list.all(Math.min(limit, 1000));
 export const countBoothSessions = () => boothStatements.count.get().count;
 export const deleteBoothSession = (token) => boothStatements.remove.run(token);
+
+/** รอบถ่ายในอัลบั้มหนึ่ง ใหม่สุดก่อน · แบ่งหน้าเพราะงานสามวันมีหลายร้อยรอบ */
+export const listAlbumSessions = (album, { limit = 60, offset = 0 } = {}) =>
+  (album ? boothStatements.album.all(album, Math.min(limit, 200), Math.max(0, offset)) : []);
+
+export const countAlbumSessions = (album) =>
+  (album ? boothStatements.albumCount.get(album).count : 0);
+
+export const listAllAlbumSessions = (album) => (album ? boothStatements.albumAll.all(album) : []);
+
+/** รูปดิบทุกใบของทั้งอัลบั้ม — ใช้ตอนทำ ZIP ให้เจ้าภาพโหลดทั้งงานทีเดียว */
+export const listAlbumShots = (album) =>
+  (album ? boothStatements.albumShots.all(album) : []);
 
 /** ไบต์ที่รูปจากบูธกินบนดิสก์ — ต้องบวกเข้าสถิติ ไม่งั้นพื้นที่ใช้ไปต่ำกว่าจริง */
 export const boothBytes = () =>

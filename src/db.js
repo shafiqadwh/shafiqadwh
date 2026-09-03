@@ -139,6 +139,19 @@ if (!itemColumns.includes('deleted_at')) {
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_items_deleted_at ON items (deleted_at)');
 
+/*
+ * `album` = รหัสอัลบั้มของงานที่รอบถ่ายนี้สังกัด (โหมด "สแกนแล้วดูได้ทั้งงาน")
+ *
+ * ว่างได้เสมอ: บูธที่ตั้งเป็นโหมด "เห็นเฉพาะรูปตัวเอง" ไม่ส่งค่านี้ขึ้นมา และรอบ
+ * ที่อัปโหลดไว้ก่อนมีฟีเจอร์นี้ก็ไม่มี — ทั้งสองกรณีต้องเปิดหน้า /p/<รหัส> ได้เหมือนเดิม
+ * ALTER แบบเดียวกับ deleted_at ข้างบน (เช็ค PRAGMA ก่อน เพราะ ADD COLUMN ไม่ idempotent)
+ */
+const boothColumns = db.prepare('PRAGMA table_info(booth_sessions)').all().map((c) => c.name);
+if (!boothColumns.includes('album')) {
+  db.exec('ALTER TABLE booth_sessions ADD COLUMN album TEXT');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_booth_sessions_album ON booth_sessions (album, created_at DESC)');
+
 const readSetting = db.prepare('SELECT value FROM settings WHERE key = ?');
 const writeSetting = db.prepare(`
   INSERT INTO settings (key, value) VALUES (?, ?)

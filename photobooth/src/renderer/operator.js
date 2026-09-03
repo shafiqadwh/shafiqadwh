@@ -77,7 +77,9 @@ function clearImage() {
 async function refreshSend() {
   const button = el('send');
   try {
-    const { pending, canPublish } = await window.booth.pending();
+    const { pending, canPublish, album } = await window.booth.pending();
+    // ลิงก์อัลบั้มทั้งงาน — เจ้าภาพมักถามหาตรงหน้าบูธ ("ขอลิงก์ดูรูปทั้งหมดหน่อย")
+    el('album').textContent = album ? album.replace(/^https?:\/\//, '') : '';
     button.disabled = pending === 0 || !canPublish;
     button.textContent = !canPublish ? 'ยังตั้งที่อยู่เว็บไม่ครบ'
       : pending === 0 ? 'ส่งขึ้นเว็บครบแล้ว'
