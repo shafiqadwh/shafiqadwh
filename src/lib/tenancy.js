@@ -86,9 +86,69 @@ function controlDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       expires_at TEXT NOT NULL
     );
+
+    /*
+     * จอทีวีที่จับคู่ไว้ — **อยู่ในทะเบียน ไม่ใช่ในฐานข้อมูลของงาน** ต่างจากทุกตาราง
+     *
+     * แอปบนทีวีเป็น APK ตัวเดียวที่ยกไปตามงาน และเปิดที่อยู่เดิมเสมอ · ถ้ารหัสจับคู่
+     * ถูกเก็บไว้ในฐานข้อมูลของงานที่ทีวีบังเอิญเปิดถึง เจ้าภาพของอีกงานจะมองไม่เห็น
+     * รหัสนั้นเลย แล้ววันที่มีสองงานก็ต้องมีทีวีสองเครื่องที่ตั้งค่าไว้คนละแบบ
+     * ซึ่งเป็นสิ่งที่การจับคู่ด้วยรหัสตั้งใจจะกำจัดตั้งแต่แรก
+     *
+     * event คือของที่จับคู่ไปแล้ว ว่าง = ยังไม่ได้จับคู่ · host คือที่อยู่ที่ทีวี
+     * เครื่องนั้นเปิดเข้ามา เก็บไว้เพื่อคำนวณว่าจะพาไปสไลด์โชว์ที่ที่อยู่ไหน
+     */
+    CREATE TABLE IF NOT EXISTS tv_screens (
+      device    TEXT PRIMARY KEY,
+      code      TEXT,
+      code_at   TEXT,
+      event     TEXT,
+      host      TEXT,
+      mode      TEXT,
+      label     TEXT,
+      paired_at TEXT,
+      seen_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_code ON tv_screens (code) WHERE code IS NOT NULL;
   `);
+  adoptLegacyScreens(control);
   return control;
 }
+
+/**
+ * ทีวีที่จับคู่ไว้ก่อนจะมีทะเบียน — ย้ายเข้ามาให้ครั้งเดียว
+ *
+ * รุ่นก่อนหน้าเก็บ `tv_screens` ไว้ในฐานข้อมูลของงาน · ถ้าไม่ย้ายให้ ทีวีที่จับคู่
+ * ไว้แล้วบนเครื่องจริงจะเด้งกลับไปหน้าจับคู่หลังอัปเดต ซึ่งแปลว่าต้องเดินไปยืนหน้าจอ
+ * พร้อมมือถืออีกรอบโดยไม่มีเหตุผลอะไรเลย
+ */
+function adoptLegacyScreens(control) {
+  if (control.prepare('SELECT COUNT(*) AS count FROM tv_screens').get().count > 0) return;
+
+  const legacy = pathsFor(DEFAULT_SLUG).db;
+  if (!fs.existsSync(legacy)) return;
+
+  const old = new Database(legacy, { readonly: true });
+  try {
+    const rows = old.prepare('SELECT * FROM tv_screens WHERE mode IS NOT NULL').all();
+    const insert = control.prepare(`
+      INSERT OR IGNORE INTO tv_screens (device, event, mode, label, paired_at, seen_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of rows) {
+      insert.run(row.device, DEFAULT_SLUG, row.mode, row.label, row.paired_at, row.seen_at);
+    }
+    if (rows.length > 0) console.log(`[tv] ย้ายจอที่จับคู่ไว้แล้ว ${rows.length} เครื่องเข้าทะเบียน`);
+  } catch {
+    // ยังไม่มีตาราง = เครื่องนี้ยังไม่เคยจับคู่ทีวีเลย ซึ่งเป็นสภาพปกติ
+  } finally {
+    old.close();
+  }
+}
+
+/** ฐานข้อมูลทะเบียน — เปิดให้เฉพาะของที่เป็นของ "ทั้งเครื่อง" ไม่ใช่ของงานใดงานหนึ่ง */
+export const registry = () => controlDb();
 
 /** ปิดทะเบียน (เทสต์ที่สลับ DATA_DIR ระหว่างทางเท่านั้น — โปรดักชันเปิดค้างไว้) */
 export function closeRegistry() {

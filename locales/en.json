@@ -326,6 +326,7 @@
     "pair_now": "Connect now",
     "paired_ok": "Connected · the TV will change over within seconds",
     "code_bad": "Wrong or expired code — check the TV screen for a fresh one",
+    "no_domain": "This screen is on another event's domain — give this event its own domain first, then pair again",
     "scan": "Open camera to scan",
     "connected": "Connected TVs",
     "unnamed": "Unnamed TV",

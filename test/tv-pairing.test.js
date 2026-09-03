@@ -17,7 +17,7 @@ const dataDir = useTempDataDir('tv-pairing');
 const app = await startTestServer();
 const cookie = await login(app.baseUrl);
 
-const { db } = await import('../src/db.js');
+const { registry } = await import('../src/lib/tenancy.js');
 
 after(async () => {
   await app.close();
@@ -119,7 +119,8 @@ test('a used code cannot be used again, and neither can a made-up one', async ()
 test('an expired code stops working, even though the TV still shows it', async () => {
   const tv = await openTv();
   // ทีวีเปิดค้างข้ามคืน — รหัสบนจอยังอยู่ แต่ต้องหมดอายุไปแล้ว
-  db.prepare("UPDATE tv_screens SET code_at = datetime('now', '-40 minutes') WHERE code = ?")
+  // ทะเบียนจอเป็นของทั้งเครื่อง ไม่ได้อยู่ในฐานข้อมูลของงาน (ดู src/lib/tenancy.js)
+  registry().prepare("UPDATE tv_screens SET code_at = datetime('now', '-40 minutes') WHERE code = ?")
     .run(tv.code);
 
   assert.match((await claim(tv.code, 'cinema')).headers.get('location'), /bad=1/,

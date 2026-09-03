@@ -326,6 +326,7 @@
     "pair_now": "Sambung sekarang",
     "paired_ok": "Sudah bersambung · TV akan bertukar dalam beberapa saat",
     "code_bad": "Kod salah atau sudah tamat — lihat kod baharu pada skrin TV",
+    "no_domain": "Skrin ini berada pada domain majlis lain — tetapkan domain majlis ini dahulu, kemudian pasangkan semula",
     "scan": "Buka kamera untuk imbas",
     "connected": "TV yang bersambung",
     "unnamed": "TV tanpa nama",

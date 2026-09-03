@@ -194,3 +194,48 @@ test('archiving keeps the event and its photos, it never deletes anything', asyn
   const still = await fetch(`${app.baseUrl}/api/items?event=sara-yusuf`);
   assert.equal((await still.json()).items.length, 2);
 });
+
+test('a TV on a customer domain cannot be pulled into an event that has no domain', async () => {
+  /*
+   * ทะเบียนจอเป็นของทั้งเครื่อง เจ้าภาพงานไหนก็จับคู่จอที่กำลังโชว์รหัสอยู่ได้ —
+   * แต่จอต้องไปถึงงานนั้นได้จริงด้วย · จอที่เปิดอยู่บนโดเมนของลูกค้ารายหนึ่ง
+   * ไปเปิดงานที่ยังไม่มีโดเมนไม่ได้ เพราะโดเมนของลูกค้าหมายถึงงานของลูกค้าเท่านั้น
+   * (กติกาข้อเดียวกับที่ทำให้ ?event= ใช้ไม่ได้บนโดเมนที่ถูกจองแล้ว)
+   *
+   * ถ้าไม่กันตรงนี้ การกดยืนยันจะ "สำเร็จ" แล้วทีวีก็ขึ้นรูปของงานอื่นไปทั้งงาน
+   */
+  const cookie = await operator();
+  await post('/console/events', { slug: 'no-domain-yet', title: 'งานที่ยังไม่มีโดเมน' }, cookie);
+
+  // จอเปิดที่โดเมนของ sara-yusuf ซึ่งตั้งโดเมนไว้แล้วในเทสต์ก่อนหน้า
+  const opened = await new Promise((resolve, reject) => {
+    const request = http.request({
+      host: '127.0.0.1',
+      port: app.server.address().port,
+      path: '/tv',
+      headers: { host: 'sara-yusuf.example.com' },
+    }, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve({
+        code: body.match(/class="tv__code">([0-9A-Z]{6})</)?.[1] ?? null,
+      }));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+  assert.match(opened.code ?? '', /^[0-9A-Z]{6}$/);
+
+  const admin = await post('/admin/login?event=no-domain-yet', { password: 'test-password' });
+  const jar = admin.headers.getSetCookie().find((one) => one.startsWith('admin_session=')).split(';')[0];
+
+  const refused = await post('/admin/tv?event=no-domain-yet', { code: opened.code, mode: 'wall' }, jar);
+  assert.match(refused.headers.get('location'), /nodomain=1/,
+    'ต้องบอกว่าให้ตั้งโดเมนก่อน ไม่ใช่จับคู่สำเร็จแล้วไปขึ้นรูปผิดงาน');
+
+  // และข้อความนั้นต้องขึ้นบนหน้าจริง ไม่ใช่มีแค่ในลิงก์
+  const shown = await (await fetch(`${app.baseUrl}/admin/tv?event=no-domain-yet&nodomain=1`, {
+    headers: { cookie: jar },
+  })).text();
+  assert.ok(shown.replace(/<script[\s\S]*?<\/script>/g, '').includes('ตั้งโดเมนของงานนี้ก่อน'));
+});

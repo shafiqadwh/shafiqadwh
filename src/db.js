@@ -119,26 +119,14 @@ const SCHEMA = `
   );
 
   /*
-   * จอทีวีที่จับคู่กับงานนี้แล้ว
+   * จอทีวีเคยอยู่ตรงนี้ ตอนนี้ย้ายไปอยู่ในทะเบียน (src/lib/tenancy.js) แล้ว
+   * — ห้ามใส่ backtick ในคอมเมนต์นี้ มันปิด template literal ของ JS ทั้งก้อน
    *
-   * ทีวีตั้งอยู่ไกลมือ มีแค่รีโมต — การพิมพ์ URL ด้วยปุ่มลูกศรคือขั้นตอนที่ช้าที่สุด
-   * และพิมพ์ผิดบ่อยที่สุดของการติดตั้งหน้างาน · แทนที่ด้วยการให้ทีวีโชว์รหัสหกตัว
-   * แล้วเจ้าภาพยืนยันจากมือถือตัวเอง (ซึ่งล็อกอินแอดมินอยู่แล้ว)
-   *
-   * คอลัมน์ device คือโทเคนในคุกกี้ของเครื่องทีวี — จับคู่ครั้งเดียวแล้วรีบูตกี่ครั้งก็
-   * กลับเข้าสไลด์โชว์เดิมเอง ไม่ต้องจับคู่ใหม่ทุกเช้า
+   * เหตุผล: APK บนทีวีเปิดที่อยู่เดิมเสมอ แต่ต้องให้เจ้าภาพของงานไหนก็ได้ในเครื่องนี้
+   * จับคู่มันไปเป็นของงานตัวเองได้ · ตารางที่อยู่ในฐานข้อมูลของงานทำแบบนั้นไม่ได้
+   * ฐานข้อมูลเก่าที่ยังมีตารางนี้ค้างอยู่ไม่เป็นไร ไม่มีใครอ่านมันแล้ว และแถวที่
+   * จับคู่ไว้ถูกย้ายเข้าทะเบียนให้ครั้งเดียวตอนบูตแรกหลังอัปเดต
    */
-  CREATE TABLE IF NOT EXISTS tv_screens (
-    device     TEXT PRIMARY KEY,
-    code       TEXT,
-    code_at    TEXT,
-    mode       TEXT,
-    label      TEXT,
-    paired_at  TEXT,
-    seen_at    TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_code ON tv_screens (code) WHERE code IS NOT NULL;
 
   CREATE INDEX IF NOT EXISTS idx_booth_shots_token ON booth_shots (token, sort_order);
   CREATE INDEX IF NOT EXISTS idx_booth_sessions_created ON booth_sessions (created_at DESC);

@@ -215,32 +215,71 @@ test('a TV paired to one event stays on that event', async () => {
     };
   };
 
-  const tv = await openTv('rina');
+  /*
+   * ทะเบียนจอเป็นของทั้งเครื่อง ไม่ใช่ของงาน — และนั่นคือทั้งหมดของฟีเจอร์นี้
+   *
+   * แอปบนทีวีเป็น APK ตัวเดียวที่เปิดที่อยู่เดิมเสมอ · วันที่มีสองงาน เจ้าภาพของ
+   * งานไหนก็ตามที่กดยืนยันรหัสบนจอ จะได้จอนั้นไปเป็นของงานตัวเอง โดยไม่ต้องไป
+   * ตั้งค่าอะไรที่ตัวทีวีเลย · ถ้าทะเบียนอยู่ในฐานข้อมูลของงาน เจ้าภาพอีกงานจะ
+   * มองไม่เห็นรหัสนั้นเลย แล้ววันนั้นก็ต้องมีทีวีสองเครื่องที่ตั้งค่าไว้คนละแบบ
+   */
+  const tv = await openTv('main');
   assert.match(tv.code ?? '', /^[0-9A-Z]{6}$/);
 
-  // รหัสที่ขึ้นบนจอของงานหนึ่ง ต้องไม่มีความหมายอะไรเลยในหน้าแอดมินของอีกงาน
-  const mainAdmin = (await login('main', 'test-password')).cookie;
-  const stolen = await fetch(url('main', '/admin/tv'), {
+  const claim = (slug, cookie, fields) => fetch(url(slug, '/admin/tv'), {
     method: 'POST',
-    headers: { cookie: mainAdmin, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ code: tv.code, mode: 'cinema' }),
+    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields),
     redirect: 'manual',
   });
-  assert.match(stolen.headers.get('location'), /bad=1/, 'รหัสของจออีกงานต้องใช้ไม่ได้');
 
+  // จอเปิดอยู่ที่อยู่เดิม แต่เจ้าภาพของ "รินา" เป็นคนกดยืนยัน → จอเป็นของรินา
   const rinaAdmin = (await login('rina', 'rina-only-password')).cookie;
-  const claimed = await fetch(url('rina', '/admin/tv'), {
-    method: 'POST',
-    headers: { cookie: rinaAdmin, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ code: tv.code, mode: 'wall' }),
-    redirect: 'manual',
-  });
+  const claimed = await claim('rina', rinaAdmin, { code: tv.code, mode: 'wall', label: 'โถงหน้า' });
   assert.equal(claimed.headers.get('location'), '/admin/tv?done=1');
 
-  const state = await (await fetch(url('rina', '/api/tv/state'), {
+  // ทีวีถามด้วยที่อยู่เดิมของมัน (ไม่มี ?event= ติดไป เหมือนแอปจริง) แล้วต้องถูกพา
+  // ไปที่งานที่จับคู่ไว้ ไม่ใช่งานของที่อยู่ที่มันเปิดอยู่
+  const state = await (await fetch(`${app.baseUrl}/api/tv/state`, {
     headers: { cookie: tv.jar },
   })).json();
   assert.equal(state.paired, true);
+  assert.match(state.next, /mode=wall/);
+  assert.match(state.next, /event=rina/, 'จอต้องถูกพาไปที่งานที่จับคู่ไว้ ไม่ใช่งานของที่อยู่ที่มันเปิด');
+
+  // และเจ้าภาพอีกงานต้องไม่เห็นจอนี้ในหน้าของตัวเอง — เห็นเฉพาะจอของงานตัวเอง
+  const mainAdmin = (await login('main', 'test-password')).cookie;
+  const mainPage = await (await fetch(url('main', '/admin/tv'), {
+    headers: { cookie: mainAdmin },
+  })).text();
+  assert.ok(!mainPage.replace(/<script[\s\S]*?<\/script>/g, '').includes('โถงหน้า'));
+
+  // ปลดจอของงานอื่นไม่ได้ด้วย ไม่งั้นโทเคนที่หลุดไปจะเตะจอที่กำลังฉายอยู่ให้ดับ
+  await fetch(url('main', '/admin/tv/unpair'), {
+    method: 'POST',
+    headers: { cookie: mainAdmin, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ device: tv.jar.split('=')[1] }),
+    redirect: 'manual',
+  });
+  const survived = await (await fetch(`${app.baseUrl}/api/tv/state`, {
+    headers: { cookie: tv.jar },
+  })).json();
+  assert.equal(survived.paired, true, 'จอของงานอื่นต้องไม่ถูกปลดโดยเจ้าภาพที่ไม่ใช่เจ้าของ');
+
+  // ย้ายจอเครื่องเดิมไปอีกงาน ทำได้ด้วยการจับคู่ใหม่ ไม่ต้องแตะตัวทีวี
+  const again = await fetch(`${app.baseUrl}/tv?pair=1`, {
+    headers: { cookie: tv.jar },
+    redirect: 'manual',
+  });
+  const moved = (await again.text()).match(/class="tv__code">([0-9A-Z]{6})</)?.[1];
+  assert.equal((await claim('main', mainAdmin, { code: moved, mode: 'cinema' }))
+    .headers.get('location'), '/admin/tv?done=1');
+
+  const after_ = await (await fetch(`${app.baseUrl}/api/tv/state`, {
+    headers: { cookie: tv.jar },
+  })).json();
+  assert.match(after_.next, /mode=cinema/);
+  assert.ok(!after_.next.includes('event=rina'), 'จอต้องย้ายมาเป็นของงานใหม่จริง');
 });
 
 test('each event wears its own name, and the default one is untouched', async () => {

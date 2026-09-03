@@ -18,6 +18,11 @@
   <% if ((query && query.bad) || found === false) { %>
     <p class="notice notice--error"><%= t('tv.code_bad') %></p>
   <% } %>
+  <%# จอเปิดอยู่บนโดเมนของงานอื่น และงานนี้ยังไม่มีโดเมนของตัวเอง — บอกตั้งแต่ตอนกด
+      ดีกว่าปล่อยให้ทีวีขึ้นรูปของงานอื่นทั้งงานโดยที่ทุกอย่างดูเหมือนสำเร็จ %>
+  <% if (query && query.nodomain) { %>
+    <p class="notice notice--error"><%= t('tv.no_domain') %></p>
+  <% } %>
 
   <form method="post" action="/admin/tv" class="form tv-claim">
     <label class="field">
