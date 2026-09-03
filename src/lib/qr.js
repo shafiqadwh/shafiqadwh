@@ -1,12 +1,24 @@
 import QRCode from 'qrcode';
 import { config } from '../config.js';
+import { currentEvent } from './tenancy.js';
 
-/** The address printed on the cards and shown on the slideshow. */
+const hostOf = (url) => { try { return new URL(url).hostname; } catch { return ''; } };
+
+/**
+ * The address printed on the cards and shown on the slideshow.
+ *
+ * โดเมนของ **งานนี้** มาก่อน BASE_URL เสมอ — เครื่องเดียวรับหลายงาน และ QR
+ * ที่พิมพ์ลงกระดาษวางบนโต๊ะแขกคือของที่แก้ทีหลังไม่ได้ · ถ้ายังยึด BASE_URL
+ * ตัวเดียวเหมือนเดิม การ์ดของลูกค้ารายที่สองจะพาแขกไปงานของลูกค้ารายแรกทั้งงาน
+ */
 export function shareUrl(req) {
-  if (config.baseUrl) return config.baseUrl;
+  const { host } = currentEvent();
+  // งานที่ใช้โดเมนเดียวกับ BASE_URL ต้องได้ค่าเดิมทุกตัวอักษร (พอร์ต/พาธที่ตั้งไว้)
+  if (config.baseUrl && (!host || hostOf(config.baseUrl) === host)) return config.baseUrl;
+  if (host) return `${req?.protocol ?? (config.baseUrl.startsWith('http://') ? 'http' : 'https')}://${host}`;
+
   const proto = req?.protocol ?? 'http';
-  const host = req?.get?.('host') ?? `localhost:${config.port}`;
-  return `${proto}://${host}`;
+  return `${proto}://${req?.get?.('host') ?? `localhost:${config.port}`}`;
 }
 
 export async function qrDataUrl(url, { width = 512, margin = 1 } = {}) {

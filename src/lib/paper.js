@@ -1,10 +1,14 @@
 import fs from 'node:fs/promises';
 import sharp from 'sharp';
 import { config } from '../config.js';
+import { currentEvent } from './tenancy.js';
 import { ink, trim } from './film.js';
 import { normaliseName, pickDisplayName } from './guests.js';
 import { listItemsForPaper, listMessagesForPaper } from '../repo.js';
 import { sourceFor, thumbFor } from './film-plan.js';
+
+/** ป้ายของงานที่กำลังทำอยู่ — ตกกลับไปที่ .env ให้เองถ้างานนั้นไม่ได้ตั้งเอง */
+const eventInfo = () => currentEvent().branding;
 
 /**
  * เรียงหน้ากระดาษ A4 สำหรับ PDF สองเล่ม — สมุดคำอวยพร กับ รายชื่อคนอัพรูป
@@ -78,20 +82,20 @@ async function flush(sheet, pageNumber) {
 /** หน้าปกของทั้งสองเล่ม — จัดกลางแนวตั้ง ใช้ข้อมูลงานชุดเดียวกับการ์ด QR และหนัง */
 async function coverPage(heading, subtitle) {
   const blocks = [];
-  if (config.event.monogram) {
-    blocks.push(await ink(config.event.monogram, {
+  if (eventInfo().monogram) {
+    blocks.push(await ink(eventInfo().monogram, {
       size: 44, colour: PAPER.accent, width: COLUMN, align: 'centre', spacing: 0.3,
     }));
   }
   blocks.push(await ink(heading, {
     size: 66, colour: PAPER.ink, width: COLUMN, align: 'centre', bold: true, lineHeight: 1.2,
   }));
-  if (config.event.names) {
-    blocks.push(await ink(config.event.names, {
+  if (eventInfo().names) {
+    blocks.push(await ink(eventInfo().names, {
       size: 40, colour: PAPER.ink, width: COLUMN, align: 'centre', lineHeight: 1.3,
     }));
   }
-  const meta = [config.event.date, config.event.venue].filter(Boolean).join('   ·   ');
+  const meta = [eventInfo().date, eventInfo().venue].filter(Boolean).join('   ·   ');
   if (meta) {
     blocks.push(await ink(meta, {
       size: 26, colour: PAPER.soft, width: COLUMN, align: 'centre',

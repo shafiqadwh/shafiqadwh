@@ -4,6 +4,10 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { ink as sharedInk, trim } from '../../shared/text.js';
 import { config } from '../config.js';
+import { currentEvent } from './tenancy.js';
+
+/** ป้ายของงานที่กำลังทำอยู่ — ตกกลับไปที่ .env ให้เองถ้างานนั้นไม่ได้ตั้งเอง */
+const eventInfo = () => currentEvent().branding;
 
 /**
  * ประกอบ "เฟรม" ของหนังงานแต่ง — รูปหนึ่งใบ หรือการ์ดข้อความหนึ่งใบ
@@ -263,10 +267,10 @@ export async function textCard({ eyebrow, headline, body, footer, big = false } 
 
 /** การ์ดเปิดเรื่อง ใช้ข้อมูลงานชุดเดียวกับที่การ์ด QR และสไลด์โชว์ใช้ */
 export function openingCard() {
-  const meta = [config.event.date, config.event.venue].filter(Boolean).join('   ·   ');
+  const meta = [eventInfo().date, eventInfo().venue].filter(Boolean).join('   ·   ');
   return textCard({
-    eyebrow: config.event.monogram,
-    headline: config.event.names || config.event.title,
+    eyebrow: eventInfo().monogram,
+    headline: eventInfo().names || eventInfo().title,
     footer: meta,
     big: true,
   });
@@ -276,7 +280,7 @@ export function openingCard() {
 export function closingCard(t) {
   return textCard({
     headline: t('film.thanks'),
-    footer: config.event.names || config.event.title,
+    footer: eventInfo().names || eventInfo().title,
   });
 }
 

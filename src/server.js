@@ -10,6 +10,9 @@ import { ensureDirs } from './lib/media.js';
 import { resumeQueue } from './lib/queue.js';
 import { startLimiterCleanup } from './lib/ratelimit.js';
 import { themeStyle } from './lib/theme.js';
+import {
+  defaultEvent, enterEvent, eventForHost, findEvent, forEachEvent,
+} from './lib/tenancy.js';
 import { adminRouter, isAdmin } from './routes/admin.js';
 import { boothRouter } from './routes/booth.js';
 import { tvRouter } from './routes/tv.js';
@@ -18,6 +21,43 @@ import { galleryRouter } from './routes/gallery.js';
 import { guestbookRouter } from './routes/guestbook.js';
 import { slideshowRouter } from './routes/slideshow.js';
 import { uploadRouter } from './routes/upload.js';
+
+/**
+ * คำขอนี้เป็นของงานไหน
+ *
+ * ลำดับการตัดสินใจ และเหตุผลของแต่ละชั้น
+ *
+ * 1. **โดเมนของคำขอ** — ทางหลัก ลูกค้าแต่ละรายได้โดเมนของตัวเอง
+ *    (`rina-adam.example.com`) แขกที่สแกน QR จึงมาถึงงานที่ถูกต้องเสมอ
+ * 2. **`?event=<ชื่อย่อ>`** — เฉพาะเมื่อโดเมนที่เข้ามา **ไม่ได้เป็นของงานไหนเลย**
+ *    ใช้ตอนพัฒนา ตอนเทสต์ และตอนที่งานใหม่ยังไม่ได้ตั้งโดเมน
+ *    ที่ต้องมีเงื่อนไข "โดเมนต้องไม่ถูกจอง" กำกับ เพราะไม่อย่างนั้นใครก็ได้ที่เปิด
+ *    โดเมนของลูกค้า ก. แล้วต่อท้าย `?event=ข.` จะเห็นงานของลูกค้าอีกราย —
+ *    โดเมนของลูกค้าต้องหมายถึงงานของลูกค้ารายนั้นเท่านั้น ไม่มีทางลัด
+ * 3. **คุกกี้จากข้อ 2** — `?event=` ติดมากับลิงก์แรกเท่านั้น ลิงก์ในหน้าเว็บทั้งเว็บ
+ *    (แกลลอรี่ `/media/:id` `/api/items`) เป็นเส้นทางเปล่า ๆ ไม่มีพารามิเตอร์
+ *    ถ้าไม่จำไว้ คลิกเดียวก็เด้งกลับไปงานเริ่มต้นแล้ว
+ * 4. **งานเริ่มต้น** — เครื่องที่ติดตั้งไว้ก่อนมีหลายงาน ทำงานต่อเหมือนเดิมทุกอย่าง
+ */
+const EVENT_COOKIE = 'event';
+
+export function eventMiddleware(req, res, next) {
+  const claimed = eventForHost(req.hostname);
+  let chosen = null;
+
+  if (!claimed) {
+    if (typeof req.query.event === 'string') {
+      chosen = findEvent(req.query.event);
+      if (chosen) res.cookie(EVENT_COOKIE, chosen.slug, { httpOnly: true, sameSite: 'lax' });
+    } else if (req.cookies?.[EVENT_COOKIE]) {
+      chosen = findEvent(req.cookies[EVENT_COOKIE]);
+    }
+  }
+
+  req.event = claimed ?? chosen ?? defaultEvent();
+  enterEvent(req.event);
+  return next();
+}
 
 export function createApp() {
   const app = express();
@@ -29,11 +69,19 @@ export function createApp() {
   app.disable('x-powered-by');
 
   app.use(cookieParser());
+  /*
+   * งานไหน — ต้องตอบให้ได้ก่อนทุกอย่าง
+   *
+   * ตัวกลางตัวนี้ต้องอยู่ก่อน middleware ตัวอื่นทั้งหมด เพราะตั้งแต่ `deviceMiddleware`
+   * เป็นต้นไปมีการแตะฐานข้อมูล และ "ฐานข้อมูลไหน" คือคำตอบของบรรทัดนี้
+   * ทุกอย่างหลังจากนี้ (รวมถึง await ที่ต่อกันไปจนจบคำขอ) วิ่งอยู่ในบริบทของงานนั้น
+   */
+  app.use(eventMiddleware);
   app.use(deviceMiddleware);
   app.use(languageMiddleware);
 
   app.use((req, res, next) => {
-    res.locals.event = config.event;
+    res.locals.event = req.event.branding;
     // คำนวณครั้งเดียวตอนบูตก็พอ ค่ามาจาก .env ที่เปลี่ยนไม่ได้ระหว่างรัน
     res.locals.themeStyle = pageTheme;
     res.locals.limits = config.limits;
@@ -121,8 +169,16 @@ export async function start() {
     console.error('[fatal] มี Promise ที่ไม่มีใครรับ error — เว็บยังทำงานต่อ:', reason);
   });
 
-  await ensureDirs();
-  resumeQueue();
+  /*
+   * งานเบื้องหลังตอนบูตต้องทำให้ **ทุกงาน** ไม่ใช่แค่งานเริ่มต้น
+   *
+   * เดิมทั้งสามบรรทัดนี้ทำกับฐานข้อมูลเดียวเพราะมีอยู่ฐานเดียว · ตอนนี้เครื่องเดียว
+   * ถือหลายงาน วิดีโอที่ค้างคิวอยู่ของงานเมื่อวานจะไม่มีวันถูกแปลงต่อถ้าไม่วนให้ครบ
+   */
+  await forEachEvent(async () => {
+    await ensureDirs();
+    resumeQueue();
+  });
   startLimiterCleanup();
 
   /*
@@ -132,8 +188,11 @@ export async function start() {
    * หลายวัน รูปจะยังนอนอยู่บนดิสก์เกินที่สัญญาไว้กับลูกค้า · ตัวนี้ทำให้การรีสตาร์ต
    * (หรือรีบูต NAS) เป็นอีกจังหวะที่ได้กวาดเสมอ
    */
-  sweepExpiredBooth({ force: true })
-    .then(({ swept }) => swept > 0 && console.log(`[booth] ลบรูปที่พ้นกำหนดเก็บ ${swept} รอบ`))
+  forEachEvent(() => sweepExpiredBooth({ force: true }))
+    .then((results) => {
+      const swept = results.reduce((total, one) => total + one.swept, 0);
+      if (swept > 0) console.log(`[booth] ลบรูปที่พ้นกำหนดเก็บ ${swept} รอบ`);
+    })
     .catch((error) => console.error('[booth] กวาดรูปที่หมดอายุไม่สำเร็จ:', error));
 
   const app = createApp();

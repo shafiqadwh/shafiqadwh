@@ -50,6 +50,7 @@ import { queueLength } from '../lib/queue.js';
 import { qrDataUrl, qrPngBuffer, shareUrl } from '../lib/qr.js';
 import { streamArchive } from '../lib/zip.js';
 import { createLimiter } from '../lib/ratelimit.js';
+import { currentEvent, passwordMatches as eventPasswordMatches } from '../lib/tenancy.js';
 import { uploadsOpen } from './gallery.js';
 import { wrap } from '../lib/async-route.js';
 
@@ -67,7 +68,17 @@ const dropSession = db.prepare('DELETE FROM admin_sessions WHERE token = ?');
 
 const loginLimiter = createLimiter({ name: 'admin-login', limit: 10, windowMs: 15 * 60 * 1000 });
 
+/**
+ * รหัสผ่านของงานนี้ — ของลูกค้ารายนี้ก่อน แล้วค่อยตกมาที่กุญแจหลักใน `.env`
+ *
+ * ลูกค้าแต่ละงานตั้งรหัสของตัวเองได้ (เก็บเป็นแฮชในทะเบียนงาน) และเจ้าของระบบ
+ * ยังเข้าได้ทุกงานด้วย ADMIN_PASSWORD ตัวเดียว ซึ่งจำเป็นจริง ๆ เวลาลูกค้าลืมรหัส
+ * กลางงานตอนตีสอง · งานที่ยังไม่ตั้งรหัสของตัวเองจึงใช้กุญแจหลักไปก่อนได้เลย
+ */
 function passwordMatches(candidate) {
+  const stored = currentEvent().password;
+  if (stored && eventPasswordMatches(stored, candidate)) return true;
+
   const expected = Buffer.from(config.admin.password);
   const given = Buffer.from(String(candidate ?? ''));
   if (expected.length !== given.length) return false;
@@ -286,7 +297,7 @@ adminRouter.post('/admin/messages/:id/:action', requireAdmin, (req, res) => {
 adminRouter.get('/admin/zip', requireAdmin, (req, res) => {
   streamArchive(res, {
     includeVideos: req.query.videos !== '0',
-    filenamePrefix: (config.event.names || 'wedding').replace(/[^\w-]+/g, '-').toLowerCase(),
+    filenamePrefix: (currentEvent().branding.names || 'wedding').replace(/[^\w-]+/g, '-').toLowerCase(),
   });
 });
 

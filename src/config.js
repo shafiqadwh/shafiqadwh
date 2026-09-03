@@ -70,7 +70,7 @@ export const EVENT_KINDS = Object.freeze([
 ]);
 
 /** "Sofwan & 'Aishah Nadhirah" → "S & A", for the monogram on the printed card. */
-function initialsFrom(names) {
+export function initialsFrom(names) {
   const letters = names
     .split(/\s*&\s*|\s+and\s+/i)
     .map((part) => part.trim().replace(/^['’"]+/, '').charAt(0).toUpperCase())
@@ -126,6 +126,60 @@ function boothKey() {
 
 const dataDir = path.resolve(rootDir, str('DATA_DIR', 'data'));
 
+/**
+ * พาธที่ขึ้นกับ "งานที่กำลังเปิดอยู่" — ตัดสินตอนถูกอ่าน ไม่ใช่ตอนโหลดโมดูล
+ *
+ * ระบบเดียวรับได้หลายงาน และแต่ละงานมีโฟลเดอร์ไฟล์กับฐานข้อมูลของตัวเอง
+ * (เหตุผลเต็ม ๆ อยู่หัวไฟล์ `src/lib/tenancy.js`) · จุดที่อ่าน `config.paths.uploads`
+ * ในโปรเจกต์นี้มีห้าสิบกว่าแห่ง ถ้าให้ทุกแห่งรับ slug เข้าไปเป็นพารามิเตอร์
+ * ก็แปลว่าต้องแก้ห้าสิบกว่าแห่ง **และลืมที่เดียวคือไฟล์ของลูกค้า ก. ถูกเขียนทับ
+ * ลงโฟลเดอร์ของลูกค้า ข.** — ทำเป็น getter ที่ถามว่า "ตอนนี้อยู่งานไหน" แทน
+ * จุดเรียกใช้ทุกแห่งจึงไม่ต้องรู้เรื่องนี้เลยแม้แต่ที่เดียว
+ */
+const PER_EVENT = ['uploads', 'derived', 'booth', 'db', 'tmp', 'export', 'films', 'papers'];
+
+let eventPaths = null;
+
+/** `tenancy.js` เป็นคนบอกว่างานปัจจุบันคืองานไหน — config ไม่รู้จักเรื่องนั้นเอง */
+export function useEventPaths(resolver) {
+  eventPaths = resolver;
+}
+
+function buildPaths(root, data) {
+  const fallback = {
+    uploads: path.join(data, 'uploads'),
+    derived: path.join(data, 'derived'),
+    // รูปจาก photo booth — คนละโฟลเดอร์กับรูปแขกโดยตั้งใจ เหตุผลเดียวกับที่แยกตาราง
+    booth: path.join(data, 'booth'),
+    db: path.join(data, 'db', 'wedding.db'),
+    tmp: path.join(data, 'tmp'),
+    // หนังงานแต่งที่ export แล้ว
+    export: path.join(data, 'export'),
+    films: path.join(data, 'export', 'films'),
+    // PDF สมุดคำอวยพร กับ รายชื่อผู้ส่งภาพ ที่สร้างจากหน้าแอดมิน
+    papers: path.join(data, 'export', 'papers'),
+  };
+
+  const paths = {
+    root,
+    data,
+    locales: path.join(root, 'locales'),
+    views: path.join(root, 'views'),
+    public: path.join(root, 'public'),
+    // คลังเพลงลิขสิทธิ์ฟรีใช้ร่วมกันทุกงานโดยตั้งใจ — โหลดครั้งเดียวหลายสิบเมกะไบต์
+    // แล้วทุกงานหยิบไปใช้ได้ ไม่ต้องมีสำเนาต่องาน
+    music: path.join(data, 'music'),
+  };
+
+  for (const key of PER_EVENT) {
+    Object.defineProperty(paths, key, {
+      enumerable: true,
+      get: () => eventPaths?.()?.[key] ?? fallback[key],
+    });
+  }
+  return paths;
+}
+
 export const config = {
   rootDir,
   env: str('NODE_ENV', 'production'),
@@ -159,25 +213,7 @@ export const config = {
     blush: colour('THEME_BLUSH'),
   },
 
-  paths: {
-    root: rootDir,
-    data: dataDir,
-    uploads: path.join(dataDir, 'uploads'),
-    derived: path.join(dataDir, 'derived'),
-    // รูปจาก photo booth — คนละโฟลเดอร์กับรูปแขกโดยตั้งใจ เหตุผลเดียวกับที่แยกตาราง
-    booth: path.join(dataDir, 'booth'),
-    db: path.join(dataDir, 'db', 'wedding.db'),
-    tmp: path.join(dataDir, 'tmp'),
-    locales: path.join(rootDir, 'locales'),
-    views: path.join(rootDir, 'views'),
-    public: path.join(rootDir, 'public'),
-    // หนังงานแต่งที่ export แล้ว กับเพลงคลอที่แอดมินอัพโหลดผ่านหน้าเว็บ
-    export: path.join(dataDir, 'export'),
-    films: path.join(dataDir, 'export', 'films'),
-    // PDF สมุดคำอวยพร กับ รายชื่อผู้ส่งภาพ ที่สร้างจากหน้าแอดมิน
-    papers: path.join(dataDir, 'export', 'papers'),
-    music: path.join(dataDir, 'music'),
-  },
+  paths: buildPaths(rootDir, dataDir),
 
   limits: {
     imageMb: num('MAX_IMAGE_MB', 25),

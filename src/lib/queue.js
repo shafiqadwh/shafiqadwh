@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { currentEvent, runInEvent } from './tenancy.js';
 import { transcodeVideo } from './media.js';
 
 /**
@@ -16,8 +17,15 @@ const selectQueued = db.prepare(
   "SELECT id, stored_name FROM items WHERE convert_state IN ('queued', 'running') ORDER BY id",
 );
 
+/*
+ * คิวเดียวรับงานจากทุกงานที่จัดอยู่พร้อมกัน — จึงต้องจำไว้ว่าแต่ละชิ้นเป็นของงานไหน
+ *
+ * `drain()` ทำงานนอกเส้นทางคำขอ (ตอบแขกไปแล้ว) ตรงนั้นจึงไม่มีบริบทของงานเหลืออยู่
+ * ถ้าไม่จำติดไปกับตัวงาน วิดีโอที่แขกของลูกค้า ก. อัพเข้ามาจะถูกแปลงโดยอ่านไฟล์จาก
+ * โฟลเดอร์ของงานเริ่มต้น แล้วเขียนผลลงฐานข้อมูลผิดไฟล์ — เงียบสนิท ไม่มี error
+ */
 export function enqueueConversion(itemId, storedName) {
-  pending.push({ itemId, storedName });
+  pending.push({ itemId, storedName, event: currentEvent() });
   markState.run('queued', itemId);
   void drain();
 }
@@ -44,16 +52,18 @@ async function drain() {
 
   while (pending.length > 0) {
     const job = pending.shift();
-    try {
-      markState.run('running', job.itemId);
-      const playbackName = await transcodeVideo(job.storedName);
-      markDone.run('done', playbackName, job.itemId);
-    } catch (error) {
-      // The original still plays on most devices, so a failed transcode is a
-      // degraded experience rather than a lost memory.
-      console.error(`[queue] conversion failed for ${job.storedName}:`, error.message);
-      markState.run('failed', job.itemId);
-    }
+    await runInEvent(job.event, async () => {
+      try {
+        markState.run('running', job.itemId);
+        const playbackName = await transcodeVideo(job.storedName);
+        markDone.run('done', playbackName, job.itemId);
+      } catch (error) {
+        // The original still plays on most devices, so a failed transcode is a
+        // degraded experience rather than a lost memory.
+        console.error(`[queue] conversion failed for ${job.storedName}:`, error.message);
+        markState.run('failed', job.itemId);
+      }
+    });
   }
 
   running = false;
@@ -62,14 +72,15 @@ async function drain() {
   callback?.();
 }
 
-/** Re-queue anything left half-done by a restart. */
+/** Re-queue anything left half-done by a restart — for whichever event is current. */
 export function resumeQueue() {
+  const event = currentEvent();
   const rows = selectQueued.all();
   for (const row of rows) {
-    pending.push({ itemId: row.id, storedName: row.stored_name });
+    pending.push({ itemId: row.id, storedName: row.stored_name, event });
   }
   if (rows.length > 0) {
-    console.log(`[queue] resuming ${rows.length} video conversion(s)`);
+    console.log(`[queue] resuming ${rows.length} video conversion(s) — ${event.slug}`);
     void drain();
   }
 }

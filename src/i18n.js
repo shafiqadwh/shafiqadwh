@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
+import { currentEvent } from './lib/tenancy.js';
 
 const catalogues = new Map();
 
@@ -49,7 +50,7 @@ function resolve(catalogue, fallback, key, kind) {
   return lookup(catalogue, key) ?? lookup(fallback, key);
 }
 
-export function translator(code, kind = config.event.kind) {
+export function translator(code, kind = currentEvent().branding.kind) {
   const catalogue = catalogues.get(code) ?? catalogues.get(config.i18n.default);
   const fallback = catalogues.get(config.i18n.default);
   return function t(key, vars) {
