@@ -209,3 +209,88 @@ test('backing out at the payment screen prints nothing and charges nothing', asy
 
   assert.equal((await ledger()).length, before, 'แขกเปลี่ยนใจต้องไม่มีบรรทัดในสมุดบัญชี');
 });
+
+/**
+ * โหมดจ่ายก่อนถ่าย — สำหรับงานที่คนเข้าถึงบูธได้ฟรีและคนเยอะ
+ *
+ * ปัญหาที่โหมดนี้แก้ไม่ใช่แค่ "เสียรายได้" แต่คือ **เสียคิว** — คนที่แวะมาลองเล่น
+ * แล้วเดินหนีตอนเห็นราคา ทำให้คนที่ตั้งใจจะซื้อต้องยืนรอ · งานปัจฉิม ม.6
+ * คือกรณีตัวอย่างตรง ๆ
+ *
+ * สลับค่าตั้งแล้วโหลดหน้าใหม่ในบูธตัวเดิม แทนที่จะเปิด Electron อีกตัว — เปิด
+ * เพิ่มอีกตัวคือเทสต์ทั้งไฟล์แย่งเครื่องกันจนถูกข้ามเงียบ ๆ ซึ่งเคยเกิดมาแล้ว
+ */
+async function switchToPayFirst() {
+  await saveSettings(path.join(userData, 'booth'), {
+    sale: { enabled: true, target: PHONE, price: PRICE, payWhen: 'before' },
+  });
+  // จอหน้าอ่านค่าตั้งตอนบูตครั้งเดียว — ต้องโหลดใหม่ถึงจะเห็นโหมดใหม่
+  await Promise.all([guest.reload(), operator.reload()]);
+  await guest.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+  await operator.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+}
+
+test('paying first: the price is on the very first button, before anyone touches it', async (t) => {
+  if (skipUnlessBoth(t)) return;
+  await switchToPayFirst();
+
+  // นี่คือส่วนที่กันคิวจริง ๆ — คนที่ไม่ได้ตั้งใจซื้อเห็นราคาตั้งแต่ยังไม่แตะจอ
+  assert.match(await guest.locator('#start-label').textContent(), /150/);
+  assert.match(await operator.locator('#go').textContent(), /150/);
+});
+
+test('paying first: pressing start takes payment instead of taking photos', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  const before = (await ledger()).length;
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+
+  // ยังไม่ได้ถ่ายอะไรเลย และยังไม่มีบรรทัดในสมุดบัญชี — แค่ยืนดูราคาอยู่
+  assert.equal(await guest.locator('#pay-price').textContent(), '150 บาท');
+  assert.equal((await ledger()).length, before);
+
+  // เดินหนีตอนเห็นราคา = ไม่เสียอะไรทั้งสองฝ่าย และไม่มีรอบค้างบนดิสก์
+  const sessionsBefore = await fs.readdir(path.join(userData, 'booth', 'sessions'));
+  await operator.locator('#back').click();
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 30000 });
+  assert.deepEqual(
+    await fs.readdir(path.join(userData, 'booth', 'sessions')),
+    sessionsBefore,
+    'คนที่ไม่จ่ายต้องไม่ทิ้งรอบเปล่าไว้บนดิสก์',
+  );
+  assert.equal((await ledger()).length, before);
+});
+
+test('paying first: the money and the photos end up on the same ticket', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+  await operator.locator('#go').click();
+
+  // จ่ายแล้วถึงจะได้ถ่าย — ไปที่ขั้นถ่ายเอง ไม่ต้องกดซ้ำ
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+
+  const rows = await ledger();
+  const paid = rows.at(-1);
+  assert.equal(paid.amount, PRICE);
+  assert.match(paid.token, /^[0-9A-Z]{6}$/);
+
+  /*
+   * ข้อที่สำคัญที่สุดของโหมดนี้: บรรทัดในสมุดบัญชีต้องผูกกับรอบถ่ายจริง
+   *
+   * จ่ายก่อนถ่ายแปลว่าตอนรับเงินยังไม่มีรูป — ถ้าจดโดยไม่มีโทเคน เวลาลูกค้าทักมา
+   * ว่า "จ่ายแล้วไม่ได้รูป" จะไม่มีอะไรให้ค้นเลย · โทเคนที่จองตอนรับเงินต้องเป็น
+   * ใบเดียวกับที่รูปไปนั่งอยู่
+   */
+  // ดูจากจอช่างภาพ ไม่ใช่จอแขก — จอแขกซ่อนรหัสเมื่อบูธไม่ได้ตั้งที่อยู่เว็บไว้
+  // (รหัสที่พาไปไหนไม่ได้ไม่ต้องขึ้นให้แขกอ่าน) แต่คนกระทบยอดคือเจ้าของบูธ
+  assert.match(await operator.locator('#code').textContent(), new RegExp(paid.token));
+  await fs.access(path.join(userData, 'booth', 'sessions', paid.token, 'sheet.jpg'));
+
+  // และจากตรงนี้ไม่ต้องจ่ายอีก — กดต่อได้เลย จ่ายไปแล้วรอบหนึ่ง
+  await operator.locator('#go').click();
+  await guest.waitForSelector('body[data-stage="done"]', { timeout: 70000 });
+  assert.equal((await ledger()).length, rows.length, 'จ่ายรอบเดียวต้องถูกจดครั้งเดียว');
+});

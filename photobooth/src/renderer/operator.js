@@ -29,7 +29,10 @@ const STAGE_LABEL = {
   done: 'ส่งมอบแล้ว',
 };
 
-const state = { deliver: 'print', sheets: 0 };
+const state = { deliver: 'print', sheets: 0, sale: null };
+
+/** จ่ายก่อนถ่าย = ปุ่มแรกบนจอนี้ก็ต้องบอกว่าจะพาไปเก็บเงิน ไม่ใช่ "เริ่มถ่าย" */
+const payFirst = () => state.sale?.enabled === true && state.sale.payWhen === 'before';
 
 const baht = (amount) => `${Number(amount).toLocaleString('th-TH')} บาท`;
 
@@ -40,7 +43,7 @@ function paintStage(stage) {
   el('stage-label').textContent = STAGE_LABEL[stage] ?? stage;
 
   el('go').textContent = {
-    ready: 'เริ่มถ่าย',
+    ready: payFirst() ? `เก็บเงิน ${baht(state.sale.price)}` : 'เริ่มถ่าย',
     shoot: 'กำลังถ่าย…',
     review: DELIVERY[state.deliver] ?? DELIVERY.print,
     // ปุ่มหลักบนจอนี้ = ปุ่มบนรีโมท · ตอนอยู่ขั้นเก็บเงิน มันแปลว่า "ได้รับเงินแล้ว"
@@ -163,6 +166,7 @@ async function boot() {
   try {
     const setup = await window.booth.setup();
     state.deliver = setup.settings.deliver;
+    state.sale = setup.settings.sale;
     remote = setup.settings.remote.enabled;
     document.documentElement.lang = setup.settings.lang;
     el('event-title').textContent = setup.settings.eventTitle;

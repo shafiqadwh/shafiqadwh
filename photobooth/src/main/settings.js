@@ -76,8 +76,19 @@ export const DEFAULTS = Object.freeze({
    *
    * `target` = เบอร์พร้อมเพย์/เลขบัตร/e-Wallet ที่รับเงิน · `price` = บาทต่อหนึ่งรอบ
    * **โปรแกรมรู้ได้แค่ว่าโชว์ QR ไปแล้ว ไม่มีทางรู้ว่าเงินเข้าหรือยัง** คนกดยืนยันเสมอ
+   *
+   * `payWhen` — จ่ายตอนไหน · เลือกตามงาน ไม่ใช่ตามความชอบ
+   *
+   * `after`  (ค่าเริ่มต้น) ถ่าย → ดูแผ่น → จ่าย → พิมพ์
+   *          แขกเห็นของก่อนจ่าย ไม่มีเรื่องขอเงินคืนเพราะรูปไม่ถูกใจ
+   *          เหมาะกับงานที่คนมาถ่ายเพราะตั้งใจจะซื้ออยู่แล้ว
+   *
+   * `before` จ่าย → ถ่าย → ดูแผ่น → พิมพ์
+   *          **กันคนเข้ามาลองเล่นแล้วเดินหนี** ซึ่งไม่ใช่แค่เสียรายได้ แต่เสีย
+   *          "คิว" ด้วย — คนที่ตั้งใจจะซื้อต้องยืนรอคนที่ไม่ได้ตั้งใจจะซื้อ
+   *          เหมาะกับงานที่คนเยอะและเข้าถึงบูธได้ฟรี (งานโรงเรียน งานวัด ตลาดนัด)
    */
-  sale: { enabled: false, target: '', price: 0 },
+  sale: { enabled: false, target: '', price: 0, payWhen: 'after' },
   printer: { driver: 'file', name: '' },
   // จอที่สองสำหรับช่างภาพ · auto = ใช้เมื่อเสียบจอไว้จริง, off = ไม่ใช้แม้จะมีจอ
   operatorScreen: 'auto',
@@ -170,7 +181,12 @@ function sale(value) {
   // เก็บเฉพาะตัวเลข — เบอร์ที่พิมพ์มาพร้อมขีดยังใช้ได้ แต่ในไฟล์เก็บรูปเดียว
   const target = payTarget(given.target) ? String(given.target).replace(/\D/g, '') : '';
   const price = isPrice(given.price) ? Math.round(Number(given.price) * 100) / 100 : 0;
-  return { enabled: given.enabled === true && Boolean(target) && price > 0, target, price };
+  return {
+    enabled: given.enabled === true && Boolean(target) && price > 0,
+    target,
+    price,
+    payWhen: oneOf(given.payWhen, ['after', 'before'], DEFAULTS.sale.payWhen),
+  };
 }
 
 function printer(value) {

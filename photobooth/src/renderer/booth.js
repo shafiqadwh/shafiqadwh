@@ -20,6 +20,8 @@ const state = {
   token: null,
   // ยอดกับ QR ของรอบที่กำลังเก็บเงิน — เก็บไว้ส่งซ้ำให้จอช่างภาพที่เพิ่งรีเฟรช
   pay: null,
+  // สิ่งที่จะทำต่อเมื่อรับเงินแล้ว — ถ่าย (จ่ายก่อน) หรือส่งมอบ (จ่ายทีหลัง)
+  afterPaying: null,
   busy: false,
   stream: null,
   relay: null,
@@ -182,7 +184,15 @@ async function shoot() {
   try {
     await openCamera();
   } catch (error) {
-    stage('ready');
+    /*
+     * โหมดจ่ายก่อนถ่าย: เงินรับไปแล้วและโทเคนถูกจองไว้แล้ว แต่รอบนี้ไม่ได้เกิดขึ้น
+     *
+     * ต้องคืนโทเคนทิ้ง ไม่ใช่ถือค้างไว้ — ถ้าถือไว้ คนถัดไปที่เดินมาจ่ายจะได้
+     * โทเคนใบเดิม แล้วสมุดบัญชีจะมีสองบรรทัดที่ผูกกับรอบถ่ายรอบเดียว ซึ่งกระทบยอด
+     * ไม่ได้อีกเลย · เงินยังอยู่ในสมุด (รับไปจริง) ส่วนคนที่จ่ายแล้วให้เจ้าของบูธ
+     * กด "ไม่คิดเงิน" ให้ถ่ายใหม่
+     */
+    await reset({ discard: true });
     fail(`เปิดกล้องไม่ได้: ${error.message}`);
     return;
   }
@@ -206,7 +216,7 @@ async function shoot() {
   setProgress('กำลังประกอบแผ่น…');
 
   const result = await guard(() =>
-    window.booth.compose({ shots: state.shots, effect: state.effect }));
+    window.booth.compose({ shots: state.shots, effect: state.effect, token: state.token }));
 
   // เก็บข้อความ "กำลังประกอบแผ่น" ทันทีที่ประกอบเสร็จ · จอหน้าซ่อนมันเองตอนเปลี่ยนฉาก
   // แต่จอช่างภาพโชว์แถบนี้ตลอด ข้อความค้างจึงกลายเป็นคำโกหกอยู่บนจอนั้น
@@ -236,10 +246,17 @@ async function shoot() {
  *
  * บูธที่ไม่ได้ตั้งขาย (รับจ้างงาน เจ้าภาพจ่ายมาแล้ว) ข้ามขั้นนี้ไปทั้งขั้น
  */
-async function askPayment() {
+/** บูธนี้เก็บเงินก่อนถ่ายไหม — ค่าตั้งเดียวที่เปลี่ยนลำดับทั้งขั้นตอน */
+const payFirst = () => state.setup?.settings?.sale?.enabled === true
+  && state.setup.settings.sale.payWhen === 'before';
+
+async function askPayment(next) {
   const sale = await guard(() => window.booth.sale());
   if (!sale) return;
-  if (!sale.enabled) return deliver();
+  // บูธที่ไม่ได้ตั้งขาย ข้ามขั้นนี้ไปทั้งขั้น — ทำสิ่งที่จะทำอยู่แล้วต่อเลย
+  if (!sale.enabled) return next();
+
+  state.afterPaying = next;
 
   /*
    * ปุ่มยืนยันรับเงินอยู่จอไหน — ตัดสินตอนนี้ ไม่ใช่ตอนบูต
@@ -268,8 +285,12 @@ async function askPayment() {
 async function confirmPaid({ free = false } = {}) {
   const result = await guard(() => window.booth.paid({ token: state.token, free }));
   if (!result) return;
+
+  // โหมดจ่ายก่อนถ่าย ฝั่งหลักจองโทเคนให้ตอนรับเงิน — ถือไว้ใช้ตอนประกอบแผ่น
+  // เพื่อให้บรรทัดในสมุดบัญชีกับรอบถ่ายเป็นใบเดียวกัน
+  state.token = result.token;
   say({ type: 'takings', takings: result.takings, free });
-  await deliver();
+  await (state.afterPaying ?? deliver)();
 }
 
 /** ป้ายบนปุ่มหลัก และข้อความตอนเสร็จ — ผูกกับโหมดส่งมอบที่ตั้งไว้ */
@@ -335,6 +356,7 @@ async function reset({ discard = false } = {}) {
   el('pay-qr').removeAttribute('src');
   el('pay-price').textContent = '';
   state.pay = null;
+  state.afterPaying = null;
   el('progress').textContent = '';
   say({ type: 'reset' });
   stage('ready');
@@ -359,8 +381,10 @@ async function reset({ discard = false } = {}) {
  */
 const ACTIONS = {
   shutter: {
-    ready: () => shoot(),
-    review: () => askPayment(),
+    // จ่ายก่อนถ่าย: ปุ่มแรกพาไปหน้าจ่ายเงิน · จ่ายทีหลัง: เริ่มถ่ายเลยเหมือนเดิม
+    ready: () => (payFirst() ? askPayment(shoot) : shoot()),
+    // จ่ายก่อนถ่ายแล้ว = จ่ายไปแล้ว · ขั้นนี้ต้องส่งมอบเลย ไม่ใช่เก็บเงินซ้ำ
+    review: () => (payFirst() ? deliver() : askPayment(deliver)),
     // รีโมทอยู่ในมือเจ้าของบูธ ซึ่งเป็นคนเดียวที่เห็นแอปธนาคาร — ปุ่มถ่ายบนรีโมท
     // จึงหมายถึง "ได้รับเงินแล้ว" ตอนอยู่ขั้นนี้ เหมือนที่มันหมายถึง "ทำขั้นต่อไป" เสมอ
     pay: () => confirmPaid(),
@@ -429,14 +453,26 @@ async function boot() {
   el('event-subtitle').textContent = settings.eventSubtitle;
   el('shot-count').textContent = shots > 1 ? `${shots} รูป` : '';
   el('deliver').textContent = (DELIVERY[settings.deliver] ?? DELIVERY.print).button;
+
+  /*
+   * โหมดจ่ายก่อนถ่าย: บอกราคาไว้บนปุ่มแรกเลย
+   *
+   * นี่คือส่วนที่กันคิวจริง ๆ ไม่ใช่ตัวขั้นตอน — คนที่ไม่ได้ตั้งใจจะซื้อจะเห็นราคา
+   * ตั้งแต่ยังไม่แตะจอ แล้วเดินผ่านไป แทนที่จะเข้ามาถ่ายเล่นจนคนที่ตั้งใจซื้อ
+   * ต้องยืนรอ · ปุ่มที่เขียนว่า "เริ่มถ่าย" เฉย ๆ ไม่ได้บอกอะไรจนกว่าจะสายไปแล้ว
+   */
+  if (payFirst()) {
+    el('start-label').textContent = `จ่าย ${settings.sale.price.toLocaleString('th-TH')} บาท`;
+    el('shot-count').textContent = shots > 1 ? `แล้วถ่าย ${shots} รูป` : 'แล้วเริ่มถ่าย';
+  }
   paintEffects(effects);
 
   for (const [name, value] of Object.entries(theme.colours)) {
     document.documentElement.style.setProperty(`--${name}`, value);
   }
 
-  el('start').addEventListener('click', () => shoot());
-  el('deliver').addEventListener('click', () => askPayment());
+  el('start').addEventListener('click', () => (payFirst() ? askPayment(shoot) : shoot()));
+  el('deliver').addEventListener('click', () => (payFirst() ? deliver() : askPayment(deliver)));
   el('pay-done').addEventListener('click', () => confirmPaid());
   el('pay-cancel').addEventListener('click', () => reset({ discard: true }));
 

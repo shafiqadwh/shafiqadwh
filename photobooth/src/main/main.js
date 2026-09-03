@@ -166,7 +166,7 @@ ipcMain.handle('booth:upload', async () => {
 // แล้วกินหน่วยความจำจนกระบวนการหลักตายกลางงาน
 const MAX_SHOTS = 8;
 
-ipcMain.handle('booth:compose', async (event, { shots, effect }) => {
+ipcMain.handle('booth:compose', async (event, { shots, effect, token: paid }) => {
   if (!Array.isArray(shots) || shots.length === 0 || shots.length > MAX_SHOTS) {
     throw new Error(`จำนวนรูปไม่ถูกต้อง: ${Array.isArray(shots) ? shots.length : typeof shots}`);
   }
@@ -174,7 +174,8 @@ ipcMain.handle('booth:compose', async (event, { shots, effect }) => {
   const photos = shots.map(decodeShot);
 
   // จองโทเคนก่อนประกอบ — QR ต้องมีโทเคนอยู่ข้างในตั้งแต่แรก จะได้ประกอบรอบเดียว
-  const { token } = await reserveSession(sessionsDir());
+  // โหมดจ่ายก่อนถ่ายจองไปแล้วตอนรับเงิน จึงส่งโทเคนใบเดิมมาใช้ต่อ ไม่จองซ้ำ
+  const { token } = isToken(paid) ? { token: paid } : await reserveSession(sessionsDir());
   const qrUrl = sheetQrUrl(settings, token);
 
   try {
@@ -251,6 +252,7 @@ ipcMain.handle('booth:sale', async () => {
   return {
     enabled: true,
     price: settings.sale.price,
+    payWhen: settings.sale.payWhen,
     qr: await QRCode.toDataURL(payload, { width: 720, margin: 1 }),
     takings: await takings(dataRoot()),
     /*
@@ -275,10 +277,19 @@ ipcMain.handle('booth:sale', async () => {
  * แล้วให้เจ้าของกระทบยอดกับแอปธนาคารตอนเก็บบูธ
  */
 ipcMain.handle('booth:paid', async (event, { token, free }) => {
-  if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   const settings = await loadSettings(dataRoot());
-  await recordSale(dataRoot(), { token, amount: settings.sale.price, free: free === true });
-  return { takings: await takings(dataRoot()) };
+
+  /*
+   * จ่ายก่อนถ่าย — ยังไม่มีโทเคน เพราะยังไม่มีรูป · จองไว้ตรงนี้เลย
+   *
+   * จองก่อนแล้วค่อยถ่าย ทำให้ **ทุกบรรทัดในสมุดบัญชีผูกกับรอบถ่ายจริงเสมอ**
+   * ไม่ว่าจ่ายก่อนหรือจ่ายหลัง · ถ้าปล่อยให้บรรทัดของ "จ่ายก่อน" ไม่มีโทเคน
+   * เวลาลูกค้าทักมาว่า "จ่ายแล้วไม่ได้รูป" จะไม่มีอะไรให้ค้นเลย
+   */
+  const ticket = isToken(token) ? token : (await reserveSession(sessionsDir())).token;
+
+  await recordSale(dataRoot(), { token: ticket, amount: settings.sale.price, free: free === true });
+  return { token: ticket, takings: await takings(dataRoot()) };
 });
 
 ipcMain.handle('booth:discard', async (event, { token }) => {
