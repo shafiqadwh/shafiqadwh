@@ -430,3 +430,26 @@ test('the wall rotates fairly, so an old photo is not starved by newer ones', as
   assert.match(js, /lastShown\.get\(entry\.key\) \?\? 0/,
     'ใบที่ยังไม่เคยขึ้นต้องมาก่อนใบที่เคยขึ้นแล้ว');
 });
+
+test('the polaroid frame styles the wall only, never every panel in the app', async () => {
+  /*
+   * บั๊กที่มีมานาน เจอตอนเปิดหน้าใหม่แล้วเห็นช่องว่างก้อนใหญ่ใต้ทุกแผง
+   *
+   * กรอบโพลารอยด์ของกำแพงเคยเขียนเป็น `.card` เดี่ยว ๆ แต่ `.card` ถูกใช้เป็น
+   * "แผงเนื้อหา" ทั่วทั้งเว็บอยู่แล้ว และกฎของกำแพงอยู่ท้ายไฟล์กว่า จึงชนะทุกหน้า
+   * ไปด้วยเงียบ ๆ · วัดค่าจริงบน /admin ก่อนแก้: background #fbf7ef, padding
+   * 20/20/49px, radius 2px ทั้งที่ตั้งใจให้เป็นสีขาว 18px และมุมมนตามธีม
+   */
+  const css = await fs.readFile(new URL('../public/css/app.css', import.meta.url), 'utf8');
+
+  // กฎที่ขึ้นต้นบรรทัดด้วย `.card {` คือกฎที่กินทั้งเว็บ — ต้องมีได้อันเดียว
+  // คือแผงเนื้อหา ส่วนของกำแพงต้องมี `.wall__card` นำหน้าเสมอ
+  const bare = [...css.matchAll(/^\.card \{/gm)];
+  assert.equal(bare.length, 1, 'มี `.card {` แบบไม่มีขอบเขตมากกว่าหนึ่งอัน');
+
+  assert.match(css, /^\.wall__card \.card \{/m, 'กรอบโพลารอยด์ต้องผูกกับกำแพงเท่านั้น');
+
+  // และกรอบต้องยังเป็นกรอบอยู่ ไม่ใช่หายไปพร้อมการแก้ขอบเขต
+  const frame = css.match(/^\.wall__card \.card \{([^}]*)\}/m)[1];
+  assert.match(frame, /padding:[^;]*11%/, 'ขอบล่างที่หนากว่าขอบอื่นคือสิ่งที่ทำให้ดูเป็นโพลารอยด์');
+});
