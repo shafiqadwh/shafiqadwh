@@ -123,6 +123,17 @@ body {
   color: var(--accent);
 }
 
+/* คำเตือนที่ต้องลงมือแก้ — เด่นกว่า .progress โดยตั้งใจ และค้างไว้จนเริ่มรอบใหม่ */
+.notice {
+  margin: 0 12px 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(224, 102, 58, 0.16);
+  color: #ffb08a;
+  text-align: center;
+  font-size: clamp(12px, 1.6vw, 17px);
+}
+
 .controls { display: flex; gap: 14px; }
 
 /* จอหลังก็เป็นจอสัมผัส — ปุ่มต้องกดโดนด้วยนิ้วโป้งเหมือนกัน */

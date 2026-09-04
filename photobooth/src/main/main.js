@@ -18,6 +18,7 @@ import { uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
 import { recordSale, takings } from './sales.js';
+import { createCamera } from './camera.js';
 import { createRemote } from '../core/keys.js';
 import { registerGlobalKeys } from './remote.js';
 import { openWindows } from './windows.js';
@@ -88,6 +89,21 @@ async function createWindow() {
   if (settings.remote.enabled) {
     registerGlobalKeys(globalShortcut, settings.remote.globalKeys, press);
   }
+
+  /*
+   * ปลุกกล้องตั้งแต่ตอนบูต — **ไม่รอผล** เพราะบูธต้องขึ้นจอให้ได้เสมอ
+   *
+   * มีสองเหตุผล: (1) เขียนลง log ตั้งแต่ต้นว่าเจอกล้องหรือไม่เจอเพราะอะไร เจ้าของ
+   * จะได้รู้ตอนตั้งบูธ ไม่ใช่ตอนแขกคนแรกยืนอยู่ (2) การเชื่อมต่อ USB ครั้งแรกช้ากว่า
+   * ครั้งถัด ๆ ไป จ่ายค่านั้นไปตอนที่ยังไม่มีใครรอดีกว่า
+   */
+  if (usingDslr(settings)) {
+    camera.detect()
+      .then((found) => console.log(found.ok
+        ? `[camera] พร้อมใช้งาน: ${found.model}`
+        : `[camera] ยังใช้กล้องใหญ่ไม่ได้ (จะใช้เว็บแคมแทน) — ${found.reason}`))
+      .catch((error) => console.warn('[camera] ตรวจกล้องไม่สำเร็จ:', error.message));
+  }
   return opened;
 }
 
@@ -98,10 +114,50 @@ function decodeShot(dataUrl) {
   return Buffer.from(dataUrl.slice(comma + 1), 'base64');
 }
 
+/*
+ * ── กล้องใหญ่ต่อสาย ──────────────────────────────────────────────────────
+ *
+ * ตัวเดียวทั้งแอป เพราะกล้องตัวเดียวรับได้ทีละคำสั่ง (คิวอยู่ใน createCamera)
+ * ที่เก็บไฟล์ชั่วคราวอยู่ใต้ dataRoot ไม่ใช่ /tmp — บูธบางเครื่อง /tmp เป็นแรม
+ * และไฟล์จากกล้อง 18MP หลายรูปติดกันกินแรมจนกระบวนการหลักตายกลางงานได้
+ */
+const camera = createCamera();
+const captureFile = () => path.join(dataRoot(), 'capture.jpg');
+
+/** ใช้กล้องใหญ่ถ่ายรอบนี้ไหม — ถามค่าตั้งทุกครั้ง เพราะสลับได้จากหน้าตั้งค่ากลางงาน */
+const usingDslr = (settings) => settings.camera.source === 'dslr';
+
+ipcMain.handle('booth:camera', async () => {
+  const found = await camera.detect();
+  console.log(found.ok ? `[camera] เจอกล้อง: ${found.model}` : `[camera] ${found.reason}`);
+  return found;
+});
+
+/**
+ * ลั่นชัตเตอร์กล้องใหญ่หนึ่งครั้ง
+ *
+ * **ล้มได้ และต้องล้มแบบเงียบ ๆ** — หน้าจอเก็บเฟรมจากเว็บแคมไว้แล้วก่อนเรียกตรงนี้
+ * เสมอ (ดู `takeShot` ใน booth.js) ตอบว่าไม่ได้ก็แค่ใช้เฟรมนั้นแทน แขกยังได้รูป
+ * ยังได้แผ่น และคิวยังเดิน · สิ่งเดียวที่เสียคือความคมของรอบนั้นรอบเดียว
+ */
+ipcMain.handle('booth:shot', async () => {
+  const settings = await loadSettings(dataRoot());
+  if (!usingDslr(settings)) return { ok: false, reason: 'บูธนี้ตั้งให้ถ่ายด้วยเว็บแคม' };
+
+  const shot = await camera.capture(captureFile(), { keepOnCard: settings.camera.keepOnCard });
+  if (!shot.ok) {
+    console.warn('[camera] ถ่ายไม่สำเร็จ ใช้ภาพจากเว็บแคมแทน:', shot.reason);
+    return { ok: false, reason: shot.reason };
+  }
+  return { ok: true, data: `data:image/jpeg;base64,${shot.data.toString('base64')}` };
+});
+
 ipcMain.handle('booth:setup', async () => {
   const settings = await loadSettings(dataRoot());
   return {
     settings,
+    // หน้าจอต้องรู้ตั้งแต่ตอนบูตว่าจะขอรูปจากฝั่งหลัก หรือเก็บเฟรมเอง
+    dslr: usingDslr(settings),
     theme: themeById(settings.theme),
     shots: shotsFor(settings.template),
     templates: listTemplates(settings.lang),

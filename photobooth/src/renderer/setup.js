@@ -38,6 +38,8 @@ function paint(settings) {
   el('countdownSeconds').value = settings.countdownSeconds;
   el('copies').value = settings.copies;
   el('deliver').value = settings.deliver;
+  el('cameraSource').value = settings.camera.source;
+  el('cameraKeepOnCard').checked = settings.camera.keepOnCard;
   el('printerDriver').value = settings.printer.driver;
   el('printerName').value = settings.printer.name;
 
@@ -62,6 +64,10 @@ const patchFromForm = () => ({
   countdownSeconds: Number(el('countdownSeconds').value),
   copies: Number(el('copies').value),
   deliver: el('deliver').value,
+  camera: {
+    source: el('cameraSource').value,
+    keepOnCard: el('cameraKeepOnCard').checked,
+  },
   printer: { driver: el('printerDriver').value, name: el('printerName').value },
   sale: {
     enabled: el('saleEnabled').checked,
@@ -123,6 +129,26 @@ async function checkPay() {
   }
 }
 
+/**
+ * ตรวจว่าเสียบกล้องแล้วเจอไหม — **ทำตอนตั้งบูธ ไม่ใช่ตอนแขกคนแรกยืนอยู่**
+ *
+ * ตอบด้วยชื่อรุ่นที่เจอจริง ไม่ใช่แค่ "เจอ/ไม่เจอ" เพราะบูธที่มีกล้องสองตัววางอยู่
+ * ต้องรู้ว่าเสียบสายถูกตัวหรือเปล่า · ไม่เจอก็ต้องบอกวิธีแก้ ไม่ใช่บอกว่าไม่เจอเฉย ๆ
+ */
+async function checkCamera() {
+  const note = el('camera-note');
+  note.textContent = 'กำลังตรวจ…';
+  try {
+    const found = await window.booth.camera();
+    note.textContent = found.ok ? `เจอกล้อง: ${found.model}` : found.reason;
+    status(found.ok ? `พร้อมถ่ายด้วย ${found.model}` : 'ยังใช้กล้องใหญ่ไม่ได้',
+      found.ok ? 'good' : 'bad');
+  } catch (error) {
+    note.textContent = `ตรวจไม่สำเร็จ: ${error.message}`;
+    status('ตรวจกล้องไม่สำเร็จ', 'bad');
+  }
+}
+
 async function boot() {
   try {
     const setup = await window.booth.settings();
@@ -139,6 +165,7 @@ async function boot() {
   el('save').addEventListener('click', save);
   el('cancel').addEventListener('click', () => window.booth.closeSettings());
   el('check').addEventListener('click', checkPay);
+  el('check-camera').addEventListener('click', checkCamera);
   // เปลี่ยนเบอร์หรือราคาแล้ว QR ใบเก่ายังค้างอยู่ = สแกนใบที่ไม่ตรงกับที่กำลังจะบันทึก
   for (const id of ['saleTarget', 'salePrice']) {
     el(id).addEventListener('input', () => { el('check-qr').hidden = true; });

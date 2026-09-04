@@ -89,6 +89,19 @@ export const DEFAULTS = Object.freeze({
    *          เหมาะกับงานที่คนเยอะและเข้าถึงบูธได้ฟรี (งานโรงเรียน งานวัด ตลาดนัด)
    */
   sale: { enabled: false, target: '', price: 0, payWhen: 'after' },
+  /*
+   * ถ่ายด้วยอะไร — **คนละเรื่องกับภาพพรีวิวบนจอ ซึ่งมาจากเว็บแคมเสมอ**
+   *
+   * webcam = ตัดเฟรมจากภาพสดที่แขกเห็น (ค่าเริ่มต้น ไม่ต้องมีอุปกรณ์อะไรเพิ่ม)
+   * dslr   = ลั่นชัตเตอร์กล้องใหญ่ที่ต่อสาย USB ไว้ ได้ไฟล์เต็มจากเซนเซอร์ APS-C
+   *
+   * โหมด dslr **ไม่เปิด Live View ของกล้องเลย** กล้องจึงไม่ร้อนและแบตอยู่ทั้งคืน
+   * (เหตุผลเต็ม ๆ อยู่หัวไฟล์ camera.js) · หากล้องไม่เจอตอนถ่าย ระบบตกกลับไปใช้
+   * เฟรมจากเว็บแคมให้เอง — บูธต้องไม่หยุดรับเงินเพราะสาย USB หลุดเส้นเดียว
+   *
+   * `keepOnCard` ให้กล้องเขียนลงการ์ดของตัวเองด้วย = สำเนาสำรองของทุกรูปที่ขายไป
+   */
+  camera: { source: 'webcam', keepOnCard: true },
   printer: { driver: 'file', name: '' },
   // จอที่สองสำหรับช่างภาพ · auto = ใช้เมื่อเสียบจอไว้จริง, off = ไม่ใช้แม้จะมีจอ
   operatorScreen: 'auto',
@@ -189,6 +202,14 @@ function sale(value) {
   };
 }
 
+function camera(value) {
+  const given = value && typeof value === 'object' ? value : {};
+  return {
+    source: oneOf(given.source, ['webcam', 'dslr'], DEFAULTS.camera.source),
+    keepOnCard: given.keepOnCard !== false,
+  };
+}
+
 function printer(value) {
   const given = value && typeof value === 'object' ? value : {};
   return {
@@ -235,6 +256,7 @@ export function normaliseSettings(raw) {
     baseUrl: baseUrl(given.baseUrl),
     uploadKey: usableKey(given.uploadKey) ? given.uploadKey : '',
     sale: sale(given.sale),
+    camera: camera(given.camera),
     printer: printer(given.printer),
     operatorScreen: oneOf(given.operatorScreen, ['auto', 'off'], DEFAULTS.operatorScreen),
     remote: remote(given.remote),

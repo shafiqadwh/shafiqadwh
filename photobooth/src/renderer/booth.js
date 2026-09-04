@@ -137,17 +137,59 @@ function stopRelay() {
  * เงาในกระจกยกมือที่อยู่ฝั่งเดียวกัน) ถ้ารูปที่พิมพ์ออกมาไม่พลิกตาม ตัวหนังสือ
  * บนเสื้อจะกลับด้านจากที่เห็นตอนถ่าย ซึ่งคนทักทุกครั้ง
  */
-function grabFrame() {
+function grabFrame({ mirror = true } = {}) {
   const video = el('preview');
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
   const ctx = canvas.getContext('2d');
-  ctx.translate(canvas.width, 0);
-  ctx.scale(-1, 1);
+  if (mirror) {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(video, 0, 0);
   return canvas.toDataURL('image/jpeg', 0.95);
+}
+
+/**
+ * เก็บภาพหนึ่งรูป — จากกล้องใหญ่ถ้าตั้งไว้ ไม่งั้นจากเว็บแคม
+ *
+ * **เก็บเฟรมเว็บแคมไว้ก่อนเสมอ ทุกครั้ง แม้จะตั้งใช้กล้องใหญ่**
+ *
+ * นี่คือหัวใจของทั้งโหมดนี้ · ตอนที่เรารู้ว่ากล้องใหญ่ไม่ตอบ แขกโพสท่าไปแล้วและ
+ * จังหวะนั้นผ่านไปแล้ว — จะย้อนกลับไปเก็บใหม่ไม่ได้ · เก็บเฟรมไว้ตั้งแต่วินาทีที่
+ * แฟลชสว่างจึงเป็นทางเดียวที่ทำให้ **สายหลุดเส้นเดียวไม่ทำให้แขกกลับมือเปล่า**
+ * ราคาที่จ่ายคือการวาดแคนวาสหนึ่งครั้งซึ่งไม่กี่มิลลิวินาที
+ *
+ * โหมดกล้องใหญ่ไม่พลิกซ้ายขวา ทั้งภาพจากกล้องและภาพสำรอง — รูปในแผ่นเดียวกัน
+ * ต้องหันทางเดียวกันเสมอ ไม่ว่ารูปไหนมาจากทางไหน
+ */
+async function takeShot() {
+  const dslr = state.setup.dslr === true;
+  const backup = grabFrame({ mirror: !dslr });
+  if (!dslr) return backup;
+
+  try {
+    setProgress('กล้องกำลังบันทึก…');
+    const shot = await window.booth.shot();
+    if (shot?.ok && shot.data) return shot.data;
+    notify(`กล้องใหญ่ไม่ได้ถ่ายรอบนี้ — ใช้ภาพจากเว็บแคมแทน · ${shot?.reason ?? ''}`);
+  } catch (error) {
+    notify(`เรียกกล้องใหญ่ไม่สำเร็จ ใช้ภาพจากเว็บแคมแทน: ${error?.message ?? ''}`);
+  }
+  return backup;
+}
+
+/**
+ * บอกเฉพาะจอช่างภาพ ไม่ขึ้นบนจอแขก
+ *
+ * "กล้องใหญ่ไม่ทำงาน" เป็นเรื่องที่คนทำงานต้องรู้ทันที (รูปรอบนั้นคมน้อยลง และ
+ * ต้องไปแก้ก่อนรอบถัดไป) แต่ไม่ใช่เรื่องที่แขกซึ่งกำลังยิ้มอยู่หน้ากล้องต้องอ่าน
+ */
+function notify(text) {
+  console.warn(text);
+  say({ type: 'notice', text });
 }
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -208,7 +250,9 @@ async function shoot() {
       setProgress(needed > 1 ? `รูปที่ ${i} จาก ${needed}` : '');
       await countdown(settings.countdownSeconds);
       flash();
-      state.shots.push(grabFrame());
+      // แฟลชสว่างก่อนเก็บภาพเสมอ — จังหวะที่แขกเห็นแสงคือจังหวะที่ภาพถูกเก็บจริง
+      state.shots.push(await takeShot());
+      setProgress('');
       // เว้นจังหวะให้แขกเปลี่ยนท่า ไม่ใช่รัวติดกันจนได้สามรูปท่าเดียวกัน
       if (i < needed) await wait(900);
     }

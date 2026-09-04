@@ -43,6 +43,28 @@
       </p>
     </section>
 
+    <!--
+      กล้อง — ภาพพรีวิวบนจอมาจากเว็บแคมเสมอ ไม่ว่าตั้งค่านี้เป็นอะไร
+      โหมดกล้องใหญ่ไม่เปิด Live View ของกล้องเลย กล้องจึงไม่ร้อนและแบตอยู่ทั้งคืน
+    -->
+    <section class="group">
+      <h2>กล้อง</h2>
+      <label>ใช้อะไรถ่ายรูปจริง
+        <select id="cameraSource">
+          <option value="webcam">เว็บแคม — ตัดภาพจากที่แขกเห็นบนจอ</option>
+          <option value="dslr">กล้องใหญ่ต่อสาย USB — คมกว่ามาก</option>
+        </select>
+      </label>
+      <label class="check"><input id="cameraKeepOnCard" type="checkbox">
+        เก็บสำเนาไว้ในการ์ดของกล้องด้วย</label>
+      <p class="hint">
+        ภาพบนจอยังมาจากเว็บแคมเหมือนเดิม · หากล้องไม่เจอตอนถ่าย
+        ระบบใช้ภาพเว็บแคมแทนให้เอง บูธไม่หยุด
+      </p>
+      <button class="btn btn--ghost" id="check-camera" type="button">ตรวจว่าเจอกล้องไหม</button>
+      <p class="hint" id="camera-note"></p>
+    </section>
+
     <section class="group">
       <h2>เครื่องพิมพ์</h2>
       <label>ตัวขับ

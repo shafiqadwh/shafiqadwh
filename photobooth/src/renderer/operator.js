@@ -146,6 +146,17 @@ const HANDLERS = {
     if (body.dataset.stage === 'ready') paintStage('ready');
   },
   progress: ({ text }) => { el('progress').textContent = text ?? ''; },
+  /*
+   * เรื่องที่คนทำงานต้องลงมือแก้ แต่แขกไม่ต้องอ่าน (กล้องใหญ่ไม่ทำงาน ฯลฯ)
+   *
+   * ต้องมีบรรทัดของตัวเอง ไม่ใช่ไปเขียนทับ `.progress` — วัดแล้วเจอ: ข้อความจะถูก
+   * ลบทิ้งในเสี้ยววินาทีถัดมาโดย setProgress('') ที่ตามหลังการถ่ายเสมอ
+   * ช่างภาพจึงไม่มีทางได้อ่านเลยสักครั้ง ทั้งที่เป็นเรื่องที่ต้องแก้ก่อนรอบถัดไป
+   */
+  notice: ({ text }) => {
+    el('notice').textContent = text ?? '';
+    el('notice').hidden = !text;
+  },
   done: ({ printed, published, code, text }) => {
     state.sheets += printed ? 1 : 0;
     el('tally').textContent = `วันนี้ ${state.sheets} แผ่น`;
@@ -161,6 +172,9 @@ const HANDLERS = {
   reset: () => {
     clearImage();
     el('code').textContent = '';
+    // คำเตือนของรอบก่อนต้องไม่ค้างข้ามรอบ ไม่งั้นช่างภาพจะเลิกอ่านมันไปเลย
+    el('notice').hidden = true;
+    el('notice').textContent = '';
     // QR จ่ายเงินของรอบก่อนต้องไม่ค้าง — จอนี้เปิดทั้งวันโดยไม่มีใครรีเฟรช
     el('pay-qr').removeAttribute('src');
     el('pay-price').textContent = '';
