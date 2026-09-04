@@ -184,6 +184,20 @@ body {
 
 .foot__send[disabled] { opacity: 0.45; cursor: default; }
 
+/* ปุ่มตั้งค่า — จืดกว่าปุ่มอื่นอีก ใช้ตอนตั้งบูธ ไม่ใช่ตอนแขกต่อแถว */
+.foot__setup {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.foot__setup[disabled] { opacity: 0.3; cursor: default; }
+
 /* ── แผงเก็บเงิน ─────────────────────────────────────────────────────────
    QR ซ้าย ยอดขวา · เจ้าของบูธมองแวบเดียวต้องรู้ว่าต้องเก็บเท่าไร
    ขึ้นเฉพาะขั้นจ่ายเงิน เพราะขั้นอื่นมันคือพื้นที่ที่แย่งไปจากภาพที่ต้องดู       */

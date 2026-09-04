@@ -377,6 +377,31 @@ async function reset({ discard = false } = {}) {
   }
 }
 
+/**
+ * ถ่ายใหม่ทั้งที่จ่ายเงินไปแล้ว — **ต้องไม่พากลับไปหน้าจ่ายเงินอีก**
+ *
+ * รูปไม่ถูกใจแล้วขอถ่ายใหม่คือสิ่งที่เกิดแทบทุกรอบในงานที่คนถ่ายเป็นนักเรียน
+ * ถ้ากดปุ่มนี้แล้วเงินที่จ่ายไปหายไปด้วย เจ้าของบูธมีทางเลือกแค่เถียงกับแขก
+ * หรือกด "ไม่คิดเงิน" ให้ทุกครั้ง — ทางหลังทำให้สมุดบัญชีเต็มไปด้วยรอบฟรี
+ * ที่ไม่ได้ฟรีจริง แล้วตัวเลขที่เอาไปกระทบยอดตอนเก็บบูธก็เชื่อไม่ได้อีกต่อไป
+ *
+ * โทเคนใบเดิมถูกถือไว้ตลอด รอบที่จ่ายแล้วจึงยังเป็นรอบเดียวกันไม่ว่าถ่ายกี่ครั้ง
+ * (ล้างเฉพาะของข้างใน ดู `clearSession` — คืนโฟลเดอร์ทิ้งคือคืนโทเคนให้คนถัดไป)
+ */
+async function retake() {
+  if (!state.token) return reset({ discard: true });
+
+  const cleared = await guard(() => window.booth.retake({ token: state.token }));
+  // ล้างของเดิมไม่สำเร็จแล้วถ่ายทับ = รูปสองรอบปนกันในโฟลเดอร์เดียว · อยู่ที่เดิม
+  // ให้แขกกดใหม่ดีกว่า เพราะแผ่นที่เห็นอยู่ตอนนี้ยังส่งมอบได้ตามปกติ
+  if (!cleared) return undefined;
+
+  el('sheet').removeAttribute('src');
+  el('token').textContent = '';
+  say({ type: 'reset' });
+  return shoot();
+}
+
 // ── คำสั่งจากรีโมทและจอช่างภาพ ─────────────────────────────────────────────
 
 /**
@@ -400,7 +425,8 @@ const ACTIONS = {
     done: () => reset(),
   },
   back: {
-    review: () => reset({ discard: true }),
+    // จ่ายมาแล้ว = ถ่ายใหม่ให้ · ยังไม่จ่าย = ทิ้งรอบนี้ไปเลย
+    review: () => (payFirst() ? retake() : reset({ discard: true })),
     pay: () => reset({ discard: true }),
     done: () => reset(),
   },
@@ -418,6 +444,34 @@ function act(action) {
   // ไม่งั้นรีโมทกลายเป็นทางลัดสั่งพิมพ์ซ้ำที่จอไม่มี
   if (state.busy) return;
   ACTIONS[action]?.[body.dataset.stage]?.();
+}
+
+/**
+ * ทางเข้าหน้าตั้งค่าสำหรับบูธที่มีจอเดียว — กดค้างที่ชื่องานสองวินาที
+ *
+ * บูธจอเดียว (กางหน้าบ้าน ออกตลาดนัด) ไม่มีจอช่างภาพให้มีปุ่มตั้งค่า และเป็น
+ * รูปแบบเดียวกับที่ใช้ขายเองเก็บเงินเอง — คือรูปแบบที่ **ต้องแก้ราคาได้จริง**
+ *
+ * กดค้างแทนที่จะเป็นปุ่ม เพราะจอนี้หันออกไปทางแขก · ปุ่มที่เห็นคือปุ่มที่ถูกกด
+ * และท่ากดค้างสองวินาทีบนตัวหนังสือที่ไม่มีอะไรบอกว่ากดได้ ไม่มีใครบังเอิญทำ
+ * เปิดได้เฉพาะขั้นพร้อมถ่าย — ขั้นอื่นมีรอบของแขกค้างอยู่ ซึ่งการโหลดใหม่จะทิ้งไป
+ */
+const SETUP_HOLD_MS = 2000;
+
+function watchSetupGesture() {
+  const target = el('event-title');
+  let timer = null;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+
+  target.addEventListener('pointerdown', () => {
+    cancel();
+    timer = setTimeout(() => {
+      if (body.dataset.stage === 'ready' && !state.busy) window.booth.openSettings();
+    }, SETUP_HOLD_MS);
+  });
+  for (const event of ['pointerup', 'pointercancel', 'pointerleave']) {
+    target.addEventListener(event, cancel);
+  }
 }
 
 // ── ตั้งค่าเริ่มต้น ────────────────────────────────────────────────────────
@@ -485,7 +539,8 @@ async function boot() {
   el('pay-done').addEventListener('click', () => confirmPaid());
   el('pay-cancel').addEventListener('click', () => reset({ discard: true }));
 
-  el('again').addEventListener('click', () => reset({ discard: true }));
+  el('again').addEventListener('click', () => (payFirst() ? retake() : reset({ discard: true })));
+  watchSetupGesture();
   el('restart').addEventListener('click', () => reset());
 
   /*

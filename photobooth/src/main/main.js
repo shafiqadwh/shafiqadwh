@@ -3,15 +3,17 @@ import { fileURLToPath } from 'node:url';
 import { BrowserWindow, app, globalShortcut, ipcMain, screen } from 'electron';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
-import { themeById } from '../../../shared/themes.js';
+import { THEMES, themeById, themeName } from '../../../shared/themes.js';
 import { composeSheet } from '../core/sheet.js';
 import { makeGif } from '../core/animation.js';
 import { listEffects } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
 import {
-  canPublish, ensureAlbumCode, isAlbumCode, loadSettings, photoUrl, sheetQrUrl,
+  canPublish, ensureAlbumCode, isAlbumCode, loadSettings, photoUrl, saveSettings, sheetQrUrl,
 } from './settings.js';
-import { discardSession, isToken, listSessions, reserveSession, saveSession } from './session.js';
+import {
+  clearSession, discardSession, isToken, listSessions, reserveSession, saveSession,
+} from './session.js';
 import { uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
@@ -41,7 +43,7 @@ const dataRoot = () => path.join(process.env.BOOTH_USER_DATA || app.getPath('use
 const sessionsDir = () => path.join(dataRoot(), 'sessions');
 const outboxDir = () => path.join(dataRoot(), 'outbox');
 
-const windows = { guest: null, operator: null };
+const windows = { guest: null, operator: null, setup: null };
 
 const alive = (win) => Boolean(win) && !win.isDestroyed();
 
@@ -110,6 +112,77 @@ ipcMain.handle('booth:setup', async () => {
 });
 
 ipcMain.on('booth:broadcast', (event, message) => relay(event.sender, message));
+
+/*
+ * ── หน้าตั้งค่าในแอป ──────────────────────────────────────────────────────
+ *
+ * เปิดเป็น **หน้าต่างของตัวเอง** ไม่ใช่แผงทับจอบูธ · จอบูธเป็นจอสัมผัสเต็มจอที่
+ * หันออกไปทางแขก แผงตั้งค่าที่ทับอยู่บนนั้นคือของที่แขกแตะโดนได้ และเป็นของที่
+ * ต้องปิดให้ถูกจังหวะก่อนคนถัดไปเดินมา · หน้าต่างแยกปิดตัวเองได้ และจอบูธไม่ต้อง
+ * รู้จักมันเลย
+ *
+ * เปิดได้จากสองทาง เพราะบูธมีสองรูปแบบจริง ๆ: มีจอช่างภาพ (ปุ่มบนจอนั้น) และ
+ * จอเดียวกางหน้าบ้าน (กดค้างที่ชื่องานบนจอบูธ — ท่าที่แขกไม่บังเอิญทำ)
+ * ทั้งสองทางเปิดได้เฉพาะตอนอยู่หน้าพร้อมถ่าย ซึ่งเป็นขั้นเดียวที่ไม่มีรอบค้างอยู่
+ */
+function openSetupWindow() {
+  if (alive(windows.setup)) {
+    windows.setup.focus();
+    return;
+  }
+  windows.setup = new BrowserWindow({
+    width: 900,
+    height: 760,
+    backgroundColor: '#14141a',
+    autoHideMenuBar: true,
+    webPreferences: { preload: path.join(here, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
+  });
+  windows.setup.loadFile(path.join(renderer, 'setup.html'));
+  windows.setup.once('closed', () => { windows.setup = null; });
+}
+
+ipcMain.on('booth:open-settings', openSetupWindow);
+ipcMain.on('booth:close-settings', () => { if (alive(windows.setup)) windows.setup.close(); });
+
+ipcMain.handle('booth:settings', async () => {
+  const settings = await loadSettings(dataRoot());
+  return {
+    settings,
+    // โหมดส่งมอบทางจอต้องมีที่อยู่เว็บกับกุญแจครบ — บอกไปเลยว่าเลือกได้หรือยัง
+    // แทนที่จะให้เลือกแล้วโดนบีบกลับเป็น "พิมพ์" เงียบ ๆ ตอนบันทึก
+    canPublish: canPublish(settings),
+    themes: THEMES.map((theme) => ({ id: theme.id, name: themeName(theme, settings.lang) })),
+    templates: listTemplates(settings.lang),
+  };
+});
+
+ipcMain.handle('booth:save', async (event, patch) => {
+  const saved = await saveSettings(dataRoot(), patch);
+  /*
+   * จอบูธอ่านค่าตั้งตอนบูตครั้งเดียว — ต้องโหลดใหม่ทั้งสองจอ
+   *
+   * ไม่โหลดใหม่แปลว่าค่าที่เพิ่งบันทึกจะมีผลก็ต่อเมื่อปิดเปิดแอปใหม่ ซึ่งคือ
+   * สิ่งที่หน้านี้มีไว้เลิกทำตั้งแต่แรก · โหลดใหม่ตรงนี้ปลอดภัยเพราะเปิดหน้าตั้งค่า
+   * ได้เฉพาะตอนอยู่ขั้นพร้อมถ่าย — ไม่มีรอบไหนค้างอยู่ให้เสียหาย
+   */
+  for (const win of [windows.guest, windows.operator]) {
+    if (alive(win)) win.webContents.reload();
+  }
+  return saved;
+});
+
+/**
+ * ลองสร้าง QR จากเบอร์กับราคาที่กำลังพิมพ์อยู่ — **ให้สแกนด้วยแอปธนาคารจริงก่อนขาย**
+ *
+ * นี่คือขั้นตอนที่เอกสารบอกให้ทำด้วยมือทุกครั้งก่อนเปิดบูธ · โปรแกรมตรวจเองไม่ได้
+ * ว่าเงินจะเข้าบัญชีไหน มีแต่คนเท่านั้นที่ตรวจได้ — สิ่งที่ทำให้ได้คือเอา QR ใบจริง
+ * มาวางตรงหน้าตอนที่ยังแก้เบอร์ได้ แทนที่จะไปรู้ตอนแขกคนแรกสแกนแล้วเงินเข้าคนอื่น
+ */
+ipcMain.handle('booth:check-pay', async (event, { target, price } = {}) => {
+  const payload = promptPayPayload({ target, amount: price });
+  if (!payload) return { ok: false };
+  return { ok: true, qr: await QRCode.toDataURL(payload, { width: 520, margin: 1 }) };
+});
 
 /**
  * งานหลังงาน — ส่งรอบถ่ายที่ยังค้างขึ้นเว็บ
@@ -295,6 +368,18 @@ ipcMain.handle('booth:paid', async (event, { token, free }) => {
 ipcMain.handle('booth:discard', async (event, { token }) => {
   if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   await discardSession(sessionsDir(), token);
+  return { ok: true };
+});
+
+/**
+ * ถ่ายใหม่ทั้งที่จ่ายเงินไปแล้ว — ล้างรูปรอบนี้ทิ้ง แต่ถือโทเคนใบเดิมไว้
+ *
+ * "ถ่ายใหม่" กับ "ไม่เอาแล้ว" เป็นคนละคำสั่งกันเมื่อมีเงินเข้ามาเกี่ยวข้อง
+ * รวมเป็นคำสั่งเดียวเมื่อไร รอบที่จ่ายแล้วจะถูกทิ้งไปพร้อมกับเงินที่รับมา
+ */
+ipcMain.handle('booth:retake', async (event, { token }) => {
+  if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
+  await clearSession(sessionsDir(), token);
   return { ok: true };
 });
 

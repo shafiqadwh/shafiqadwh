@@ -127,6 +127,24 @@ export async function discardSession(root, token) {
   await fs.rm(dirFor(root, token), { recursive: true, force: true });
 }
 
+/**
+ * ล้างของในรอบถ่ายทิ้ง แต่ **ไม่คืนโทเคน** — สำหรับ "ถ่ายใหม่" ของรอบที่จ่ายเงินแล้ว
+ *
+ * ต่างจาก `discardSession` ตรงคำถามว่ารอบนี้ยังมีอยู่ไหม · จ่ายเงินมาแล้วแปลว่ารอบนี้
+ * ยังเป็นของแขกคนเดิมอยู่ แค่ยังไม่ได้รูปที่ถูกใจ — คืนโทเคนทิ้งคือทิ้งเงินที่รับมาแล้ว
+ * ไปด้วย เพราะบรรทัดในสมุดบัญชีชี้ไปที่โทเคนใบนั้น แล้วจะกลายเป็นรอบที่จ่ายแล้วแต่
+ * ไม่มีรูปอยู่เลยสักใบ ซึ่งกระทบยอดย้อนหลังไม่ได้อีก
+ *
+ * เก็บโฟลเดอร์ไว้ ไม่ใช่แค่ลบไฟล์ข้างใน — โฟลเดอร์คือตัวจองโทเคน (ดู `claimToken`)
+ * หายไปเมื่อไรคนถัดไปจับได้โทเคนใบเดียวกัน แล้วสองรอบจะเขียนทับกัน
+ */
+export async function clearSession(root, token) {
+  if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
+  const dir = dirFor(root, token);
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.mkdir(dir, { recursive: true });
+}
+
 export async function readSession(root, token) {
   if (!isToken(token)) return null;
   try {

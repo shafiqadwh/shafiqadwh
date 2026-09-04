@@ -299,3 +299,48 @@ test('paying first: the money and the photos end up on the same ticket', async (
   await guest.waitForSelector('body[data-stage="done"]', { timeout: 70000 });
   assert.equal((await ledger()).length, rows.length, 'จ่ายรอบเดียวต้องถูกจดครั้งเดียว');
 });
+
+/**
+ * จ่ายแล้วกด "ถ่ายใหม่" — **ต้องได้ถ่ายใหม่ ไม่ใช่ต้องจ่ายใหม่**
+ *
+ * รูปไม่ถูกใจแล้วขอถ่ายใหม่คือสิ่งที่เกิดแทบทุกรอบในงานที่คนถ่ายเป็นนักเรียน
+ * ถ้าการกดปุ่มนั้นทิ้งเงินที่จ่ายมาแล้วไปด้วย เจ้าของบูธจะต้องยืนเถียงกับแขก
+ * ทั้งคืน หรือไม่ก็ต้องกด "ไม่คิดเงิน" ให้ทุกครั้งจนสมุดบัญชีเต็มไปด้วยรอบฟรี
+ * ที่ไม่ได้ฟรีจริง — ทั้งสองทางทำให้ตัวเลขที่ใช้กระทบยอดตอนเก็บบูธเชื่อไม่ได้
+ *
+ * รอบที่จ่ายแล้วผูกกับ **โทเคนใบเดิม** ตลอด ถ่ายกี่ครั้งก็ยังเป็นรอบเดียวกัน
+ */
+test('paying first: a retake is a retake, not a second sale', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  await guest.locator('#restart').click();
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 30000 });
+
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+  await operator.locator('#go').click();
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+
+  const rows = await ledger();
+  const ticket = rows.at(-1).token;
+
+  // รูปไม่ถูกใจ — กดถ่ายใหม่
+  await guest.locator('#again').click();
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+
+  assert.equal((await ledger()).length, rows.length,
+    'ถ่ายใหม่ต้องไม่เก็บเงินเพิ่ม และต้องไม่ต้องกลับไปหน้าจ่ายเงินอีก');
+  assert.match(await operator.locator('#code').textContent(), new RegExp(ticket),
+    'รอบเดิมที่จ่ายไปแล้ว — ต้องยังเป็นโทเคนใบเดียวกัน');
+
+  // และแผ่นใหม่ต้องทับของเก่าจริง ไม่ใช่ไปกองรวมกันในโฟลเดอร์เดียว
+  assert.deepEqual(
+    (await fs.readdir(path.join(userData, 'booth', 'sessions', ticket, 'shots'))).sort(),
+    ['shot-1.jpg'],
+    'รูปของรอบก่อนหน้าต้องไม่ค้างอยู่ในรอบที่ถ่ายใหม่',
+  );
+
+  await operator.locator('#go').click();
+  await guest.waitForSelector('body[data-stage="done"]', { timeout: 70000 });
+  assert.equal((await ledger()).length, rows.length);
+});

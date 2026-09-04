@@ -58,6 +58,8 @@ function paintStage(stage) {
   // ขั้นเก็บเงินก็มีแผ่นให้ทิ้งเหมือนกัน (แขกเปลี่ยนใจไม่เอาแล้ว)
   el('back').hidden = !['review', 'pay'].includes(stage);
   el('pay').hidden = stage !== 'pay';
+  // บันทึกค่าตั้งแล้วจอบูธโหลดใหม่ — กลางรอบถ่ายคือทิ้งรอบของแขกที่ยืนอยู่ตรงนั้น
+  el('setup').disabled = stage !== 'ready';
 }
 
 function showImage(src, { mirror }) {
@@ -194,6 +196,7 @@ async function boot() {
   }
 
   el('send').addEventListener('click', () => sendPending());
+  el('setup').addEventListener('click', () => window.booth.openSettings());
   await refreshSend();
 
   paintStage('ready');

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>Photo Booth · ตั้งค่า</title>
+  <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <!--
+    หน้าตั้งค่า — สำหรับตอนตั้งบูธ ไม่ใช่ตอนแขกต่อแถว
+
+    มีเฉพาะค่าที่ **เปลี่ยนจริงระหว่างงานกับระหว่างงาน** · ค่าที่ตั้งครั้งเดียวแล้ว
+    ไม่แตะอีก (ที่อยู่เว็บ กุญแจ โหมด QR รหัสอัลบั้ม ปุ่มรีโมท) ยังอยู่ใน
+    settings.json ตามเดิม — ยิ่งหน้านี้สั้น ยิ่งหาสิ่งที่ต้องแก้เจอเร็วตอนอยู่หน้างาน
+  -->
+  <header class="head">
+    <h1>ตั้งค่าบูธ</h1>
+    <p class="head__note" id="note">บันทึกแล้วจอบูธจะโหลดใหม่เอง</p>
+  </header>
+
+  <main class="form" id="form">
+    <section class="group">
+      <h2>งาน</h2>
+      <label>ชื่องาน<input id="eventTitle" type="text" maxlength="42" autocomplete="off"></label>
+      <label>บรรทัดรอง<input id="eventSubtitle" type="text" maxlength="54" autocomplete="off"></label>
+      <label>ธีมสี<select id="theme"></select></label>
+      <label>แบบแผ่น<select id="template"></select></label>
+    </section>
+
+    <section class="group">
+      <h2>การถ่าย</h2>
+      <label>นับถอยหลัง (วินาที)<input id="countdownSeconds" type="number" min="2" max="10" step="1"></label>
+      <label>พิมพ์กี่ใบต่อรอบ<input id="copies" type="number" min="1" max="4" step="1"></label>
+      <label>ส่งมอบด้วย
+        <select id="deliver">
+          <option value="print">พิมพ์อย่างเดียว</option>
+          <option value="screen">QR บนจอ</option>
+          <option value="both">พิมพ์และ QR บนจอ</option>
+        </select>
+      </label>
+      <p class="hint" id="deliver-hint" hidden>
+        โหมด QR บนจอต้องตั้ง <code>baseUrl</code> กับ <code>uploadKey</code> ใน settings.json ก่อน
+      </p>
+    </section>
+
+    <section class="group">
+      <h2>เครื่องพิมพ์</h2>
+      <label>ตัวขับ
+        <select id="printerDriver">
+          <option value="file">เขียนลงแฟ้ม (ไม่ต้องมีเครื่องพิมพ์)</option>
+          <option value="cups">ส่งเข้าคิว CUPS</option>
+        </select>
+      </label>
+      <label>ชื่อคิวพิมพ์<input id="printerName" type="text" maxlength="100" autocomplete="off"
+        placeholder="ว่างไว้ = เครื่องพิมพ์เริ่มต้นของระบบ"></label>
+    </section>
+
+    <section class="group group--pay">
+      <h2>เก็บเงิน</h2>
+      <label class="check"><input id="saleEnabled" type="checkbox"> เปิดขายที่บูธนี้</label>
+      <label>พร้อมเพย์ (เบอร์ / เลขบัตร / e-Wallet)<input id="saleTarget" type="text"
+        inputmode="numeric" maxlength="24" autocomplete="off" placeholder="0812345678"></label>
+      <label>ราคาต่อรอบ (บาท)<input id="salePrice" type="number" min="0" step="1"></label>
+      <label>เก็บเงินตอนไหน
+        <select id="salePayWhen">
+          <option value="after">หลังถ่าย — แขกเห็นแผ่นก่อนจ่าย</option>
+          <option value="before">ก่อนถ่าย — กันคนมาถ่ายเล่นแล้วไม่จ่าย</option>
+        </select>
+      </label>
+
+      <!--
+        ตรวจ QR ด้วยการสแกนจริง — ขั้นตอนที่โปรแกรมทำแทนไม่ได้
+        โปรแกรมรู้แค่ว่าสตริงถูกตามมาตรฐาน ไม่มีทางรู้ว่าเงินจะเข้าบัญชีใคร
+      -->
+      <div class="check-pay">
+        <button class="btn btn--ghost" id="check" type="button">ดู QR แล้วลองสแกน</button>
+        <p class="hint" id="check-note">
+          <strong>สแกนด้วยแอปธนาคารจริงหนึ่งครั้งก่อนเปิดขาย</strong> —
+          ต้องขึ้นชื่อบัญชีของคุณและยอดที่ตั้งไว้ · พิมพ์เบอร์ผิด = เงินเข้าบัญชีคนอื่นทั้งงาน
+        </p>
+        <img class="check-pay__qr" id="check-qr" alt="" hidden>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p class="foot__status" id="status"></p>
+    <button class="btn btn--ghost" id="cancel" type="button">ปิด</button>
+    <button class="btn" id="save" type="button">บันทึก</button>
+  </footer>
+
+  <script type="module" src="setup.js"></script>
+</body>
+</html>

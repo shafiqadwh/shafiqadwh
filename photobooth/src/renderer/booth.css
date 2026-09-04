@@ -67,6 +67,9 @@ body[data-stage="done"]   .stage--done { display: flex; }
 /* ── ฉากพร้อมเริ่ม ── */
 .event {
   margin: 0;
+  /* ชื่องานเป็นทางเข้าหน้าตั้งค่าของบูธจอเดียว (กดค้างสองวินาที) — บูธที่ยัง
+     ไม่ได้ตั้งชื่อต้องยังกดโดน ไม่งั้นทางเข้าหายไปพอดีตอนที่ต้องใช้มันที่สุด */
+  min-height: 44px;
   font-size: clamp(28px, 6vw, 64px);
   font-weight: 700;
   color: var(--paper);
