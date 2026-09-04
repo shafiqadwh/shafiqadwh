@@ -101,8 +101,11 @@ const skipUnlessBoth = (t) => {
 
 /** ถ่ายหนึ่งรอบจนถึงหน้าจ่ายเงิน */
 async function shootUntilPayment() {
-  if (await guest.getAttribute('body', 'data-stage') !== 'ready') {
-    await guest.locator('#restart').click().catch(() => {});
+  // ข้อก่อนหน้าอาจทิ้งบูธไว้ที่ขั้นไหนก็ได้ — พากลับหน้าเริ่มด้วยปุ่มของขั้นนั้น
+  // ("ถ่ายใหม่" มีเฉพาะขั้นดูแผ่นกับขั้นเก็บเงิน · ขั้นเสร็จแล้วใช้ปุ่มหลัก)
+  const stage = await guest.getAttribute('body', 'data-stage');
+  if (stage !== 'ready') {
+    await operator.locator(stage === 'done' ? '#go' : '#back').click();
     await guest.waitForSelector('body[data-stage="ready"]', { timeout: 70000 });
   }
   await guest.locator('#start').click();
@@ -184,18 +187,20 @@ test('a free round still goes in the book, so the paper count still adds up', as
   if (skipUnlessBoth(t)) return;
   await shootUntilPayment();
 
+  const before = await ledger();
   await operator.locator('#pay-free').click();
   await guest.waitForSelector('body[data-stage="done"]', { timeout: 70000 });
 
   const rows = await ledger();
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1].amount, 0);
-  assert.equal(rows[1].free, true);
+  assert.equal(rows.length, before.length + 1);
+  assert.equal(rows.at(-1).amount, 0);
+  assert.equal(rows.at(-1).free, true);
 
   // เงินไม่เพิ่ม แต่จำนวนรอบเพิ่ม — ตรงกับกระดาษที่หายไปจริงหนึ่งแผ่น
+  const paid = before.reduce((sum, row) => sum + row.amount, 0);
   const line = await operator.locator('#takings').textContent();
-  assert.match(line, /150/);
-  assert.match(line, /2 รอบ/);
+  assert.match(line, new RegExp(`${paid.toLocaleString('th-TH')} บาท`));
+  assert.match(line, new RegExp(`${rows.length} รอบ`));
   assert.match(line, /ฟรี 1/);
 });
 
