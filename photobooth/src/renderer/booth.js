@@ -287,7 +287,7 @@ function paintReady() {
       : `จ่าย ${settings.sale.price.toLocaleString('th-TH')} บาท`;
 
   el('shot-count').textContent = shots > 1
-    ? `${ask ? 'แล้ว' : ''}ถ่าย ${shots} รูป`
+    ? (ask ? `แล้วถ่าย ${shots} รูป` : `${shots} รูป`)
     : (ask ? 'แล้วเริ่มถ่าย' : '');
 
   // จอช่างภาพต้องเห็นตรงกัน — ปุ่มที่เขียนว่า "เก็บเงิน 50" ทั้งที่เก็บไปแล้ว
