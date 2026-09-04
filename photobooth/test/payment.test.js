@@ -99,15 +99,22 @@ const skipUnlessBoth = (t) => {
   return true;
 };
 
+/**
+ * พาบูธกลับหน้าเริ่ม ไม่ว่าข้อก่อนหน้าจะทิ้งไว้ที่ขั้นไหน
+ *
+ * ปุ่มที่ใช้ต่างกันตามขั้น: "ถ่ายใหม่" มีเฉพาะขั้นดูแผ่นกับขั้นเก็บเงิน
+ * ส่วนขั้นเสร็จแล้วใช้ปุ่มหลัก
+ */
+async function backToReady() {
+  const stage = await guest.getAttribute('body', 'data-stage');
+  if (stage === 'ready') return;
+  await operator.locator(stage === 'done' ? '#go' : '#back').click();
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 70000 });
+}
+
 /** ถ่ายหนึ่งรอบจนถึงหน้าจ่ายเงิน */
 async function shootUntilPayment() {
-  // ข้อก่อนหน้าอาจทิ้งบูธไว้ที่ขั้นไหนก็ได้ — พากลับหน้าเริ่มด้วยปุ่มของขั้นนั้น
-  // ("ถ่ายใหม่" มีเฉพาะขั้นดูแผ่นกับขั้นเก็บเงิน · ขั้นเสร็จแล้วใช้ปุ่มหลัก)
-  const stage = await guest.getAttribute('body', 'data-stage');
-  if (stage !== 'ready') {
-    await operator.locator(stage === 'done' ? '#go' : '#back').click();
-    await guest.waitForSelector('body[data-stage="ready"]', { timeout: 70000 });
-  }
+  await backToReady();
   await guest.locator('#start').click();
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   await guest.locator('#deliver').click();
@@ -301,6 +308,116 @@ test('paying first: the money and the photos end up on the same ticket', async (
 });
 
 /**
+ * รอบที่ล้มกลางทาง **ต้องไม่ลากบูธล้มตามไปด้วย**
+ *
+ * ดิสก์เต็ม สิทธิ์ไฟล์เพี้ยน การ์ด SD สะดุด — เกิดได้จริงกับเครื่องที่รันด้วยแบตในเต็นท์
+ * และเกิดตอนไหนก็ได้ · สิ่งที่ยอมไม่ได้ไม่ใช่ "รอบนั้นเสีย" (เสียได้ ขอโทษแล้วถ่ายใหม่ให้)
+ * แต่คือ **บูธที่ถ่ายไม่ได้อีกเลยตลอดคืน** ทั้งที่ดิสก์กลับมาปกติแล้ว ซึ่งคนหน้าบูธ
+ * แก้เองไม่ได้เพราะไม่มีอะไรบนจอบอกว่าเกิดอะไรขึ้น
+ *
+ * จำลองด้วยการเอา **ไฟล์ธรรมดา** ไปวางแทนโฟลเดอร์ของรอบที่จองไว้ หลังรับเงินแล้ว
+ * → `mkdir` ข้างในล้มด้วย ENOTDIR ตอนกำลังบันทึกรอบ · ใช้วิธีนี้แทนการถอดสิทธิ์ไฟล์
+ * เพราะเทสต์ในคอนเทนเนอร์รันเป็น root ซึ่งข้ามบิตสิทธิ์ไปทั้งหมด chmod จึงไม่ล้มอะไรเลย
+ */
+test('one failed round does not take the booth down with it', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  await backToReady();
+  const before = (await ledger()).length;
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+  await operator.locator('#go').click();
+
+  // รอจนโทเคนถูกจองแล้ว (บรรทัดในสมุดบัญชีคือสัญญาณ) แล้วค่อยทำให้เขียนไม่ได้
+  let rows = await ledger();
+  for (let i = 0; i < 200 && rows.length === before; i += 1) {
+    await new Promise((done) => setTimeout(done, 100));
+    rows = await ledger();
+  }
+  assert.equal(rows.length, before + 1, 'ต้องรับเงินไปแล้วก่อนถึงจะจำลองรอบที่ล้มได้');
+
+  const dead = path.join(userData, 'booth', 'sessions', rows.at(-1).token);
+  await fs.rmdir(dead);
+  await fs.writeFile(dead, '');
+
+  // ประกอบแผ่นไม่สำเร็จ → กลับไปหน้าเริ่ม พร้อมข้อความบอกเหตุ
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 70000 });
+
+  /*
+   * **ตั๋วที่จ่ายมาแล้วต้องยังอยู่** และทั้งสองจอต้องบอกตรงกันว่าถืออยู่
+   *
+   * ถ้าปุ่มยังเขียนว่า "จ่าย 50 บาท" คนที่เพิ่งจ่ายไปจะถูกเก็บอีกรอบ และถ้าปุ่มบน
+   * จอช่างภาพยังเขียนว่า "เก็บเงิน 50" เจ้าของบูธก็จะเก็บซ้ำจากคนเดิมด้วยมือตัวเอง
+   */
+  assert.match(await guest.locator('#start-label').textContent(), /จ่ายแล้ว/);
+  assert.match(await operator.locator('#go').textContent(), /จ่ายแล้ว/);
+
+  /*
+   * กดแล้วถ่ายได้เลย — นี่คือทั้งหมดของข้อนี้
+   *
+   * รอบที่แล้วเสียไปเพราะดิสก์สะดุด แต่บูธต้องไม่ค้างอยู่กับโทเคนของรอบที่ตายไปแล้ว
+   * จนทุกรอบหลังจากนั้นล้มตามกันหมดทั้งคืน · และคนที่จ่ายมาแล้วต้องไม่จ่ายซ้ำ
+   */
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+  assert.equal((await ledger()).length, before + 1, 'รอบที่ล้มไปแล้วต้องไม่ถูกเก็บเงินซ้ำ');
+
+  // แผ่นต้องไปนั่งอยู่บนตั๋วใบเดิมที่จ่ายมาแล้ว ไม่ใช่ตั๋วใบใหม่ที่ไม่มีเงินผูกอยู่
+  await fs.access(path.join(userData, 'booth', 'sessions', rows.at(-1).token, 'sheet.jpg'));
+
+  await operator.locator('#go').click();
+  await guest.waitForSelector('body[data-stage="done"]', { timeout: 70000 });
+});
+
+/**
+ * ตั๋วที่จ่ายแล้วแต่ถูกทิ้งไว้ ต้องปลดได้ — ไม่งั้นคนถัดไปได้ของฟรี
+ *
+ * ตั๋วค้างเกิดจากรอบที่ล้มหลังรับเงิน (ข้อที่แล้ว) · ถ้าคนที่จ่ายเดินหายไปเลย
+ * บูธจะยืนถือตั๋วนั้นอยู่ แล้วคนถัดไปที่เดินมากดปุ่มจะได้ถ่ายฟรีโดยไม่มีใครรู้
+ * — **การถือตั๋วไว้จึงต้องมาคู่กับทางปลดเสมอ** ไม่งั้นมันคือรูรั่วแทนที่จะเป็นตาข่าย
+ */
+test('a paid ticket left behind can be released, and then the next guest pays', async (t) => {
+  if (skipUnlessBoth(t)) return;
+  await backToReady();
+
+  const before = (await ledger()).length;
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+  await operator.locator('#go').click();
+
+  let rows = await ledger();
+  for (let i = 0; i < 200 && rows.length === before; i += 1) {
+    await new Promise((done) => setTimeout(done, 100));
+    rows = await ledger();
+  }
+  const dead = path.join(userData, 'booth', 'sessions', rows.at(-1).token);
+  await fs.rmdir(dead);
+  await fs.writeFile(dead, '');
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 70000 });
+
+  // ปุ่มปลดต้องโผล่บนจอช่างภาพ และต้องบอกตรง ๆ ว่ากดแล้วเกิดอะไร
+  assert.equal(await operator.locator('#back').isHidden(), false);
+  assert.match(await operator.locator('#back').textContent(), /ยกเลิกตั๋ว/);
+
+  await operator.locator('#back').click();
+  await guest.waitForFunction(
+    () => !document.getElementById('start-label').textContent.includes('จ่ายแล้ว'),
+    { timeout: 30000 },
+  );
+
+  // ปลดแล้วบูธกลับมาเก็บเงินคนถัดไปตามปกติ — และไม่มีบรรทัดใหม่จากการปลด
+  assert.match(await guest.locator('#start-label').textContent(), /จ่าย 150 บาท/);
+  assert.match(await operator.locator('#go').textContent(), /เก็บเงิน/);
+  assert.equal((await ledger()).length, rows.length,
+    'การปลดตั๋วไม่ใช่การขาย และไม่ใช่การคืนเงิน — สมุดบัญชีต้องไม่ขยับ');
+
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+  await operator.locator('#back').click();
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 30000 });
+});
+
+/**
  * จ่ายแล้วกด "ถ่ายใหม่" — **ต้องได้ถ่ายใหม่ ไม่ใช่ต้องจ่ายใหม่**
  *
  * รูปไม่ถูกใจแล้วขอถ่ายใหม่คือสิ่งที่เกิดแทบทุกรอบในงานที่คนถ่ายเป็นนักเรียน
@@ -313,9 +430,7 @@ test('paying first: the money and the photos end up on the same ticket', async (
 test('paying first: a retake is a retake, not a second sale', async (t) => {
   if (skipUnlessBoth(t)) return;
 
-  await guest.locator('#restart').click();
-  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 30000 });
-
+  await backToReady();
   await guest.locator('#start').click();
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await operator.locator('#go').click();

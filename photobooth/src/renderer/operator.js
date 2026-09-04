@@ -29,7 +29,8 @@ const STAGE_LABEL = {
   done: 'ส่งมอบแล้ว',
 };
 
-const state = { deliver: 'print', sheets: 0, sale: null };
+// `held` = จอหน้าถือตั๋วที่จ่ายเงินมาแล้วแต่ยังไม่ได้ของอยู่ (รอบก่อนล้มหลังรับเงิน)
+const state = { deliver: 'print', sheets: 0, sale: null, held: false };
 
 /** จ่ายก่อนถ่าย = ปุ่มแรกบนจอนี้ก็ต้องบอกว่าจะพาไปเก็บเงิน ไม่ใช่ "เริ่มถ่าย" */
 const payFirst = () => state.sale?.enabled === true && state.sale.payWhen === 'before';
@@ -43,7 +44,9 @@ function paintStage(stage) {
   el('stage-label').textContent = STAGE_LABEL[stage] ?? stage;
 
   el('go').textContent = {
-    ready: payFirst() ? `เก็บเงิน ${baht(state.sale.price)}` : 'เริ่มถ่าย',
+    // ถือตั๋วที่จ่ายมาแล้วอยู่ = ห้ามเขียนว่า "เก็บเงิน" ไม่งั้นเจ้าของบูธจะเก็บซ้ำจากคนเดิม
+    ready: !payFirst() ? 'เริ่มถ่าย'
+      : state.held ? 'จ่ายแล้ว — เริ่มถ่าย' : `เก็บเงิน ${baht(state.sale.price)}`,
     shoot: 'กำลังถ่าย…',
     review: DELIVERY[state.deliver] ?? DELIVERY.print,
     // ปุ่มหลักบนจอนี้ = ปุ่มบนรีโมท · ตอนอยู่ขั้นเก็บเงิน มันแปลว่า "ได้รับเงินแล้ว"
@@ -56,7 +59,10 @@ function paintStage(stage) {
   el('go').disabled = stage === 'shoot';
   // "ถ่ายใหม่" มีความหมายเฉพาะตอนที่มีแผ่นให้ทิ้ง — ขั้นอื่นมันซ้ำกับปุ่มหลัก
   // ขั้นเก็บเงินก็มีแผ่นให้ทิ้งเหมือนกัน (แขกเปลี่ยนใจไม่เอาแล้ว)
-  el('back').hidden = !['review', 'pay'].includes(stage);
+  // และตอนถือตั๋วที่จ่ายแล้วค้างอยู่ — เป็นทางเดียวที่ปลดตั๋วนั้นได้ (แขกจ่ายแล้วเดินหาย)
+  const holding = stage === 'ready' && state.held;
+  el('back').hidden = !(holding || ['review', 'pay'].includes(stage));
+  el('back').textContent = holding ? 'ยกเลิกตั๋วที่จ่ายแล้ว' : 'ถ่ายใหม่';
   el('pay').hidden = stage !== 'pay';
   // บันทึกค่าตั้งแล้วจอบูธโหลดใหม่ — กลางรอบถ่ายคือทิ้งรอบของแขกที่ยืนอยู่ตรงนั้น
   el('setup').disabled = stage !== 'ready';
@@ -134,6 +140,11 @@ const HANDLERS = {
     paintTakings(takings);
   },
   takings: ({ takings }) => paintTakings(takings),
+  held: ({ held }) => {
+    state.held = held === true;
+    // ป้ายบนปุ่มขึ้นกับสถานะนี้ — วาดใหม่ทันทีถ้ากำลังอยู่หน้าพร้อมถ่าย
+    if (body.dataset.stage === 'ready') paintStage('ready');
+  },
   progress: ({ text }) => { el('progress').textContent = text ?? ''; },
   done: ({ printed, published, code, text }) => {
     state.sheets += printed ? 1 : 0;

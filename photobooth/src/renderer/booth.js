@@ -187,12 +187,15 @@ async function shoot() {
     /*
      * โหมดจ่ายก่อนถ่าย: เงินรับไปแล้วและโทเคนถูกจองไว้แล้ว แต่รอบนี้ไม่ได้เกิดขึ้น
      *
-     * ต้องคืนโทเคนทิ้ง ไม่ใช่ถือค้างไว้ — ถ้าถือไว้ คนถัดไปที่เดินมาจ่ายจะได้
-     * โทเคนใบเดิม แล้วสมุดบัญชีจะมีสองบรรทัดที่ผูกกับรอบถ่ายรอบเดียว ซึ่งกระทบยอด
-     * ไม่ได้อีกเลย · เงินยังอยู่ในสมุด (รับไปจริง) ส่วนคนที่จ่ายแล้วให้เจ้าของบูธ
-     * กด "ไม่คิดเงิน" ให้ถ่ายใหม่
+     * **ถือตั๋วไว้** แล้วกลับไปหน้าพร้อมถ่ายซึ่งจะขึ้นว่า "จ่ายแล้ว — กดถ่ายได้เลย"
+     * เสียบกล้องใหม่แล้วกดต่อได้ทันทีโดยไม่ต้องจ่ายซ้ำ และไม่ต้องพึ่งการที่เจ้าของ
+     * บูธจะนึกกด "ไม่คิดเงิน" ให้ (ซึ่งทำให้สมุดบัญชีมีรอบฟรีที่ไม่ได้ฟรีจริง)
+     *
+     * ตั๋วใบนี้ไม่มีทางไปโผล่กับคนถัดไป เพราะหน้าพร้อมถ่ายที่ถือตั๋วอยู่จะไม่เก็บเงิน
+     * ใครอีก — คนถัดไปที่เดินมาจึงถ่ายด้วยตั๋วใบนี้ ไม่ใช่ได้ตั๋วใบเดิมมาเป็นของแถม
+     * เจ้าของบูธยกเลิกตั๋วที่ค้างได้จากปุ่มบนจอช่างภาพ (หรือปุ่มถอยบนรีโมท)
      */
-    await reset({ discard: true });
+    await reset({ keep: payFirst() });
     fail(`เปิดกล้องไม่ได้: ${error.message}`);
     return;
   }
@@ -222,8 +225,10 @@ async function shoot() {
   // แต่จอช่างภาพโชว์แถบนี้ตลอด ข้อความค้างจึงกลายเป็นคำโกหกอยู่บนจอนั้น
   setProgress('');
 
+  // ประกอบแผ่นไม่สำเร็จ (ดิสก์เต็ม สิทธิ์ไฟล์เพี้ยน) — ตั๋วที่จ่ายมาแล้วยังอยู่
+  // ฝั่งหลักล้างเฉพาะของข้างในให้ ไม่ได้คืนโทเคน จึงถ่ายซ้ำลงตั๋วใบเดิมได้เลย
   if (!result) {
-    stage('ready');
+    await reset({ keep: payFirst() });
     return;
   }
 
@@ -249,6 +254,46 @@ async function shoot() {
 /** บูธนี้เก็บเงินก่อนถ่ายไหม — ค่าตั้งเดียวที่เปลี่ยนลำดับทั้งขั้นตอน */
 const payFirst = () => state.setup?.settings?.sale?.enabled === true
   && state.setup.settings.sale.payWhen === 'before';
+
+/**
+ * ถือตั๋วที่จ่ายเงินมาแล้วแต่ยังไม่ได้ของอยู่หรือเปล่า
+ *
+ * เกิดเมื่อรอบล้มหลังรับเงินไปแล้ว — กล้องไม่ขึ้น หรือประกอบแผ่นไม่สำเร็จ
+ * **ตั๋วต้องอยู่ต่อ ไม่ใช่หายไปพร้อมเงิน** และหน้าพร้อมถ่ายต้องรู้ว่าถืออยู่ ไม่งั้น
+ * ปุ่มแรกจะพาไปเก็บเงินอีกรอบจากคนที่จ่ายมาแล้ว
+ *
+ * ในโหมดจ่ายทีหลัง `state.token` ที่หน้าพร้อมถ่ายเป็น null เสมอ (ล้างตอน reset)
+ * เงื่อนไขนี้จึงเป็นจริงเฉพาะโหมดจ่ายก่อนถ่ายโดยธรรมชาติ ไม่ต้องมีตัวแปรเพิ่ม
+ */
+const holdingPaid = () => Boolean(payFirst() && state.token);
+
+/** เริ่มรอบใหม่จากหน้าพร้อมถ่าย — จ่ายมาแล้วก็ถ่ายเลย ไม่เก็บซ้ำ */
+const startRound = () => (payFirst() && !state.token ? askPayment(shoot) : shoot());
+
+/**
+ * ป้ายบนปุ่มแรก · เป็นที่เดียวที่เขียนป้ายนี้ จะได้ไม่มีทางขัดกับสถานะจริง
+ *
+ * โหมดจ่ายก่อนถ่ายเอาราคาไปไว้บนปุ่มแรกเลย — **นี่คือส่วนที่กันคิวจริง ๆ**
+ * ไม่ใช่ตัวลำดับขั้นตอน · คนที่ไม่ได้ตั้งใจจะซื้อเห็นราคาตั้งแต่ยังไม่แตะจอ
+ * แล้วเดินผ่านไป แทนที่จะเข้ามาถ่ายเล่นจนคนที่ตั้งใจซื้อต้องยืนรอ
+ */
+function paintReady() {
+  const { settings, shots } = state.setup;
+  const held = holdingPaid();
+  const ask = payFirst() && !held;
+
+  el('start-label').textContent = !payFirst() ? 'เริ่มถ่าย'
+    : held ? 'จ่ายแล้ว — กดถ่ายได้เลย'
+      : `จ่าย ${settings.sale.price.toLocaleString('th-TH')} บาท`;
+
+  el('shot-count').textContent = shots > 1
+    ? `${ask ? 'แล้ว' : ''}ถ่าย ${shots} รูป`
+    : (ask ? 'แล้วเริ่มถ่าย' : '');
+
+  // จอช่างภาพต้องเห็นตรงกัน — ปุ่มที่เขียนว่า "เก็บเงิน 50" ทั้งที่เก็บไปแล้ว
+  // คือปุ่มที่ทำให้เจ้าของบูธเก็บซ้ำจากคนเดิม
+  say({ type: 'held', held });
+}
 
 async function askPayment(next) {
   const sale = await guard(() => window.booth.sale());
@@ -351,10 +396,11 @@ async function deliver() {
  * ไม่ลบทิ้งจะเหลือรูปกับแผ่นของรอบที่ไม่มีใครเอาค้างบนดิสก์ทุกครั้ง แล้วตอน
  * อัปโหลดหลังงาน รอบที่แขกตั้งใจทิ้งจะขึ้นไปปนกับรอบที่เขาเลือกเอา
  */
-async function reset({ discard = false } = {}) {
+async function reset({ discard = false, keep = false } = {}) {
   const token = state.token;
   state.shots = [];
-  state.token = null;
+  // `keep` = ถือตั๋วที่จ่ายมาแล้วต่อไว้ที่หน้าพร้อมถ่าย (รอบล้มหลังรับเงิน)
+  state.token = keep ? token : null;
   el('sheet').removeAttribute('src');
   el('token').textContent = '';
   // QR ของคนก่อนค้างอยู่ = คนถัดไปสแกนแล้วได้รูปของคนอื่น
@@ -367,11 +413,12 @@ async function reset({ discard = false } = {}) {
   state.pay = null;
   state.afterPaying = null;
   el('progress').textContent = '';
+  paintReady();
   say({ type: 'reset' });
   stage('ready');
 
   // ลบทีหลังหน้าจอเปลี่ยนแล้ว — แขกไม่ต้องยืนรอการลบไฟล์
-  if (discard && token) {
+  if (discard && !keep && token) {
     window.booth.discard({ token }).catch((error) =>
       console.warn('ลบรอบที่ไม่เอาไม่สำเร็จ:', error?.message));
   }
@@ -416,7 +463,8 @@ async function retake() {
 const ACTIONS = {
   shutter: {
     // จ่ายก่อนถ่าย: ปุ่มแรกพาไปหน้าจ่ายเงิน · จ่ายทีหลัง: เริ่มถ่ายเลยเหมือนเดิม
-    ready: () => (payFirst() ? askPayment(shoot) : shoot()),
+    // ถือตั๋วที่จ่ายมาแล้วอยู่ (รอบก่อนล้ม) ก็ถ่ายเลย ไม่เก็บเงินซ้ำ
+    ready: () => startRound(),
     // จ่ายก่อนถ่ายแล้ว = จ่ายไปแล้ว · ขั้นนี้ต้องส่งมอบเลย ไม่ใช่เก็บเงินซ้ำ
     review: () => (payFirst() ? deliver() : askPayment(deliver)),
     // รีโมทอยู่ในมือเจ้าของบูธ ซึ่งเป็นคนเดียวที่เห็นแอปธนาคาร — ปุ่มถ่ายบนรีโมท
@@ -425,6 +473,9 @@ const ACTIONS = {
     done: () => reset(),
   },
   back: {
+    // ยกเลิกตั๋วที่จ่ายแล้วแต่ค้างอยู่ (แขกจ่ายแล้วเดินหายไป) — ทางเดียวที่ปลดได้
+    // มีความหมายเฉพาะตอนถือตั๋วอยู่ ขั้นพร้อมถ่ายปกติกดแล้วไม่มีอะไรเกิดขึ้น
+    ready: () => (holdingPaid() ? reset({ discard: true }) : undefined),
     // จ่ายมาแล้ว = ถ่ายใหม่ให้ · ยังไม่จ่าย = ทิ้งรอบนี้ไปเลย
     review: () => (payFirst() ? retake() : reset({ discard: true })),
     pay: () => reset({ discard: true }),
@@ -509,32 +560,20 @@ async function boot() {
     return;
   }
 
-  const { settings, theme, shots, effects } = state.setup;
+  const { settings, theme, effects } = state.setup;
 
   document.documentElement.lang = settings.lang;
   el('event-title').textContent = settings.eventTitle;
   el('event-subtitle').textContent = settings.eventSubtitle;
-  el('shot-count').textContent = shots > 1 ? `${shots} รูป` : '';
   el('deliver').textContent = (DELIVERY[settings.deliver] ?? DELIVERY.print).button;
-
-  /*
-   * โหมดจ่ายก่อนถ่าย: บอกราคาไว้บนปุ่มแรกเลย
-   *
-   * นี่คือส่วนที่กันคิวจริง ๆ ไม่ใช่ตัวขั้นตอน — คนที่ไม่ได้ตั้งใจจะซื้อจะเห็นราคา
-   * ตั้งแต่ยังไม่แตะจอ แล้วเดินผ่านไป แทนที่จะเข้ามาถ่ายเล่นจนคนที่ตั้งใจซื้อ
-   * ต้องยืนรอ · ปุ่มที่เขียนว่า "เริ่มถ่าย" เฉย ๆ ไม่ได้บอกอะไรจนกว่าจะสายไปแล้ว
-   */
-  if (payFirst()) {
-    el('start-label').textContent = `จ่าย ${settings.sale.price.toLocaleString('th-TH')} บาท`;
-    el('shot-count').textContent = shots > 1 ? `แล้วถ่าย ${shots} รูป` : 'แล้วเริ่มถ่าย';
-  }
+  paintReady();
   paintEffects(effects);
 
   for (const [name, value] of Object.entries(theme.colours)) {
     document.documentElement.style.setProperty(`--${name}`, value);
   }
 
-  el('start').addEventListener('click', () => (payFirst() ? askPayment(shoot) : shoot()));
+  el('start').addEventListener('click', () => startRound());
   el('deliver').addEventListener('click', () => (payFirst() ? deliver() : askPayment(deliver)));
   el('pay-done').addEventListener('click', () => confirmPaid());
   el('pay-cancel').addEventListener('click', () => reset({ discard: true }));
@@ -563,6 +602,9 @@ async function boot() {
     // นั่งดูจอเปล่าจนกว่าแขกคนถัดไปจะมา
     if (message?.type === 'hello') {
       say({ type: 'stage', stage: body.dataset.stage });
+      // ตั๋วที่จ่ายแล้วแต่ค้างอยู่ ต้องบอกจอที่เพิ่งเปิดด้วย ไม่งั้นปุ่มบนจอนั้นจะ
+      // เขียนว่า "เก็บเงิน 50" ทั้งที่เก็บไปแล้ว แล้วเจ้าของบูธจะเก็บซ้ำจากคนเดิม
+      say({ type: 'held', held: holdingPaid() });
       // จอช่างภาพที่รีเฟรชกลางขั้นเก็บเงิน ต้องได้ยอดกับ QR กลับไปด้วย ไม่ใช่แผงเปล่า
       // ที่มีปุ่ม "ได้รับเงินแล้ว" ให้กดโดยไม่รู้ว่ากำลังเก็บเท่าไร
       if (state.pay) say(state.pay);
