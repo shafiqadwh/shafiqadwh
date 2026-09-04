@@ -64,6 +64,10 @@ function controlDb() {
       venue       TEXT,
       time        TEXT,
       monogram    TEXT,
+      -- ภาษาที่งานนี้เปิดให้แขกเลือก คั่นด้วยจุลภาค · ว่าง = ทุกภาษาที่ระบบมี
+      -- ตัวแรกในรายการคือภาษาหลักของงาน (ดู languagesFor)
+      -- (ห้ามใส่ backtick ในคอมเมนต์นี้ — มันปิด template literal ของ JS)
+      languages   TEXT,
       starts_on   TEXT,
       ends_on     TEXT,
       -- งานที่จบแล้ว: ปิดรับของใหม่ แต่ของเดิมยังเปิดดูได้ และยังอยู่ในรายงาน
@@ -112,6 +116,18 @@ function controlDb() {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_code ON tv_screens (code) WHERE code IS NOT NULL;
   `);
+  /*
+   * `CREATE TABLE IF NOT EXISTS` ไม่เพิ่มคอลัมน์ให้ตารางที่มีอยู่แล้ว
+   *
+   * ทะเบียนบนเครื่องจริงถูกสร้างไปแล้วตั้งแต่รุ่นก่อน — คอลัมน์ที่เพิ่มทีหลังจึงต้อง
+   * ALTER เอา และ `ADD COLUMN` ไม่ idempotent (รันซ้ำได้ "duplicate column name")
+   * จึงต้องเช็ค PRAGMA ก่อน · แพทเทิร์นเดียวกับ `migrate()` ใน src/db.js
+   */
+  const columns = control.prepare('PRAGMA table_info(events)').all().map((one) => one.name);
+  if (!columns.includes('languages')) {
+    control.exec('ALTER TABLE events ADD COLUMN languages TEXT');
+  }
+
   adoptLegacyScreens(control);
   return control;
 }
@@ -197,8 +213,39 @@ export function pathsFor(slug) {
  * ช่องไหนไม่ได้ตั้งในทะเบียนก็ตกกลับไปใช้ค่าจาก `.env` — งานเริ่มต้นจึงได้หน้าตา
  * เดิมทุกตัวอักษรโดยไม่ต้องกรอกอะไรใหม่ และงานที่สร้างเพิ่มก็เขียนทับได้ทีละช่อง
  */
+/**
+ * ภาษาที่งานนี้เปิดให้เลือก — **ตัวแรกในรายการคือภาษาหลักของงาน**
+ *
+ * ระบบเดียวรับหลายงานแล้ว งานคนละงานจึงมีคนละกลุ่มแขก: งานโรงเรียนในยะลา
+ * ไม่ต้องมีปุ่มภาษาอาหรับให้กดพลาด ส่วนงานแต่งฝั่งมาเลย์ต้องขึ้นภาษามลายูก่อน
+ * ไม่ใช่ไทย · เดิมค่านี้เป็นของ "ทั้งเครื่อง" (`config.i18n`) ซึ่งใช้ไม่ได้อีกแล้ว
+ * เมื่อเครื่องเดียวรับงานของลูกค้าหลายราย
+ *
+ * ค่าที่อ่านไม่ออกหรือรหัสที่ระบบไม่มี **ถูกทิ้งเงียบ ๆ แล้วตกกลับไปทุกภาษา** —
+ * งานที่ปุ่มภาษาหายไปทั้งแถบเพราะพิมพ์ผิดหนึ่งตัว แย่กว่างานที่มีปุ่มเกินมาหนึ่งปุ่ม
+ */
+const readLanguages = (value) => [...new Set(
+  (Array.isArray(value) ? value : String(value ?? '').split(','))
+    .map((code) => String(code).trim().toLowerCase())
+    .filter((code) => config.i18n.available.includes(code)),
+)];
+
+export function languagesFor(row) {
+  const picked = readLanguages(row?.languages);
+  return picked.length > 0 ? picked : [...config.i18n.available];
+}
+
+/**
+ * ค่าที่จะเก็บลงทะเบียน · `null` = ไม่ระบุ ซึ่งแปลว่า "ทุกภาษาที่ระบบมี"
+ *
+ * เก็บ null แทนที่จะกางรายการเต็มไว้ เพราะสองอย่างนี้ต่างกันในอนาคต: งานที่ระบุ
+ * ไว้สี่ภาษาจะไม่ได้ภาษาที่ห้าเมื่อระบบเพิ่มให้ ส่วนงานที่ไม่ระบุจะได้เอง
+ */
+const cleanLanguages = (value) => readLanguages(value).join(',') || null;
+
 function branding(row) {
   return {
+    languages: languagesFor(row),
     kind: row.kind || config.event.kind,
     title: row.title || config.event.title,
     names: row.names || config.event.names,
@@ -305,6 +352,7 @@ const FIELDS = {
   monogram: 'monogram',
   startsOn: 'starts_on',
   endsOn: 'ends_on',
+  languages: 'languages',
 };
 
 export function createEvent({ slug, title, ...rest }) {
@@ -322,9 +370,10 @@ export function updateEvent(slug, fields = {}) {
   const columns = FIELDS;
   for (const [key, column] of Object.entries(columns)) {
     if (fields[key] === undefined) continue;
-    const value = key === 'host'
-      ? String(fields[key] || '').toLowerCase().trim()
-      : (fields[key] || null);
+    let value;
+    if (key === 'host') value = String(fields[key] || '').toLowerCase().trim();
+    else if (key === 'languages') value = cleanLanguages(fields[key]);
+    else value = fields[key] || null;
     controlDb().prepare(`UPDATE events SET ${column} = ? WHERE slug = ?`).run(value, slug);
   }
   if (fields.archived !== undefined) {

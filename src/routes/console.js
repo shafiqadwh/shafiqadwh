@@ -16,6 +16,7 @@ import {
   setEventPassword,
   updateEvent,
 } from '../lib/tenancy.js';
+import { languages } from '../i18n.js';
 import { createLimiter } from '../lib/ratelimit.js';
 import { formatBytes } from '../lib/media.js';
 import { wrap } from '../lib/async-route.js';
@@ -84,6 +85,7 @@ consoleRouter.get('/console', wrap(async (req, res) => {
     page: 'console',
     events,
     kinds: EVENT_KINDS,
+    allLanguages: languages,
     total: { ...total, storage: formatBytes(total.bytes) },
     query: req.query,
   });
@@ -123,6 +125,13 @@ const fieldsFrom = (body) => ({
   monogram: String(body?.monogram ?? '').trim().slice(0, 20),
   startsOn: String(body?.starts_on ?? '').trim().slice(0, 10),
   endsOn: String(body?.ends_on ?? '').trim().slice(0, 10),
+  /*
+   * ภาษาที่งานนี้เปิดให้แขกเลือก · ไม่ติ๊กเลย = ทุกภาษา (พฤติกรรมเดิม)
+   *
+   * ช่องติ๊กหลายช่องมาเป็น array เมื่อติ๊กหลายอัน และเป็นสตริงเดี่ยวเมื่อติ๊กอันเดียว
+   * — `[].concat()` เสมอ ไม่งั้นงานที่เลือกภาษาเดียวจะได้รายการที่เป็นตัวอักษรทีละตัว
+   */
+  languages: [].concat(body?.languages ?? []),
 });
 
 consoleRouter.post('/console/events', requireOperator, form, (req, res) => {

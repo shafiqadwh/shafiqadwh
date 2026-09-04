@@ -137,6 +137,21 @@
               <span class="field__label">วันสุดท้าย</span>
               <input type="date" name="ends_on" value="<%= event.ends_on || '' %>">
             </label>
+            <!--
+              ภาษาของงานนี้ — ไม่ติ๊กเลย = ทุกภาษา
+              ติ๊กแล้วปุ่มสลับภาษาบนหน้าเว็บของงานนี้จะเหลือเฉพาะที่เลือก
+              และ **ตัวแรกตามลำดับด้านล่างคือภาษาหลัก** ที่แขกได้เป็นค่าเริ่มต้น
+            -->
+            <fieldset class="field">
+              <legend class="field__label">ภาษาที่เปิดให้เลือก (ไม่ติ๊กเลย = ทุกภาษา · ตัวบนสุดคือภาษาหลัก)</legend>
+              <% allLanguages.forEach(function (one) { %>
+                <label class="field field--inline">
+                  <input type="checkbox" name="languages" value="<%= one.code %>"
+                         <%= (event.languages || '').split(',').includes(one.code) ? 'checked' : '' %>>
+                  <span><%= one.name %></span>
+                </label>
+              <% }); %>
+            </fieldset>
             <button type="submit" class="button button--primary">บันทึก</button>
           </form>
 

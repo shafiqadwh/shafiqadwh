@@ -308,9 +308,15 @@ adminRouter.get('/admin/zip', requireAdmin, (req, res) => {
 
 adminRouter.get('/admin/qr', requireAdmin, wrap(async (req, res) => {
   const url = shareUrl(req);
-  // The printed card carries every language at once — guests do not get to
-  // pick a language before they have scanned anything.
-  const cards = config.i18n.available.map((code) => {
+  /*
+   * The printed card carries every language at once — guests do not get to
+   * pick a language before they have scanned anything.
+   *
+   * "ทุกภาษา" = ทุกภาษา **ของงานนี้** ไม่ใช่ของทั้งเครื่อง · งานปัจฉิมโรงเรียนที่
+   * ตั้งไว้ภาษาเดียวแล้วยังพิมพ์การ์ดสี่ภาษา คือกระดาษที่เสียพื้นที่ไปสามในสี่
+   * และ QR ที่เล็กลงโดยไม่จำเป็นในแบบ 4 ใบต่อแผ่น — ซึ่งเป็นแบบที่ใช้จริงตอนงานใหญ่
+   */
+  const cards = currentEvent().branding.languages.map((code) => {
     const translate = translator(code);
     return {
       code,
