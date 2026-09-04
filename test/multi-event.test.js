@@ -349,6 +349,30 @@ test('an archived event stops taking anything new, but still shows what it has',
     // แต่ของเดิมต้องยังเปิดดูได้ — "เก็บเข้าลิ้นชัก" ไม่ใช่ "ลบ"
     assert.equal((await fetch(url('rina', '/'))).status, 200);
     assert.equal((await items('rina')).length, before);
+
+    /*
+     * **ยกเว้นรอบถ่ายจากบูธ — ยังส่งขึ้นได้** และนั่นตั้งใจ ไม่ใช่ช่องที่หลุด
+     *
+     * บูธทำงานในเต็นท์ที่ไม่มีเน็ต · โทเคนถูกพิมพ์ลงกระดาษไปแล้วตั้งแต่คืนงาน
+     * แต่ไฟล์ยังอยู่ในเครื่องบูธจนกว่าเจ้าของจะกดปุ่ม "ส่งขึ้นเว็บ" ซึ่งมักเป็นวัน
+     * ถัดไปหลังกลับถึงบ้าน · ถ้าปิดทางนี้ตามไปด้วย งานที่ถูกเก็บเข้าลิ้นชักก่อน
+     * กดส่งจะทำให้ **QR ทุกใบที่แขกถือกลับบ้านไปกลายเป็นลิงก์ตายถาวร** ซึ่งแก้
+     * ทีหลังไม่ได้เลยเพราะกระดาษอยู่ในมือคนอื่นแล้ว
+     *
+     * กุญแจของบูธอยู่กับเจ้าของ ไม่ใช่กับแขก — ทางนี้จึงไม่ใช่ทางที่ใครก็ยัดของ
+     * เข้ามาได้ ต่างจากสองทางข้างบนที่เปิดให้แขกทั้งงาน
+     */
+    const late = new FormData();
+    late.append('manifest', JSON.stringify({
+      token: 'ZZ9901', createdAt: '2026-09-03T22:00:00.000Z',
+      event: { title: 'rina' }, template: 'strip', effect: 'clean', shots: [],
+    }));
+    late.append('sheet', new Blob([await jpeg('#ededed')]), 'sheet.jpg');
+    const sent = await fetch(url('rina', '/api/booth/upload'), {
+      method: 'POST', headers: { 'x-booth-key': KEY }, body: late,
+    });
+    assert.equal(sent.status, 201, 'รอบที่พิมพ์ไปแล้วต้องตามขึ้นระบบได้เสมอ');
+    assert.equal((await fetch(url('rina', '/p/ZZ9901'))).status, 200);
   } finally {
     updateEvent('rina', { archived: false });
   }
