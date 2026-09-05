@@ -127,10 +127,37 @@ const captureFile = () => path.join(dataRoot(), 'capture.jpg');
 /** ใช้กล้องใหญ่ถ่ายรอบนี้ไหม — ถามค่าตั้งทุกครั้ง เพราะสลับได้จากหน้าตั้งค่ากลางงาน */
 const usingDslr = (settings) => settings.camera.source === 'dslr';
 
+/**
+ * ตรวจกล้องด้วยการ **ถ่ายจริงหนึ่งรูป** ไม่ใช่แค่ดูว่าเสียบอยู่ไหม
+ *
+ * "เจอกล้อง" กับ "สั่งกล้องถ่ายได้" เป็นคนละคำถาม และมีกล้องจริงที่ตอบข้อแรกว่าใช่
+ * แต่ข้อสองว่าไม่ — Sony SLT รุ่นเก่าบางตัวประกาศความสามารถ "Trigger Capture"
+ * ออกมาทาง USB ครบถ้วน แล้วล้มด้วย PTP I/O Error ตอนสั่งถ่ายจริง
+ *
+ * ถ้าปุ่มนี้ตรวจแค่ว่าเจอ มันจะขึ้นชื่อรุ่นเขียว ๆ ให้เจ้าของบูธเชื่อใจ แล้วไปพังตอน
+ * แขกคนแรกยืนอยู่หน้ากล้อง — **การตรวจที่ให้ความมั่นใจผิด ๆ แย่กว่าไม่มีการตรวจเลย**
+ * เพราะมันทำให้คนข้ามการซ้อมจริงไป
+ */
 ipcMain.handle('booth:camera', async () => {
   const found = await camera.detect();
-  console.log(found.ok ? `[camera] เจอกล้อง: ${found.model}` : `[camera] ${found.reason}`);
-  return found;
+  if (!found.ok) {
+    console.log(`[camera] ${found.reason}`);
+    return found;
+  }
+
+  // ไม่เก็บลงการ์ดตอนทดสอบ — ไม่ควรทิ้งรูปทดสอบไว้ในการ์ดของงานจริง
+  const shot = await camera.capture(captureFile(), { keepOnCard: false });
+  if (!shot.ok) {
+    console.warn(`[camera] เจอ ${found.model} แต่สั่งถ่ายไม่ได้: ${shot.reason}`);
+    return {
+      ok: false,
+      model: found.model,
+      reason: `เจอ ${found.model} แล้ว แต่สั่งถ่ายไม่ได้ — ${shot.reason}`,
+    };
+  }
+
+  console.log(`[camera] พร้อมใช้งานจริง: ${found.model} (ถ่ายทดสอบได้ ${shot.data.length} ไบต์)`);
+  return { ok: true, model: found.model, bytes: shot.data.length };
 });
 
 /**

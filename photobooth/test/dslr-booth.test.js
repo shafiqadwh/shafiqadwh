@@ -58,6 +58,11 @@ if [ -f "$DIR/fail" ]; then
   echo "*** Error: Could not claim the USB device" >&2
   exit 1
 fi
+# กล้องที่ "เจอแล้วแต่สั่งถ่ายไม่ได้" — Sony SLT รุ่นเก่าทำแบบนี้จริง
+if [ -f "$DIR/capturefail" ]; then
+  echo "*** Error (-7: 'I/O problem'): PTP I/O Error" >&2
+  exit 1
+fi
 out=""
 while [ $# -gt 0 ]; do
   if [ "$1" = "--filename" ]; then shift; out="$1"; fi
@@ -285,6 +290,25 @@ test('the settings screen can tell you whether the camera is really there', asyn
     { timeout: 30000 },
   );
   await fs.rm(failFlag(), { force: true });
+
+  /*
+   * **กล้องที่เจอแล้วแต่สั่งถ่ายไม่ได้ ต้องไม่ผ่านการทดสอบ**
+   *
+   * นี่ไม่ใช่กรณีสมมติ — Sony SLT รุ่นเก่าประกาศความสามารถ "Trigger Capture"
+   * ออกมาทาง USB ครบถ้วน แล้วล้มด้วย PTP I/O Error ตอนสั่งถ่ายจริง
+   * ถ้าปุ่มนี้ตรวจแค่ว่าเจอ มันจะขึ้นชื่อรุ่นให้เจ้าของบูธเชื่อใจแล้วข้ามการซ้อมไป
+   * — การตรวจที่ให้ความมั่นใจผิด ๆ แย่กว่าไม่มีการตรวจเลย
+   */
+  await fs.writeFile(path.join(fakeDir, 'capturefail'), '');
+  await setup.locator('#check-camera').click();
+  await setup.waitForFunction(
+    () => document.getElementById('camera-note').textContent.includes('สั่งถ่ายไม่ได้'),
+    { timeout: 30000 },
+  );
+  const note = await setup.locator('#camera-note').textContent();
+  assert.match(note, /D7000/, 'ต้องบอกด้วยว่าเจอกล้องรุ่นไหน จะได้รู้ว่าเสียบถูกตัวแล้ว');
+  assert.equal(await setup.locator('#status').getAttribute('class'), 'foot__status is-bad');
+  await fs.rm(path.join(fakeDir, 'capturefail'), { force: true });
 
   const closed = setup.waitForEvent('close', { timeout: 15000 });
   await setup.locator('#cancel').click().catch(() => {});
