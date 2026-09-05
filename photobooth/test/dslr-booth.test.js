@@ -219,6 +219,40 @@ test('the camera coming back does not need the app restarted', async (t) => {
   assert.equal(await operator.locator('#notice').isHidden(), true, 'คำเตือนของรอบก่อนต้องไม่ค้าง');
 });
 
+/**
+ * แบบแถบยาวสามรูป — **แบบที่ใช้จริงในงาน** (ค่าเริ่มต้นของบูธ)
+ *
+ * ข้ออื่นในไฟล์นี้ใช้แบบรูปเดียวเพราะเร็วกว่า แต่ทั้งงานจะเดินด้วยแบบสามรูป
+ * ซึ่งลั่นชัตเตอร์สามครั้งติดกัน · สิ่งที่ต้องตรึงคือ **ครบสามใบ เรียงถูก และ
+ * ทุกใบมาจากกล้องจริง** ไม่ใช่บางใบหลุดไปใช้เว็บแคมโดยไม่มีใครสังเกต ซึ่งจะเห็น
+ * เป็นแค่ "รูปหนึ่งในสามใบเบลอกว่าเพื่อน" บนกระดาษที่ขายไปแล้ว
+ */
+test('a three-photo strip fires the shutter three times, all from the camera', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  await saveSettings(path.join(userData, 'booth'), { template: 'strip' });
+  await Promise.all([guest.reload(), operator.reload()]);
+  await guest.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+  await operator.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+
+  const token = await shootOnce();
+  const dir = path.join(sessions(), token, 'shots');
+
+  assert.deepEqual((await fs.readdir(dir)).sort(),
+    ['shot-1.jpg', 'shot-2.jpg', 'shot-3.jpg'], 'ต้องได้ครบสามใบ เรียงตามลำดับที่ถ่าย');
+
+  for (const name of await fs.readdir(dir)) {
+    assert.ok((await fs.readFile(path.join(dir, name))).equals(cameraJpeg),
+      `${name} ต้องมาจากกล้อง ไม่ใช่หลุดไปใช้เว็บแคม`);
+  }
+
+  // และประกอบเป็นแผ่นแถบยาวได้จริง ไม่ใช่ค้างเพราะรูปใหญ่กว่าที่เคยเจอ
+  const sheet = await sharp(path.join(sessions(), token, 'sheet.jpg')).metadata();
+  assert.equal(sheet.width, 1200);
+  assert.equal(sheet.height, 1800);
+  assert.equal(await operator.locator('#notice').isHidden(), true);
+});
+
 test('the settings screen can tell you whether the camera is really there', async (t) => {
   if (skipUnlessBoth(t)) return;
 

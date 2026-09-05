@@ -151,6 +151,8 @@
     "open_slideshow": "Open slideshow",
     "uploads_enabled_hint": "Turn off after the party so no more photos arrive",
     "review_required_hint": "New photos stay off the screen until you approve them",
+    "slideshow_booth": "Booth prints on the slideshow",
+    "slideshow_booth_hint": "Show the booth prints ({n} so far) on the screen too",
     "slideshow_hint": "Pick a style and put it on the TV or projector",
     "qr_hint": "Print and put on the tables for guests to scan",
     "zip_photos_hint": "Small file, fine to download on a phone",

@@ -8,6 +8,7 @@ import { db, getFlag, getSetting, pruneExpiredSessions, setFlag, setSetting } fr
 import { catalogue, translator } from '../i18n.js';
 import {
   HOST_SLOTS,
+  countBoothSessions,
   countHostMedia,
   deleteHostMediaRow,
   deleteItemRow,
@@ -143,6 +144,10 @@ adminRouter.get('/admin', wrap(async (req, res) => {
     queue: queueLength(),
     uploadsEnabled: getFlag('uploads_enabled', true),
     requireReview: getFlag('require_review', false),
+    // แผ่นจากบูธบนจอสไลด์โชว์ · เปิดไว้เป็นค่าเริ่มต้น — งานที่ไม่มีบูธไม่มีอะไรเปลี่ยน
+    // เพราะไม่มีแผ่นให้ขึ้นอยู่แล้ว ส่วนงานที่มีบูธคือคนที่ซื้อบูธไปแล้ว
+    slideshowBooth: getFlag('slideshow_booth', true),
+    boothOnScreen: countBoothSessions(),
     uploadsOpen: uploadsOpen(),
     items: listItems({ limit: 120, includeHidden: true }),
     messages: listMessages({ limit: 60, includeHidden: true }),
@@ -194,6 +199,7 @@ adminRouter.post('/admin/logout', requireAdmin, (req, res) => {
 adminRouter.post('/admin/settings', requireAdmin, express.urlencoded({ extended: false }), (req, res) => {
   setFlag('uploads_enabled', req.body?.uploads_enabled === 'on');
   setFlag('require_review', req.body?.require_review === 'on');
+  setFlag('slideshow_booth', req.body?.slideshow_booth === 'on');
   res.redirect('/admin');
 });
 

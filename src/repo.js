@@ -392,9 +392,9 @@ const boothStatements = {
   insert: db.prepare(`
     INSERT INTO booth_sessions
       (token, taken_at, event_title, template, effect, sheet_name, bytes, album,
-       gif_name, thumb_name)
+       gif_name, thumb_name, width, height)
     VALUES (@token, @takenAt, @eventTitle, @template, @effect, @sheetName, @bytes, @album,
-            @gifName, @thumbName)
+            @gifName, @thumbName, @width, @height)
   `),
   insertShot: db.prepare(`
     INSERT INTO booth_shots (token, stored_name, sort_order, bytes)
@@ -402,6 +402,12 @@ const boothStatements = {
   `),
   shots: db.prepare('SELECT * FROM booth_shots WHERE token = ? ORDER BY sort_order, id'),
   list: db.prepare('SELECT * FROM booth_sessions ORDER BY created_at DESC LIMIT ?'),
+  forScreen: db.prepare(`
+    SELECT * FROM booth_sessions
+    WHERE expired_at IS NULL
+    ORDER BY created_at DESC
+    LIMIT ?
+  `),
   remove: db.prepare('DELETE FROM booth_sessions WHERE token = ?'),
   count: db.prepare('SELECT COUNT(*) AS count FROM booth_sessions'),
   bytes: db.prepare('SELECT COALESCE(SUM(bytes), 0) AS bytes FROM booth_sessions'),
@@ -455,6 +461,15 @@ const boothStatements = {
 export const getBoothSession = (token) => boothStatements.get.get(token);
 export const listBoothShots = (token) => boothStatements.shots.all(token);
 export const listBoothSessions = (limit = 200) => boothStatements.list.all(Math.min(limit, 1000));
+
+/**
+ * แผ่นจากบูธที่เอาขึ้นจอสไลด์โชว์ได้ — ใหม่สุดก่อน
+ *
+ * ตัดรอบที่หมดอายุออก (`expired_at`) เพราะไฟล์ถูกลบไปแล้ว เหลือแต่แถวไว้ให้ QR
+ * บนกระดาษยังตอบได้ว่า "รูปหมดอายุแล้ว" — เอาขึ้นจอจะได้กรอบว่างที่โหลดไม่ขึ้น
+ */
+export const listBoothForScreen = (limit = 40) =>
+  boothStatements.forScreen.all(Math.min(Math.max(1, limit), 200));
 export const countBoothSessions = () => boothStatements.count.get().count;
 export const deleteBoothSession = (token) => boothStatements.remove.run(token);
 

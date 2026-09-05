@@ -245,6 +245,18 @@ async function receive(req, res, uploadError) {
      * เปิดอัลบั้มพร้อมกันตอนงานเลิกคือ NAS ที่ต้องย่อภาพพันครั้งในนาทีเดียว
      * ล้มก็ไม่เป็นไร กริดจะตกไปใช้แผ่นเต็มแทน (ช้าแต่ยังเห็นรูป)
      */
+    /*
+     * ขนาดของแผ่น — อ่านครั้งเดียวตอนรับไฟล์ เก็บลงแถวไปเลย
+     *
+     * สไลด์โชว์ต้องรู้สัดส่วนก่อนรูปจะโหลดเสร็จ ไม่งั้นกรอบจะกระพริบเปลี่ยนขนาด
+     * ตอนรูปมาถึง ซึ่งบนกำแพงที่มีสิบห้าใบพร้อมกันคือการกระตุกทั้งจอ
+     * อ่านไม่ได้ก็ปล่อยว่าง — ตัวอ่านตกกลับไปสัดส่วนกระดาษ 4×6 ให้เอง
+     */
+    const size = await sharp(path.join(config.paths.booth, savedSheet.name))
+      .metadata()
+      .then(({ width, height }) => ({ width, height }))
+      .catch(() => ({ width: null, height: null }));
+
     const thumbName = `${token}-thumb.jpg`;
     const thumb = await sharp(path.join(config.paths.booth, savedSheet.name))
       .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
@@ -274,6 +286,8 @@ async function receive(req, res, uploadError) {
       album: isAlbum(manifest.album) ? manifest.album : null,
       gifName: savedGif?.name ?? null,
       thumbName: thumb,
+      width: size.width ?? null,
+      height: size.height ?? null,
     }, savedShots.map((shot) => ({ storedName: shot.name, bytes: shot.bytes })));
 
     return res.status(201).json({

@@ -247,12 +247,16 @@ async function shoot() {
   startRelay();
   try {
     for (let i = 1; i <= needed; i += 1) {
-      setProgress(needed > 1 ? `รูปที่ ${i} จาก ${needed}` : '');
+      const counter = needed > 1 ? `รูปที่ ${i} จาก ${needed}` : '';
+      setProgress(counter);
       await countdown(settings.countdownSeconds);
       flash();
       // แฟลชสว่างก่อนเก็บภาพเสมอ — จังหวะที่แขกเห็นแสงคือจังหวะที่ภาพถูกเก็บจริง
       state.shots.push(await takeShot());
-      setProgress('');
+      // โหมดกล้องใหญ่เขียนทับแถบนี้ด้วย "กำลังบันทึก…" ระหว่างรอกล้อง — **คืนตัวนับ
+      // กลับ ไม่ใช่ล้างทิ้ง** ไม่งั้นช่วงเว้นจังหวะระหว่างรูปจะว่างเปล่าทั้งสองโหมด
+      // แล้วแขกไม่รู้ว่าเหลืออีกกี่รูป ซึ่งเป็นข้อมูลเดียวที่บอกว่าให้ยืนอยู่ต่อ
+      setProgress(counter);
       // เว้นจังหวะให้แขกเปลี่ยนท่า ไม่ใช่รัวติดกันจนได้สามรูปท่าเดียวกัน
       if (i < needed) await wait(900);
     }

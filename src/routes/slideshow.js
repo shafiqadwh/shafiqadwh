@@ -1,6 +1,7 @@
 import express from 'express';
 import { config } from '../config.js';
-import { listItems, listMessages } from '../repo.js';
+import { listBoothForScreen, listItems, listMessages } from '../repo.js';
+import { getFlag } from '../db.js';
 import { qrDataUrl, shareUrl } from '../lib/qr.js';
 import { toPublicItem } from './gallery.js';
 import { wrap } from '../lib/async-route.js';
@@ -62,6 +63,62 @@ slideshowRouter.get('/slideshow', wrap(async (req, res) => {
   });
 }));
 
+/*
+ * ── แผ่นจากบูธบนจอสไลด์โชว์ ───────────────────────────────────────────────
+ *
+ * ลูกค้าที่ซื้อทั้งเว็บและบูธได้ของสองอย่างที่ไม่เคยเห็นกันเลย — แผ่นที่พิมพ์ออกมา
+ * อยู่ในกระเป๋าแขก ส่วนจอบนกำแพงขึ้นแต่รูปจากมือถือ · เอาแผ่นขึ้นจอด้วยทำให้
+ * แพ็กคู่มีค่ามากกว่าผลรวมของสองอย่าง และเป็นป้ายโฆษณาบูธที่ดีที่สุดในงาน
+ * (คนเห็นแผ่นสวย ๆ บนจอ แล้วเดินมาต่อแถว)
+ *
+ * เอา **แผ่นที่ประกอบแล้ว** ขึ้นจอ ไม่ใช่รูปดิบทีละใบ — แผ่นมีชื่องานกับกรอบ
+ * ของงานนั้นอยู่ในตัว จึงดูเหมือนของที่ตั้งใจทำ ไม่ใช่รูปหลุดมาปนสามใบติดกัน
+ */
+const BOOTH_ON_SCREEN = 40;
+
+/**
+ * แปลงแถวของบูธให้หน้าตาเหมือน item ของแขก — **หน้าจอจึงไม่ต้องแก้เลยสักบรรทัด**
+ *
+ * `id` เป็นสตริง `b:<โทเคน>` ไม่ใช่ตัวเลข · ฝั่งหน้าจอใช้ id เป็นแค่กุญแจของ Set
+ * กับ Map (กันซ้ำ และจับคู่คำอวยพรกับรูป) ซึ่งรับค่าอะไรก็ได้ · เลือกให้ชนกับเลข
+ * id ของรูปแขกไม่ได้เด็ดขาด เพราะสองตารางนับเลขของตัวเองแยกกัน แล้วรูปคนละใบ
+ * จะกลายเป็นใบเดียวกันในสายตาตัวกันซ้ำ — รูปหนึ่งใบหายไปจากจอเงียบ ๆ
+ */
+const toScreenSheet = (row) => ({
+  id: `b:${row.token}`,
+  kind: 'image',
+  // รอบเก่าก่อนมีคอลัมน์ขนาด ตกกลับไปสัดส่วนกระดาษ 4×6 ซึ่งถูกกับแผ่นเกือบทุกใบ
+  width: row.width ?? 1200,
+  height: row.height ?? 1800,
+  duration: null,
+  uploader: null,
+  createdAt: row.created_at,
+  thumbUrl: `/p/${row.token}/thumb`,
+  mediaUrl: `/p/${row.token}/sheet`,
+  displayUrl: `/p/${row.token}/sheet`,
+  downloadUrl: `/p/${row.token}/sheet`,
+  converting: false,
+});
+
+/**
+ * ส่งแผ่นล่าสุดไปทุกครั้งที่ถาม **โดยไม่ต้องมีตัวชี้ตำแหน่งของตัวเอง**
+ *
+ * ฝั่งหน้าจอกันซ้ำด้วย Set ของ id อยู่แล้ว ส่งซ้ำจึงไม่มีผลอะไรนอกจากไบต์ไม่กี่พัน
+ * ต่อการถามหนึ่งครั้ง (ถามทุก 15 วินาที) · ทางเลือกอีกทางคือเพิ่มตัวชี้ตำแหน่งที่สาม
+ * ซึ่งต้องแก้ทั้งฝั่งหน้าจอและสัญญาของ API เพื่อประหยัดสิ่งที่ไม่มีใครวัดได้
+ */
+function withBoothSheets(items) {
+  if (!getFlag('slideshow_booth', true)) return items;
+
+  const sheets = listBoothForScreen(BOOTH_ON_SCREEN).map(toScreenSheet);
+  if (sheets.length === 0) return items;
+
+  // เรียงรวมตามเวลา ใหม่สุดก่อน เหมือนที่รูปของแขกเรียงอยู่ — ไม่งั้นแผ่นจะไปกอง
+  // อยู่ท้ายสำรับ แล้วโหมดโรงหนังจะขึ้นแผ่นทั้งหมดรวดเดียวตอนจบ
+  return [...items, ...sheets]
+    .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+}
+
 slideshowRouter.get('/api/slideshow', (req, res) => {
   const since = Number(req.query.since) || 0;
   const sinceMessage = Number(req.query.sinceMessage) || 0;
@@ -90,7 +147,7 @@ slideshowRouter.get('/api/slideshow', (req, res) => {
     }));
 
   res.json({
-    items,
+    items: withBoothSheets(items),
     messages,
     maxId: rows.length ? Math.max(...rows.map((row) => row.id)) : since,
     maxMessageId: messages.length ? Math.max(...messages.map((m) => m.id)) : sinceMessage,

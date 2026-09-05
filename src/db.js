@@ -188,6 +188,20 @@ if (!boothColumns.includes('gif_name')) {
 if (!boothColumns.includes('thumb_name')) {
   database.exec('ALTER TABLE booth_sessions ADD COLUMN thumb_name TEXT');
 }
+/*
+ * ขนาดของแผ่น — สำหรับให้สไลด์โชว์วางกรอบได้ถูกสัดส่วนตั้งแต่ก่อนโหลดรูป
+ *
+ * ไม่มีค่านี้จอจะเดาเป็น 1.2 แล้วกรอบกระพริบเปลี่ยนขนาดตอนรูปโหลดเสร็จ ซึ่งบนกำแพง
+ * ที่มีสิบห้าใบพร้อมกันคือการกระตุกทั้งจอ · รอบเก่าที่อัปโหลดไว้ก่อนมีคอลัมน์นี้
+ * ปล่อยว่างได้ ตัวอ่านตกกลับไปสัดส่วนกระดาษ 4×6 ซึ่งถูกกับแผ่นเกือบทุกใบอยู่แล้ว
+ */
+// เช็กทีละคอลัมน์ตามแบบข้างบน — เผื่อฐานข้อมูลที่ถูกอัปเดตค้างกลางทางมาก่อน
+if (!boothColumns.includes('width')) {
+  database.exec('ALTER TABLE booth_sessions ADD COLUMN width INTEGER');
+}
+if (!boothColumns.includes('height')) {
+  database.exec('ALTER TABLE booth_sessions ADD COLUMN height INTEGER');
+}
 database.exec('CREATE INDEX IF NOT EXISTS idx_booth_sessions_album ON booth_sessions (album, created_at DESC)');
 }
 

@@ -342,6 +342,19 @@
         <span class="setting__hint"><%= t('admin.review_required_hint') %></span>
       </span>
     </label>
+    <!--
+      แผ่นจากบูธบนจอสไลด์โชว์ — ขึ้นเฉพาะงานที่มีแผ่นจากบูธจริง
+      งานที่ไม่ได้ซื้อบูธไม่ต้องเห็นสวิตช์ที่กดแล้วไม่มีอะไรเกิดขึ้น
+    -->
+    <% if (boothOnScreen > 0) { %>
+      <label class="setting">
+        <input type="checkbox" name="slideshow_booth" <%= slideshowBooth ? 'checked' : '' %>>
+        <span class="setting__text">
+          <span class="setting__name"><%= t('admin.slideshow_booth') %></span>
+          <span class="setting__hint"><%= t('admin.slideshow_booth_hint', { n: boothOnScreen }) %></span>
+        </span>
+      </label>
+    <% } %>
     <button type="submit" class="button button--primary button--small settings__save"><%= t('admin.save') %></button>
   </form>
 </section>
