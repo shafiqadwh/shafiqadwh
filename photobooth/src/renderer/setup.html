@@ -73,11 +73,16 @@
       <label>ตัวขับ
         <select id="printerDriver">
           <option value="file">เขียนลงแฟ้ม (ไม่ต้องมีเครื่องพิมพ์)</option>
-          <option value="cups">ส่งเข้าคิว CUPS</option>
+          <option value="system">สั่งพิมพ์ผ่านระบบ — ใช้ได้ทั้ง Windows/macOS/Linux</option>
+          <option value="cups">ส่งเข้าคิว CUPS (Linux/macOS เท่านั้น)</option>
         </select>
       </label>
-      <label>ชื่อคิวพิมพ์<input id="printerName" type="text" maxlength="100" autocomplete="off"
-        placeholder="ว่างไว้ = เครื่องพิมพ์เริ่มต้นของระบบ"></label>
+      <label>เครื่องพิมพ์
+        <select id="printerPick">
+          <option value="">เครื่องพิมพ์เริ่มต้นของระบบ</option>
+        </select>
+      </label>
+      <p class="hint" id="printer-note"></p>
     </section>
 
     <section class="group group--pay">

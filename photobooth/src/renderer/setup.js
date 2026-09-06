@@ -41,7 +41,19 @@ function paint(settings) {
   el('cameraSource').value = settings.camera.source;
   el('cameraKeepOnCard').checked = settings.camera.keepOnCard;
   el('printerDriver').value = settings.printer.driver;
-  el('printerName').value = settings.printer.name;
+  /*
+   * ชื่อเครื่องพิมพ์ที่ตั้งไว้อาจไม่อยู่ในรายการที่ระบบเห็นตอนนี้ (ยังไม่ได้เสียบ
+   * หรือย้ายมาอีกเครื่อง) — ต้องคงค่าเดิมไว้ ไม่ใช่เงียบ ๆ เปลี่ยนเป็นค่าเริ่มต้น
+   * แล้วให้เจ้าของมารู้ตอนกระดาษออกมาจากเครื่องผิดตัว
+   */
+  const pick = el('printerPick');
+  if (settings.printer.name && !pick.querySelector(`option[value="${CSS.escape(settings.printer.name)}"]`)) {
+    const missing = document.createElement('option');
+    missing.value = settings.printer.name;
+    missing.textContent = `${settings.printer.name} (ยังไม่เจอในระบบตอนนี้)`;
+    pick.append(missing);
+  }
+  pick.value = settings.printer.name;
 
   el('saleEnabled').checked = settings.sale.enabled;
   el('saleTarget').value = settings.sale.target;
@@ -68,7 +80,7 @@ const patchFromForm = () => ({
     source: el('cameraSource').value,
     keepOnCard: el('cameraKeepOnCard').checked,
   },
-  printer: { driver: el('printerDriver').value, name: el('printerName').value },
+  printer: { driver: el('printerDriver').value, name: el('printerPick').value },
   sale: {
     enabled: el('saleEnabled').checked,
     target: el('saleTarget').value,
@@ -166,6 +178,24 @@ async function boot() {
     canPublish = setup.canPublish;
     fillOptions(el('theme'), setup.themes);
     fillOptions(el('template'), setup.templates);
+
+    /*
+     * รายชื่อเครื่องพิมพ์จริงของเครื่องนี้ — เลือกจากรายการ ไม่ใช่พิมพ์ชื่อเอง
+     *
+     * บน Windows ชื่อเครื่องพิมพ์หน้าตาแบบ "Canon SELPHY CP1500 (Copy 1)"
+     * ซึ่งพิมพ์ผิดได้ง่ายมากและผิดแล้วเงียบ — งานสั่งไปแล้วแต่ไม่มีอะไรออกมา
+     */
+    const printers = await window.booth.printers().catch(() => []);
+    for (const one of printers) {
+      const option = document.createElement('option');
+      option.value = one.name;
+      option.textContent = one.isDefault ? `${one.display} (ค่าเริ่มต้น)` : one.display;
+      el('printerPick').append(option);
+    }
+    el('printer-note').textContent = printers.length > 0
+      ? `ระบบเห็นเครื่องพิมพ์ ${printers.length} เครื่อง`
+      : 'ยังไม่เจอเครื่องพิมพ์ในระบบ — ติดตั้งไดรเวอร์แล้วเปิดหน้านี้ใหม่';
+
     paint(setup.settings);
   } catch (error) {
     status(`อ่านค่าตั้งไม่ได้: ${error.message}`, 'bad');

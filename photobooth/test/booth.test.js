@@ -10,7 +10,7 @@ import {
 import {
   discardSession, isToken, listSessions, newToken, readSession, reserveSession, saveSession,
 } from '../src/main/session.js';
-import { lpArgs, printSheet } from '../src/main/print.js';
+import { electronPrintOptions, lpArgs, printSheet } from '../src/main/print.js';
 import { composeSheet } from '../src/core/sheet.js';
 
 /**
@@ -268,6 +268,69 @@ test('the lp command is built without going through a shell', () => {
 
   // กระดาษที่ไม่รู้จักตกกลับไป 4x6 แทนที่จะส่งชื่อสื่อที่ CUPS ไม่รู้จักไป
   assert.ok(lpArgs({ paper: 'ไม่มีขนาดนี้', copies: 1, file: '/x' }).includes('media=4x6'));
+});
+
+/**
+ * ตัวขับที่ใช้ได้บน Windows — Windows ไม่มีคำสั่ง `lp` เลย
+ *
+ * บอกขนาดหน้าเป็นไมโครเมตรตรง ๆ เสมอ **ห้ามปล่อยให้ไดรเวอร์เดา** เพราะการเดา
+ * จะได้ A4 แล้วแผ่น 4×6 จะไปนั่งอยู่มุมกระดาษพร้อมขอบขาวรอบด้าน ซึ่งกระดาษ
+ * dye-sub หนึ่งใบเสียไปเลยและเห็นก็ต่อเมื่อมันออกมาจากเครื่องแล้ว
+ */
+test('the system print driver states the exact paper size, never letting the driver guess', () => {
+  const options = electronPrintOptions({
+    printerName: 'Canon SELPHY CP1500', paper: '4x6', page: 'same', copies: 2,
+  });
+
+  assert.equal(options.silent, true, 'บูธเป็นจอสัมผัสไม่มีเมาส์ — กล่องโต้ตอบเด้งขึ้นมาคือบูธค้าง');
+  assert.equal(options.deviceName, 'Canon SELPHY CP1500');
+  assert.equal(options.copies, 2);
+  // 4 นิ้ว = 101,600 ไมโครเมตร · 6 นิ้ว = 152,400
+  assert.deepEqual(options.pageSize, { width: 101600, height: 152400 });
+  assert.deepEqual(options.margins, { marginType: 'none' });
+
+  // โหมดวางบนหน้ากระดาษใช้ขนาดหน้ากระดาษจริง ไม่ใช่ขนาดสินค้า
+  const a4 = electronPrintOptions({ paper: '4x6', page: 'A4', copies: 1 });
+  assert.deepEqual(a4.pageSize, { width: 210000, height: 297000 });
+  // ไม่ระบุชื่อเครื่อง = ใช้เครื่องเริ่มต้น ต้องไม่ส่งชื่อว่างไป
+  assert.equal('deviceName' in a4, false);
+});
+
+test('the system driver refuses to pretend it printed when it has no printer to use', async () => {
+  // print.js ไม่ import Electron เลย (จะได้ทดสอบได้ทั้งไฟล์) ตัวพิมพ์จึงถูกฉีดเข้ามา
+  // ขาดไปเมื่อไรต้องล้มพร้อมบอกเหตุ ไม่ใช่คืน ok แล้วให้แขกยืนรอกระดาษที่ไม่มีวันมา
+  await assert.rejects(
+    printSheet({
+      sheetPath: '/x/sheet.jpg',
+      settings: normaliseSettings({ printer: { driver: 'system' } }),
+      token: 'K7QX2M',
+      outbox: '/x',
+    }),
+    /ไม่มีตัวพิมพ์/,
+  );
+});
+
+test('the system driver hands the sheet over exactly once, with the options it computed', async () => {
+  const dir = await scratch();
+  const sheetPath = path.join(dir, 'sheet.jpg');
+  const { sheet } = await fakeSheet();
+  await fs.writeFile(sheetPath, sheet.data);
+
+  const calls = [];
+  const result = await printSheet({
+    sheetPath,
+    settings: normaliseSettings({ copies: 3, printer: { driver: 'system', name: 'SELPHY' } }),
+    token: 'K7QX2M',
+    outbox: path.join(dir, 'outbox'),
+    viaSystem: async (payload) => { calls.push(payload); },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.driver, 'system');
+  assert.equal(calls.length, 1, 'สั่งพิมพ์ซ้ำสองครั้ง = กระดาษเสียหนึ่งใบทุกครั้ง');
+  assert.equal(calls[0].sheetPath, sheetPath);
+  assert.equal(calls[0].options.copies, 3, 'จำนวนใบต้องบอกเครื่องพิมพ์ ไม่ใช่วนสั่งเอง');
+  assert.equal(calls[0].options.deviceName, 'SELPHY');
 });
 
 test('the file driver writes one copy per requested print', async () => {

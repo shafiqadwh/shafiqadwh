@@ -213,7 +213,7 @@ function camera(value) {
 function printer(value) {
   const given = value && typeof value === 'object' ? value : {};
   return {
-    driver: oneOf(given.driver, ['file', 'cups'], DEFAULTS.printer.driver),
+    driver: oneOf(given.driver, ['file', 'system', 'cups'], DEFAULTS.printer.driver),
     name: text(given.name, 100),
   };
 }

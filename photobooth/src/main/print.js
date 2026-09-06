@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
-import { PAGES } from '../core/paper.js';
+import { PAGES, PAPERS } from '../core/paper.js';
 import { mountOnPage } from '../core/mount.js';
 
 const run = promisify(execFile);
@@ -15,11 +15,14 @@ const run = promisify(execFile);
  * และไม่มี dye-sub ต่ออยู่ · เทสต์ครอบได้แค่ "คำสั่งที่ประกอบขึ้นถูกต้องไหม"
  * กับ "ล้มแล้วบอกเหตุที่อ่านรู้เรื่องไหม" — ตัวตัดสินจริงคือกระดาษที่ออกมา
  *
- * มีสองตัวขับ และค่าเริ่มต้นคือตัวที่ทำงานได้ทุกเครื่องเสมอ
+ * มีสามตัวขับ และค่าเริ่มต้นคือตัวที่ทำงานได้ทุกเครื่องเสมอ
  *
  * - `file` (ค่าเริ่มต้น) เขียนแผ่นลงโฟลเดอร์ขาออก แล้วให้คนสั่งพิมพ์จากระบบเอง
  *   ช้ากว่าแต่ **ไม่มีทางล้มเพราะไดรเวอร์** ซึ่งสำคัญกว่าในงานแรก ๆ
- * - `cups` เรียก `lp` ให้จบในปุ่มเดียว ต้องตั้งเครื่องพิมพ์ในระบบไว้ก่อน
+ * - `system` สั่งพิมพ์ผ่านตัวพิมพ์ของ Electron เอง — **ใช้ได้ทั้ง Windows, macOS
+ *   และ Linux** เพราะไม่ต้องพึ่งคำสั่งของระบบปฏิบัติการเลย และเลือกเครื่องพิมพ์
+ *   จากรายการที่ระบบรู้จักได้ ไม่ต้องพิมพ์ชื่อเอง
+ * - `cups` เรียก `lp` ให้จบในปุ่มเดียว · **Linux/macOS เท่านั้น** Windows ไม่มี `lp`
  */
 
 /**
@@ -67,6 +70,62 @@ export function lpArgs({ printerName, paper, page = 'same', copies, file }) {
   args.push(file);
   return args;
 }
+
+/**
+ * ตัวเลือกของ `webContents.print()` — ฟังก์ชันบริสุทธิ์เพื่อให้ทดสอบได้
+ *
+ * `pageSize` เป็นไมโครเมตร และ **ต้องบอกขนาดจริงเสมอ ไม่ปล่อยให้ไดรเวอร์เดา**
+ * เพราะการเดาจะได้ A4 ซึ่งทำให้แผ่น 4×6 ไปนั่งอยู่มุมกระดาษ · ค่าคงที่ 25400
+ * คือไมโครเมตรต่อนิ้ว
+ *
+ * `margins: none` คู่กับ `pageSize` ที่เท่าสินค้าพอดี = พิมพ์เต็มแผ่นไม่มีขอบ
+ * ซึ่งเป็นสิ่งที่ dye-sub ต้องการ · โหมดวางบนหน้ากระดาษไม่ใช้ margins none
+ * เพราะ mount.js เผื่อขอบไว้ในภาพให้แล้ว การบังคับ none ซ้ำจะไปดันภาพเกินขอบ
+ * ที่เครื่องพิมพ์ทำได้จริง
+ */
+const MICRON_PER_INCH = 25400;
+const MICRON_PER_MM = 1000;
+
+export function electronPrintOptions({ printerName, paper, page = 'same', copies }) {
+  const options = {
+    // ห้ามเด้งกล่องโต้ตอบ — บูธเป็นจอสัมผัสที่ไม่มีเมาส์ และแขกยืนรออยู่
+    silent: true,
+    printBackground: true,
+    copies: Math.max(1, Math.round(copies) || 1),
+  };
+  if (printerName) options.deviceName = printerName;
+
+  if (page === 'same') {
+    const size = PAPERS[paper] ?? PAPERS['4x6'];
+    options.pageSize = {
+      width: Math.round(size.widthIn * MICRON_PER_INCH),
+      height: Math.round(size.heightIn * MICRON_PER_INCH),
+    };
+    options.margins = { marginType: 'none' };
+  } else {
+    const sheet = PAGES[page] ?? PAGES.A4;
+    options.pageSize = {
+      width: Math.round(sheet.widthMm * MICRON_PER_MM),
+      height: Math.round(sheet.heightMm * MICRON_PER_MM),
+    };
+    options.margins = { marginType: 'none' };
+  }
+  return options;
+}
+
+/**
+ * หน้าเว็บหนึ่งหน้าที่มีแต่รูปแผ่น เต็มหน้าพอดี ไม่มีอะไรอื่น
+ *
+ * ส่งเป็น data URL ไม่ใช่ path — ไฟล์ที่อ้างด้วย `file://` จากหน้าที่โหลดด้วย
+ * data URL จะโดนกฎ origin ของ Chromium บล็อก แล้วได้กระดาษเปล่าออกมาโดยไม่มี
+ * error ให้ใครเห็น ซึ่งเป็นความล้มเหลวที่แย่ที่สุดของงานพิมพ์
+ */
+export const printPageHtml = (dataUrl) => `<!doctype html><meta charset="utf-8">
+<style>
+  @page { margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  img { display: block; width: 100%; height: 100%; object-fit: contain; }
+</style><img src="${dataUrl}">`;
 
 async function printViaCups({ sheetPath, settings, copies }) {
   const args = lpArgs({
@@ -148,9 +207,33 @@ export async function preparePrintFile({ dir, sheetPath, settings }) {
   };
 }
 
-export async function printSheet({ sheetPath, settings, token, outbox, copies: want }) {
+/**
+ * `viaSystem` ถูกฉีดเข้ามาจาก main.js — ตัวพิมพ์ของ Electron ต้องมีหน้าต่างจริง
+ *
+ * ไฟล์นี้จึงไม่ import Electron เลย และยังทดสอบได้ทั้งไฟล์โดยไม่ต้องเปิดแอป
+ * ซึ่งจำเป็น เพราะนี่คือตรรกะที่ผิดแล้วกระดาษเสียทุกใบ
+ */
+export async function printSheet({
+  sheetPath, settings, token, outbox, copies: want, viaSystem,
+}) {
   // จำนวนหน้าที่จะสั่งพิมพ์ · ต่างจาก settings.copies เมื่อหนึ่งหน้ามีหลายใบอยู่ในตัว
   const copies = Math.min(8, Math.max(1, Math.round(want ?? settings.copies) || 1));
+
+  if (settings.printer.driver === 'system') {
+    if (typeof viaSystem !== 'function') {
+      throw new Error('สั่งพิมพ์ผ่านระบบไม่ได้: ไม่มีตัวพิมพ์ให้ใช้');
+    }
+    await viaSystem({
+      sheetPath,
+      options: electronPrintOptions({
+        printerName: settings.printer.name,
+        paper: settings.paper,
+        page: settings.printPage,
+        copies,
+      }),
+    });
+    return { ok: true, driver: 'system', detail: settings.printer.name || 'เครื่องพิมพ์เริ่มต้น' };
+  }
 
   if (settings.printer.driver === 'cups') {
     return printViaCups({ sheetPath, settings, copies });

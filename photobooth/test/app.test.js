@@ -111,8 +111,8 @@ test('the booth opens and reaches the ready screen', async (t) => {
     // รายการนี้เป็นบัญชีที่ตั้งใจ ไม่ใช่ผลข้างเคียง — เพิ่มชื่อลงมาต้องเป็นการ
     // ตัดสินใจที่มีคนเห็น ไม่ใช่ของที่ไหลเข้ามาเงียบ ๆ พร้อมฟีเจอร์ใหม่
     ['broadcast', 'camera', 'checkPay', 'closeSettings', 'compose', 'deliver', 'discard',
-      'onMessage', 'openSettings', 'paid', 'pending', 'retake', 'sale', 'save', 'settings',
-      'setup', 'shot', 'upload'],
+      'onMessage', 'openSettings', 'paid', 'pending', 'printers', 'retake', 'sale', 'save',
+      'settings', 'setup', 'shot', 'upload'],
   );
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined',
     'หน้าจอต้องไม่มีทางเรียกโมดูลของ Node ได้เอง');

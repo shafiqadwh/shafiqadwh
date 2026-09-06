@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, app, globalShortcut, ipcMain, screen } from 'electron';
@@ -15,7 +16,7 @@ import {
   clearSession, discardSession, isToken, listSessions, reserveSession, saveSession,
 } from './session.js';
 import { uploadPending, uploadSession } from './upload.js';
-import { preparePrintFile, printSheet } from './print.js';
+import { preparePrintFile, printPageHtml, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
 import { recordSale, takings } from './sales.js';
 import { createCamera } from './camera.js';
@@ -195,6 +196,68 @@ ipcMain.handle('booth:setup', async () => {
 });
 
 ipcMain.on('booth:broadcast', (event, message) => relay(event.sender, message));
+
+/*
+ * ── สั่งพิมพ์ผ่านตัวพิมพ์ของ Electron เอง ─────────────────────────────────
+ *
+ * ทางเดียวที่สั่งพิมพ์ได้บน **Windows** เพราะ Windows ไม่มีคำสั่ง `lp`
+ * และใช้ได้บน Linux/macOS ด้วย จึงเป็นตัวขับเดียวที่ทำงานได้ทุกเครื่อง
+ *
+ * เปิดหน้าต่างซ่อนใหม่ทุกครั้งแล้วปิดทิ้ง ไม่ใช้ซ้ำ — หน้าต่างที่ค้างไว้ข้ามรอบ
+ * จะถือภาพของรอบก่อนไว้ในหน่วยความจำทั้งงาน และถ้ามันพังกลางทาง รอบถัดไป
+ * จะพิมพ์ของเก่าออกมาโดยไม่มีอะไรบอก ซึ่งแย่กว่าการเปิดใหม่ที่ใช้เวลาไม่ถึงวินาที
+ */
+async function printWithElectron({ sheetPath, options }) {
+  const data = await fs.readFile(sheetPath);
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { offscreen: false, contextIsolation: true, nodeIntegration: false },
+  });
+
+  try {
+    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(
+      printPageHtml(`data:image/jpeg;base64,${data.toString('base64')}`),
+    )}`);
+
+    await new Promise((resolve, reject) => {
+      /*
+       * `print()` เรียก callback เสมอ แต่ **ไม่รับประกันว่าจะเรียกเร็ว** —
+       * คิวของเครื่องพิมพ์ที่ค้างทำให้มันเงียบไปเลยได้ · ตั้งเพดานเวลาไว้
+       * ไม่งั้นแขกยืนรอหน้าบูธโดยไม่มีอะไรขยับและไม่มีข้อความอะไรขึ้น
+       */
+      const timer = setTimeout(
+        () => reject(new Error('สั่งพิมพ์ไม่ได้: เครื่องพิมพ์ไม่ตอบใน 60 วินาที — เช็กคิวพิมพ์กับสาย')),
+        60000,
+      );
+      win.webContents.print(options, (ok, reason) => {
+        clearTimeout(timer);
+        if (ok) resolve();
+        // `reason` ของ Electron เป็นภาษาอังกฤษสั้น ๆ เช่น "cancelled" — ส่งต่อไปตรง ๆ
+        // ดีกว่าแปลเอง เพราะมันคือสิ่งที่ค้นหาต่อได้จริงเวลาติดปัญหา
+        else reject(new Error(`สั่งพิมพ์ไม่สำเร็จ: ${reason || 'ไม่ทราบสาเหตุ'}`));
+      });
+    });
+  } finally {
+    if (alive(win)) win.destroy();
+  }
+}
+
+/** รายชื่อเครื่องพิมพ์ที่ระบบรู้จัก — ให้หน้าตั้งค่าเลือกจากรายการ ไม่ใช่พิมพ์ชื่อเอง */
+ipcMain.handle('booth:printers', async () => {
+  const win = windows.guest ?? windows.operator;
+  if (!alive(win)) return [];
+  try {
+    const found = await win.webContents.getPrintersAsync();
+    return found.map((one) => ({
+      name: one.name,
+      display: one.displayName || one.name,
+      isDefault: one.isDefault === true,
+    }));
+  } catch (error) {
+    console.warn('[print] อ่านรายชื่อเครื่องพิมพ์ไม่ได้:', error.message);
+    return [];
+  }
+});
 
 /*
  * ── หน้าตั้งค่าในแอป ──────────────────────────────────────────────────────
@@ -498,7 +561,12 @@ ipcMain.handle('booth:deliver', async (event, { token }) => {
       dir, sheetPath: path.join(dir, 'sheet.jpg'), settings,
     });
     await printSheet({
-      sheetPath: prepared.path, settings, token, outbox: outboxDir(), copies: prepared.pages,
+      sheetPath: prepared.path,
+      settings,
+      token,
+      outbox: outboxDir(),
+      copies: prepared.pages,
+      viaSystem: printWithElectron,
     });
     out.printed = true;
   }

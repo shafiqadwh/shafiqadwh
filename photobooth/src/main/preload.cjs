@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('booth', {
   // กล้องใหญ่ · `shot` ล้มได้เป็นปกติ หน้าจอมีเฟรมเว็บแคมสำรองไว้แล้วเสมอ
   shot: () => ipcRenderer.invoke('booth:shot'),
   camera: () => ipcRenderer.invoke('booth:camera'),
+  printers: () => ipcRenderer.invoke('booth:printers'),
   paid: (payload) => ipcRenderer.invoke('booth:paid', payload),
   pending: () => ipcRenderer.invoke('booth:pending'),
   // หน้าตั้งค่า · จอบูธใช้แค่ openSettings ที่เหลือเป็นของหน้าต่างตั้งค่าเอง
