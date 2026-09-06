@@ -459,3 +459,55 @@ test('paying first: a retake is a retake, not a second sale', async (t) => {
   await guest.waitForSelector('body[data-stage="done"]', { timeout: 70000 });
   assert.equal((await ledger()).length, rows.length);
 });
+
+/**
+ * เครื่องพิมพ์ไม่ออก **หลังรับเงินไปแล้ว** — เก็บเงินซ้ำไม่ได้เด็ดขาด
+ *
+ * กระดาษหมด ม้วนริบบิ้นหมด สาย USB ของเครื่องพิมพ์หลวม คิว CUPS ค้าง — เกิดจริง
+ * ทั้งหมด และเกิดตอนที่แขกจ่ายเงินไปแล้วยืนรอกระดาษอยู่ตรงหน้า
+ *
+ * โหมดจ่ายทีหลังอันตรายเป็นพิเศษ เพราะการจ่ายเกิด **ก่อน** การพิมพ์แค่เสี้ยววินาที
+ * ถ้าพิมพ์ล้มแล้วบูธค้างอยู่ที่หน้าจ่ายเงิน ปุ่มหลักบนจอช่างภาพจะยังแปลว่า
+ * "ได้รับเงินแล้ว" — เจ้าของบูธที่กดซ้ำเพราะคิดว่ากดไม่ติด จะจดเงินเข้าสมุดสองรอบ
+ * จากลูกค้าคนเดียวโดยไม่มีอะไรเตือน
+ *
+ * จำลองด้วยการสลับไปใช้ตัวขับ CUPS บนเครื่องที่ไม่มีคำสั่ง `lp`
+ */
+test('a printer that fails after taking the money never takes it twice', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  await saveSettings(path.join(userData, 'booth'), {
+    sale: { enabled: true, target: PHONE, price: PRICE, payWhen: 'after' },
+    printer: { driver: 'cups', name: '' },
+  });
+  await Promise.all([guest.reload(), operator.reload()]);
+  await guest.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+  await operator.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+
+  const before = (await ledger()).length;
+  await guest.locator('#start').click();
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+  await guest.locator('#deliver').click();
+  await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
+
+  await operator.locator('#go').click();
+
+  /*
+   * พิมพ์ล้ม → ต้องกลับไปหน้าดูแผ่น ไม่ใช่ค้างอยู่หน้าจ่ายเงิน
+   * แผ่นยังอยู่ครบ กดสั่งพิมพ์ใหม่ได้ทันทีที่แก้เครื่องพิมพ์เสร็จ
+   */
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+  assert.equal((await ledger()).length, before + 1, 'จ่ายรอบเดียวต้องจดครั้งเดียว');
+
+  // ช่างภาพคือคนที่ต้องไปแก้เครื่องพิมพ์ — ต้องเห็นเหตุ ไม่ใช่เห็นแค่จอที่ไม่ขยับ
+  assert.equal(await operator.locator('#notice').isHidden(), false);
+  assert.match(await operator.locator('#notice').textContent(), /lp|พิมพ์/);
+
+  // กดสั่งพิมพ์ซ้ำ **ต้องไม่พาไปหน้าจ่ายเงินอีก** — รอบนี้จ่ายมาแล้ว
+  await operator.locator('#go').click();
+  await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+  assert.equal((await ledger()).length, before + 1,
+    'สั่งพิมพ์ซ้ำหลังเครื่องพิมพ์ล้ม ต้องไม่เก็บเงินเพิ่มอีกรอบ');
+
+  await saveSettings(path.join(userData, 'booth'), { printer: { driver: 'file', name: '' } });
+});

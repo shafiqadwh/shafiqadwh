@@ -18,6 +18,13 @@ const state = {
   effect: null,
   shots: [],
   token: null,
+  /*
+   * โทเคนของรอบที่ **จ่ายเงินมาแล้ว** · ตั้งตอนรับเงิน ใช้ได้ทั้งสองโหมด
+   *
+   * เก็บเป็นโทเคน ไม่ใช่ธงจริง/เท็จ — รอบใหม่ต้องไม่รับมรดกสถานะ "จ่ายแล้ว"
+   * ของรอบก่อนหน้า ซึ่งเป็นความผิดพลาดที่ไม่มีอะไรบนจอบอกจนกว่าจะนับเงินตอนเก็บบูธ
+   */
+  paidFor: null,
   // ยอดกับ QR ของรอบที่กำลังเก็บเงิน — เก็บไว้ส่งซ้ำให้จอช่างภาพที่เพิ่งรีเฟรช
   pay: null,
   // สิ่งที่จะทำต่อเมื่อรับเงินแล้ว — ถ่าย (จ่ายก่อน) หรือส่งมอบ (จ่ายทีหลัง)
@@ -56,6 +63,14 @@ function fail(message) {
   const box = el('error');
   box.textContent = message;
   box.hidden = false;
+  /*
+   * ส่งให้จอช่างภาพด้วยเสมอ — **คนที่ต้องลงมือแก้คือเขา ไม่ใช่แขก**
+   *
+   * ข้อความบนจอแขกหายเองใน 8 วินาที (บูธไม่มีใครนั่งเฝ้าคอยกดปิด) ซึ่งเหมาะกับ
+   * แขกที่แค่ต้องรู้ว่าเกิดอะไรขึ้น แต่ไม่เหมาะกับคนที่ต้องเดินไปเปลี่ยนกระดาษ —
+   * เขาอาจหันมามองจอตอนที่ข้อความหายไปแล้ว แล้วเห็นแค่บูธที่ไม่ขยับ
+   */
+  say({ type: 'notice', text: message });
   // ข้อความผิดพลาดหายเองหลังพอสมควร — บูธไม่มีใครนั่งเฝ้าคอยกดปิด
   clearTimeout(fail.timer);
   fail.timer = setTimeout(() => { box.hidden = true; }, 8000);
@@ -313,10 +328,10 @@ const payFirst = () => state.setup?.settings?.sale?.enabled === true
  * ในโหมดจ่ายทีหลัง `state.token` ที่หน้าพร้อมถ่ายเป็น null เสมอ (ล้างตอน reset)
  * เงื่อนไขนี้จึงเป็นจริงเฉพาะโหมดจ่ายก่อนถ่ายโดยธรรมชาติ ไม่ต้องมีตัวแปรเพิ่ม
  */
-const holdingPaid = () => Boolean(payFirst() && state.token);
+const holdingPaid = () => Boolean(state.token && state.paidFor === state.token);
 
 /** เริ่มรอบใหม่จากหน้าพร้อมถ่าย — จ่ายมาแล้วก็ถ่ายเลย ไม่เก็บซ้ำ */
-const startRound = () => (payFirst() && !state.token ? askPayment(shoot) : shoot());
+const startRound = () => (payFirst() && !holdingPaid() ? askPayment(shoot) : shoot());
 
 /**
  * ป้ายบนปุ่มแรก · เป็นที่เดียวที่เขียนป้ายนี้ จะได้ไม่มีทางขัดกับสถานะจริง
@@ -391,6 +406,9 @@ async function confirmPaid({ free = false } = {}) {
   // โหมดจ่ายก่อนถ่าย ฝั่งหลักจองโทเคนให้ตอนรับเงิน — ถือไว้ใช้ตอนประกอบแผ่น
   // เพื่อให้บรรทัดในสมุดบัญชีกับรอบถ่ายเป็นใบเดียวกัน
   state.token = result.token;
+  // จำไว้ว่า **รอบนี้จ่ายแล้ว** · ทุกอย่างหลังจากนี้ (พิมพ์ ถ่ายใหม่ สั่งพิมพ์ซ้ำ)
+  // ต้องไม่พาไปหน้าจ่ายเงินอีก ไม่ว่าจะล้มกลางทางตรงไหน
+  state.paidFor = result.token;
   say({ type: 'takings', takings: result.takings, free });
   await (state.afterPaying ?? deliver)();
 }
@@ -404,7 +422,21 @@ const DELIVERY = {
 
 async function deliver() {
   const result = await guard(() => window.booth.deliver({ token: state.token }));
-  if (!result) return;
+
+  /*
+   * ส่งมอบไม่สำเร็จ (กระดาษหมด ริบบิ้นหมด คิวพิมพ์ค้าง) → **กลับไปหน้าดูแผ่น**
+   *
+   * ไม่ใช่ค้างอยู่ที่เดิม · โหมดจ่ายทีหลังเข้ามาที่นี่จากหน้าจ่ายเงิน ถ้าปล่อยให้ค้าง
+   * อยู่ตรงนั้น ปุ่มหลักบนจอช่างภาพจะยังแปลว่า "ได้รับเงินแล้ว" — เจ้าของบูธที่กดซ้ำ
+   * เพราะคิดว่ากดไม่ติด จะจดเงินเข้าสมุดสองรอบจากลูกค้าคนเดียว (วัดแล้วเจอจริง)
+   *
+   * หน้าดูแผ่นถูกต้องเสมอ: แผ่นยังอยู่ครบ กดสั่งพิมพ์ใหม่ได้ทันทีที่แก้เครื่องพิมพ์เสร็จ
+   * และรอบนี้ถูกทำเครื่องหมายว่าจ่ายแล้ว จึงไม่พาไปหน้าจ่ายเงินอีก
+   */
+  if (!result) {
+    stage('review');
+    return;
+  }
 
   const mode = DELIVERY[state.setup.settings.deliver] ?? DELIVERY.print;
   const qr = el('done-qr');
@@ -449,6 +481,7 @@ async function reset({ discard = false, keep = false } = {}) {
   state.shots = [];
   // `keep` = ถือตั๋วที่จ่ายมาแล้วต่อไว้ที่หน้าพร้อมถ่าย (รอบล้มหลังรับเงิน)
   state.token = keep ? token : null;
+  if (!keep) state.paidFor = null;
   el('sheet').removeAttribute('src');
   el('token').textContent = '';
   // QR ของคนก่อนค้างอยู่ = คนถัดไปสแกนแล้วได้รูปของคนอื่น
@@ -513,8 +546,9 @@ const ACTIONS = {
     // จ่ายก่อนถ่าย: ปุ่มแรกพาไปหน้าจ่ายเงิน · จ่ายทีหลัง: เริ่มถ่ายเลยเหมือนเดิม
     // ถือตั๋วที่จ่ายมาแล้วอยู่ (รอบก่อนล้ม) ก็ถ่ายเลย ไม่เก็บเงินซ้ำ
     ready: () => startRound(),
-    // จ่ายก่อนถ่ายแล้ว = จ่ายไปแล้ว · ขั้นนี้ต้องส่งมอบเลย ไม่ใช่เก็บเงินซ้ำ
-    review: () => (payFirst() ? deliver() : askPayment(deliver)),
+    // ถามว่า **รอบนี้จ่ายแล้วหรือยัง** ไม่ใช่ถามว่าบูธตั้งเก็บเงินตอนไหน
+    // จ่ายทีหลังที่พิมพ์ล้มไปแล้วก็อยู่ที่ขั้นนี้เหมือนกัน และจ่ายมาแล้วเช่นกัน
+    review: () => (holdingPaid() ? deliver() : askPayment(deliver)),
     // รีโมทอยู่ในมือเจ้าของบูธ ซึ่งเป็นคนเดียวที่เห็นแอปธนาคาร — ปุ่มถ่ายบนรีโมท
     // จึงหมายถึง "ได้รับเงินแล้ว" ตอนอยู่ขั้นนี้ เหมือนที่มันหมายถึง "ทำขั้นต่อไป" เสมอ
     pay: () => confirmPaid(),
@@ -525,7 +559,7 @@ const ACTIONS = {
     // มีความหมายเฉพาะตอนถือตั๋วอยู่ ขั้นพร้อมถ่ายปกติกดแล้วไม่มีอะไรเกิดขึ้น
     ready: () => (holdingPaid() ? reset({ discard: true }) : undefined),
     // จ่ายมาแล้ว = ถ่ายใหม่ให้ · ยังไม่จ่าย = ทิ้งรอบนี้ไปเลย
-    review: () => (payFirst() ? retake() : reset({ discard: true })),
+    review: () => (holdingPaid() ? retake() : reset({ discard: true })),
     pay: () => reset({ discard: true }),
     done: () => reset(),
   },
@@ -622,11 +656,11 @@ async function boot() {
   }
 
   el('start').addEventListener('click', () => startRound());
-  el('deliver').addEventListener('click', () => (payFirst() ? deliver() : askPayment(deliver)));
+  el('deliver').addEventListener('click', () => ACTIONS.shutter.review());
   el('pay-done').addEventListener('click', () => confirmPaid());
   el('pay-cancel').addEventListener('click', () => reset({ discard: true }));
 
-  el('again').addEventListener('click', () => (payFirst() ? retake() : reset({ discard: true })));
+  el('again').addEventListener('click', () => ACTIONS.back.review());
   watchSetupGesture();
   el('restart').addEventListener('click', () => reset());
 
