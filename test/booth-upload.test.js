@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { watch } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -145,6 +146,46 @@ test('uploading without the right key gets nowhere', async () => {
   }
   assert.equal(countBoothSessions(), before, 'ต้องไม่มีอะไรถูกบันทึก');
   assert.equal(getBoothSession('AAAAAA'), undefined);
+});
+
+test('a wrong key is turned away before a single byte touches the disk', async () => {
+  /*
+   * เดิมกุญแจถูกตรวจ **หลัง** multer เขียนไฟล์ลงดิสก์เสร็จแล้ว — คำขอที่ไม่มีกุญแจ
+   * จึงเขียนได้ถึง 10 ไฟล์ × 25 MB = 250 MB ต่อครั้ง แล้วค่อยถูกลบทิ้ง
+   * ตัวจำกัดอัตรายอมให้ 600 ครั้ง/ชม./ไอพี = ดิสก์ของ NAS ที่บ้านเต็มได้ด้วยคำขอ
+   * ที่ไม่มีกุญแจแม้แต่ดอกเดียว (วัดของเดิมได้ 4 ไฟล์ 32 MB จากคำขอเดียว)
+   *
+   * เทสต์นี้เฝ้า `data/tmp` **ระหว่าง** คำขอ ไม่ใช่ดูตอนจบ เพราะของเดิมลบไฟล์ทิ้ง
+   * ให้เองอยู่แล้ว — ดูตอนจบจะผ่านทั้งก่อนและหลังแก้ แล้วเทสต์ก็ไม่ได้ตรวจอะไรเลย
+   */
+  const { config } = await import('../src/config.js');
+  await fs.mkdir(config.paths.tmp, { recursive: true });
+
+  const touched = new Set();
+  const watcher = watch(config.paths.tmp, (event, name) => name && touched.add(name));
+  try {
+    // ใหญ่พอที่ multer จะเขียนลงดิสก์จริง ไม่ใช่ค้างอยู่ในบัฟเฟอร์
+    const big = Buffer.alloc(4 * 1024 * 1024, 0x41);
+    const form = new FormData();
+    form.append('manifest', JSON.stringify({ token: 'AAAAAA' }));
+    form.append('sheet', new Blob([big]), 'sheet.jpg');
+    for (let i = 0; i < 3; i += 1) form.append('shots', new Blob([big]), `s${i}.jpg`);
+
+    const response = await fetch(`${app.baseUrl}/api/booth/upload`, {
+      method: 'POST',
+      headers: { 'x-booth-key': 'definitely-wrong-key' },
+      body: form,
+    });
+
+    // ยังต้องเป็น 401 ที่อ่านรู้เรื่อง ไม่ใช่ซ็อกเก็ตถูกตัดทิ้งกลางคัน — ฝั่งบูธแยก
+    // "กุญแจผิด" กับ "ต่อไม่ติด" ออกจากกัน และสองอย่างนั้นคนละทางแก้
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: 'bad_key' });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.deepEqual([...touched], [], 'ต้องไม่มีไฟล์ไหนถูกเขียนลง tmp เลย');
+  } finally {
+    watcher.close();
+  }
 });
 
 test('sending the same session twice is safe, because the network drops', async () => {
