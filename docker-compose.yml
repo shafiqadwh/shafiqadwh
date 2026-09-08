@@ -45,6 +45,8 @@ services:
       - ./views:/app/views:ro
       - ./public:/app/public:ro
       - ./locales:/app/locales:ro
+      # ใช้ร่วมกับ photo booth — mount ไว้ให้แก้แล้ว restart พอ เหมือน src/
+      - ./shared:/app/shared:ro
       # ฟอนต์ไทย/อาหรับสำหรับการ์ดในหนังและ PDF สมุดคำอวยพร
       #
       # ⚠️ ขาดบรรทัดนี้แล้ว sharp จะ "ไม่ error" แต่ตกไปใช้ฟอนต์ระบบที่ไม่มีอักษรไทย

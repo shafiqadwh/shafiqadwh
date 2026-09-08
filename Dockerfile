@@ -35,6 +35,10 @@ COPY src ./src
 COPY views ./views
 COPY public ./public
 COPY locales ./locales
+# ตัวเรนเดอร์ตัวหนังสือที่ใช้ร่วมกับ photo booth · **src/lib/film.js import ตัวนี้แบบ
+# static** ขาดไปแล้ว `import('./src/server.js')` ล้มด้วย ERR_MODULE_NOT_FOUND
+# ตั้งแต่บรรทัดแรก = เว็บทั้งเว็บไม่ขึ้น ไม่ใช่แค่ export หนังพัง
+COPY shared ./shared
 # ฟอนต์ไทย/อาหรับที่การ์ดในหนังและ PDF สมุดคำอวยพรใช้เรนเดอร์ตัวอักษร
 # ขาดไปแล้ว sharp ไม่ error แต่ตกไปใช้ฟอนต์ระบบที่ไม่มีอักษรไทย ได้ □□□ ทั้งเล่ม
 COPY assets ./assets
