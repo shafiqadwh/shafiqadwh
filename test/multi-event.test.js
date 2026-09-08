@@ -391,3 +391,54 @@ test('a busy event cannot spend the other event\'s rate-limit budget', async () 
   assert.notEqual(byDevice(guest('main')), byDevice(guest('rina')));
   assert.match(byIp(guest('rina')), /^rina:/);
 });
+
+test('a song the host uploaded is theirs, not the whole building\'s', async () => {
+  /*
+   * คลังเพลง CC0 ที่โหลดมาใช้ร่วมกันทุกงาน **โดยตั้งใจ** — ของชุดเดียวกันหมดและ
+   * หนักหลายสิบเมกะไบต์ โหลดครั้งเดียวพอ
+   *
+   * แต่กลุ่ม "ของฉัน" คือเพลงที่เจ้าภาพอัพเอง ซึ่งอาจเป็นเพลงที่เขาซื้อมา เพลงของ
+   * วงที่เล่นในงาน หรือเสียงอัดของครอบครัว · เดิมมันถูกวางในคลังกลางเหมือนกลุ่มอื่น
+   * แปลว่าเจ้าภาพของงาน ก. **เห็น เอาไปใส่ในหนังตัวเอง และลบ** เพลงของงาน ข. ได้
+   * ทั้งที่เป็นลูกค้าคนละคนที่ไม่ควรรู้ด้วยซ้ำว่ามีอีกงานอยู่บนเครื่องเดียวกัน
+   */
+  const { listLibrary, deleteTrack, themeDir } = await import('../src/lib/music.js');
+  const { findEvent, runInEvent } = await import('../src/lib/tenancy.js');
+  const withEvent = (slug, fn) => runInEvent(findEvent(slug), fn);
+
+  // เสียงสั้น ๆ ที่ ffprobe อ่านความยาวออก — ไฟล์ที่อ่านไม่ออกจะถูกคัดออกจากคลัง
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const { FFMPEG } = await import('../src/lib/media.js');
+
+  const songFor = async (slug, name) => {
+    const dir = withEvent(slug, () => themeDir('mine'));
+    await fs.mkdir(dir, { recursive: true });
+    await run(FFMPEG, ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2',
+      path.join(dir, name)]);
+    return dir;
+  };
+
+  const mainDir = await songFor('main', 'เพลงของงานแรก.mp3');
+  const rinaDir = await songFor('rina', 'lagu-rina.mp3');
+  assert.notEqual(mainDir, rinaDir, 'สองงานต้องไม่ใช้โฟลเดอร์เดียวกัน');
+
+  const mineOf = async (slug) => withEvent(slug, async () => {
+    const groups = await listLibrary();
+    return (groups.find((group) => group.theme === 'mine')?.tracks ?? []).map((one) => one.id);
+  });
+
+  assert.deepEqual(await mineOf('main'), ['mine/เพลงของงานแรก.mp3']);
+  assert.deepEqual(await mineOf('rina'), ['mine/lagu-rina.mp3']);
+
+  // และลบของอีกงานไม่ได้ ไม่ใช่เพราะมีคนไปเช็คสิทธิ์ แต่เพราะมันอยู่คนละที่กันตั้งแต่ต้น
+  const gone = await withEvent('main', () => deleteTrack('mine/lagu-rina.mp3'));
+  assert.equal(gone, false, 'ลบเพลงของอีกงานต้องไม่สำเร็จ');
+  await fs.access(path.join(rinaDir, 'lagu-rina.mp3'));
+
+  // ลบของตัวเองยังได้ตามปกติ
+  assert.equal(await withEvent('main', () => deleteTrack('mine/เพลงของงานแรก.mp3')), true);
+  assert.deepEqual(await mineOf('main'), []);
+  assert.deepEqual(await mineOf('rina'), ['mine/lagu-rina.mp3']);
+});

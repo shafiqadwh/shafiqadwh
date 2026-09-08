@@ -541,8 +541,9 @@ adminRouter.post('/admin/film/music', requireAdmin, (req, res) => {
       return res.status(400).json({ error: req.t('errors.unsupported_type', { name: req.file.originalname }) });
     }
 
-    // เพลงที่อัพเองเข้ากลุ่ม "ของฉัน" ในคลัง — เก็บได้หลายเพลง ไม่ทับของเดิม
-    const mine = path.join(config.paths.music, 'library', 'mine');
+    // เพลงที่อัพเองเข้ากลุ่ม "ของฉัน" — เก็บได้หลายเพลง ไม่ทับของเดิม
+    // **ของงานนี้งานเดียว** ไม่ใช่คลังกลางที่ทุกงานเห็น (ดูหัวไฟล์ src/lib/music.js)
+    const mine = config.paths.myMusic;
     await fs.mkdir(mine, { recursive: true });
 
     // ชื่อไฟล์เอามาจากผู้ใช้ จึงตัดเหลือแค่ชื่อฐานและอักขระที่ปลอดภัย

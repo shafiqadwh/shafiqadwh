@@ -136,7 +136,9 @@ const dataDir = path.resolve(rootDir, str('DATA_DIR', 'data'));
  * ลงโฟลเดอร์ของลูกค้า ข.** — ทำเป็น getter ที่ถามว่า "ตอนนี้อยู่งานไหน" แทน
  * จุดเรียกใช้ทุกแห่งจึงไม่ต้องรู้เรื่องนี้เลยแม้แต่ที่เดียว
  */
-const PER_EVENT = ['uploads', 'derived', 'booth', 'db', 'tmp', 'export', 'films', 'papers'];
+const PER_EVENT = [
+  'uploads', 'derived', 'booth', 'db', 'tmp', 'export', 'films', 'papers', 'myMusic',
+];
 
 let eventPaths = null;
 
@@ -158,6 +160,17 @@ function buildPaths(root, data) {
     films: path.join(data, 'export', 'films'),
     // PDF สมุดคำอวยพร กับ รายชื่อผู้ส่งภาพ ที่สร้างจากหน้าแอดมิน
     papers: path.join(data, 'export', 'papers'),
+    /*
+     * เพลงที่เจ้าภาพอัพเอง — **ต่องาน** ต่างจากคลังเพลง CC0 ที่ใช้ร่วมกัน
+     *
+     * คลังที่โหลดมาเป็นของกลางเพราะมันเหมือนกันทุกงานและหนักหลายสิบเมกะไบต์
+     * แต่เพลงที่เจ้าภาพอัพเองเป็นของงานนั้นงานเดียว · วางไว้ที่เดียวกันทุกงาน
+     * แปลว่าเจ้าภาพของงาน ก. เห็น เอาไปใช้ และ **ลบ** เพลงของงาน ข. ได้
+     *
+     * พาธของงานเริ่มต้นคือที่เดิมเป๊ะ — เครื่องจริงมีเพลงอยู่ใน
+     * `data/music/library/mine` แล้ว การอัปเดตขึ้นเวอร์ชันนี้จึงไม่ต้องย้ายไฟล์
+     */
+    myMusic: path.join(data, 'music', 'library', 'mine'),
   };
 
   const paths = {

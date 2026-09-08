@@ -23,7 +23,9 @@ const dataDir = useTempDataDir('booth-upload');
 const app = await startTestServer();
 const cookie = await login(app.baseUrl);
 
-const { stats, listGuests, countBoothSessions, getBoothSession } = await import('../src/repo.js');
+const {
+  stats, listGuests, countBoothSessions, getBoothSession, listBoothShots,
+} = await import('../src/repo.js');
 const { readDeck } = await import('../src/lib/film-plan.js');
 
 after(async () => {
@@ -197,6 +199,37 @@ test('sending the same session twice is safe, because the network drops', async 
   assert.equal(again.status, 200);
   assert.equal(again.body.duplicate, true);
   assert.equal(countBoothSessions(), 1, 'ต้องไม่เกิดรอบซ้ำ');
+});
+
+test('two copies of the same round arriving at once do not erase each other', async () => {
+  /*
+   * ไฟล์ของรอบหนึ่งตั้งชื่อจากโทเคน สองสายที่โทเคนเดียวกันจึงเขียนลงชื่อเดียวกัน ·
+   * ของเดิมปล่อยให้ทั้งคู่ผ่านด่าน "ส่งซ้ำไหม" ไปพร้อมกัน แล้วสายที่สองล้มตรง
+   * PRIMARY KEY — **ตัวเก็บกวาดของมันลบไฟล์ชุดที่สายแรกเพิ่งบันทึกแถวไว้ทิ้ง**
+   * เหลือแถวที่ไม่มีไฟล์ · แขกสแกน QR ได้หน้าที่โหลดแผ่นไม่ขึ้น และส่งใหม่ไม่ได้
+   * เพราะทั้งสองฝั่งคิดว่าเรียบร้อยแล้ว
+   *
+   * เกิดได้จริงตั้งแต่ฝั่งบูธมีเพดานเวลา: คำขอที่บูธเลิกรอแล้วยังเดินอยู่ฝั่งเซิร์ฟเวอร์
+   * ส่วนบูธกดส่งใหม่ · หรือแค่กดปุ่มส่งจากสองหน้าต่าง
+   */
+  const token = 'R4TWPB';
+  const [one, two] = await Promise.all([send({ token, shots: 2 }), send({ token, shots: 2 })]);
+
+  // ใครถึงก่อนไม่สำคัญ สำคัญว่าหนึ่งในนั้นบันทึกจริง และอีกอันตอบว่าซ้ำ
+  const codes = [one.status, two.status].sort();
+  assert.deepEqual(codes, [200, 201], `ได้ ${codes} — ต้องมีคนบันทึกหนึ่ง ซ้ำหนึ่ง`);
+
+  const row = getBoothSession(token);
+  assert.ok(row, 'ต้องมีแถวของรอบนี้');
+
+  // ตัวตัดสิน: ไฟล์ที่แถวอ้างถึงต้องยังอยู่จริงทุกไฟล์
+  const { config } = await import('../src/config.js');
+  const names = [row.sheet_name, row.thumb_name, ...listBoothShots(token).map((s) => s.stored_name)];
+  for (const name of names.filter(Boolean)) {
+    await fs.access(path.join(config.paths.booth, name));
+  }
+  assert.equal((await fetch(`${app.baseUrl}/p/${token}/sheet`)).status, 200,
+    'QR บนกระดาษต้องพาไปถึงแผ่นจริง ไม่ใช่แถวที่ไฟล์หายไปแล้ว');
 });
 
 test('a manifest that is not a manifest is refused', async () => {

@@ -192,6 +192,8 @@ export function pathsFor(slug) {
       export: path.join(base, 'export'),
       films: path.join(base, 'export', 'films'),
       papers: path.join(base, 'export', 'papers'),
+      // เพลงที่เจ้าภาพอัพเอง — ที่เดิมเป๊ะ เครื่องจริงมีไฟล์อยู่ในนี้แล้ว ห้ามย้าย
+      myMusic: path.join(base, 'music', 'library', 'mine'),
     };
   }
   const home = path.join(base, 'events', slug);
@@ -204,6 +206,8 @@ export function pathsFor(slug) {
     export: path.join(home, 'export'),
     films: path.join(home, 'export', 'films'),
     papers: path.join(home, 'export', 'papers'),
+    // เพลงที่เจ้าภาพอัพเองเป็นของงานนี้งานเดียว ไม่ใช่ของกลางเหมือนคลัง CC0 ที่โหลดมา
+    myMusic: path.join(home, 'music', 'mine'),
   };
 }
 

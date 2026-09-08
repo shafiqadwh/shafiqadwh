@@ -11,8 +11,13 @@ const run = promisify(execFile);
  * คลังเพลงสำหรับหนังงานแต่ง — แยกเป็นกลุ่มตามงาน
  *
  * เพลงที่มากับโปรแกรมโหลดด้วย `scripts/fetch-music.sh` ลง `data/music/library/<กลุ่ม>/`
- * ส่วนเพลงที่เจ้าของอัพเองอยู่ในกลุ่ม `mine` — กลุ่มปกติกลุ่มหนึ่งเหมือนกลุ่มอื่น
- * ไม่มีเส้นทางพิเศษ
+ * **ใช้ร่วมกันทุกงานโดยตั้งใจ** เพราะเป็นของชุดเดียวกันหมดและหนักหลายสิบเมกะไบต์
+ *
+ * ส่วนกลุ่ม `mine` (เพลงที่เจ้าภาพอัพเอง) เป็น **ของงานนั้นงานเดียว** — อยู่ที่
+ * `config.paths.myMusic` ซึ่งเป็นพาธต่องาน · ถ้าวางไว้ในคลังกลางเหมือนกลุ่มอื่น
+ * เจ้าภาพของงาน ก. จะเห็น เอาไปใช้ และ **ลบ** เพลงของงาน ข. ได้ ทั้งที่เป็นลูกค้า
+ * คนละคนที่ไม่ควรรู้ด้วยซ้ำว่ามีอีกงานอยู่บนเครื่องเดียวกัน
+ * (งานเริ่มต้นชี้กลับไปที่ `library/mine` เดิมเป๊ะ ของที่อัพไว้แล้วจึงไม่ต้องย้าย)
  *
  * อ่านรายชื่อจากโฟลเดอร์จริง ไม่ใช่จากทะเบียนที่เก็บแยก ด้วยเหตุผลเดียวกับ
  * `listFilms()` และ `listPapers()`: ใครลบไฟล์ทิ้งเองจาก File Station รายการก็หาย
@@ -22,6 +27,9 @@ const run = promisify(execFile);
 // ลำดับนี้คือลำดับที่แสดงในหน้าเว็บ กลุ่มที่ไม่รู้จักไปต่อท้าย ส่วน "ของฉัน" อยู่บนสุด
 // เพราะคนที่อุตส่าห์อัพเพลงเองมาย่อมอยากใช้เพลงตัวเองก่อน
 export const THEME_ORDER = ['mine', 'wedding', 'graduation', 'birthday', 'calm'];
+
+/** ชื่อกลุ่มของเพลงที่เจ้าภาพอัพเอง — กลุ่มเดียวที่เป็นของงานนั้นงานเดียว */
+export const MINE = 'mine';
 
 const AUDIO = new Set(['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac']);
 
@@ -33,7 +41,8 @@ function libraryRoot() {
 export function themeDir(theme) {
   const name = path.basename(String(theme ?? ''));
   if (!name || name !== theme || name.startsWith('.')) return null;
-  return path.join(libraryRoot(), name);
+  // กลุ่มของเจ้าภาพอยู่ในโฟลเดอร์ของงาน ไม่ใช่ในคลังกลาง
+  return name === MINE ? config.paths.myMusic : path.join(libraryRoot(), name);
 }
 
 /** ไฟล์เพลงหนึ่งเพลงจาก id ที่หน้าเว็บส่งมา — รูปแบบ "<กลุ่ม>/<ชื่อไฟล์>" */
@@ -94,11 +103,19 @@ async function durationOf(filePath) {
   return info;
 }
 
-/** คลังทั้งหมด จัดกลุ่มตาม theme พร้อมความยาวรวมของแต่ละกลุ่ม */
-export async function listLibrary() {
-  let themes;
+/**
+ * กลุ่มเพลงทั้งหมดที่งานนี้เห็น — คลังกลางบวกกลุ่มของเจ้าภาพเอง
+ *
+ * `mine` ในคลังกลางถูกข้ามทิ้งเสมอ แล้วเติมกลุ่มของงานนี้เข้ามาแทน · งานเริ่มต้น
+ * สองพาธนี้เป็นที่เดียวกันพอดี ผลลัพธ์จึงไม่ขยับเลยสำหรับเครื่องที่รันอยู่วันนี้
+ */
+async function themeDirs() {
+  const dirs = [];
   try {
-    themes = await fs.readdir(libraryRoot(), { withFileTypes: true });
+    for (const entry of await fs.readdir(libraryRoot(), { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === MINE) continue;
+      dirs.push([entry.name, path.join(libraryRoot(), entry.name)]);
+    }
   } catch (error) {
     // ENOENT = ยังไม่เคยโหลดเพลงเลย เป็นสภาพปกติ ไม่ต้องขึ้น log ทุก 20 วินาที
     // ที่หน้าแอดมิน poll — error อื่น (เช่น EACCES จากไฟล์เป็นของ root หลังรัน
@@ -107,19 +124,21 @@ export async function listLibrary() {
     if (error.code !== 'ENOENT') {
       console.error('[music] อ่านคลังเพลงไม่ได้:', libraryRoot(), error);
     }
-    return [];
   }
+  dirs.push([MINE, config.paths.myMusic]);
+  return dirs;
+}
 
+/** คลังทั้งหมด จัดกลุ่มตาม theme พร้อมความยาวรวมของแต่ละกลุ่ม */
+export async function listLibrary() {
   const groups = [];
-  for (const entry of themes) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-
+  for (const [theme, dir] of await themeDirs()) {
     let names;
     try {
-      names = await fs.readdir(path.join(libraryRoot(), entry.name));
+      names = await fs.readdir(dir);
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error('[music] อ่านกลุ่มเพลงไม่ได้:', entry.name, error);
+        console.error('[music] อ่านกลุ่มเพลงไม่ได้:', theme, error);
       }
       continue;
     }
@@ -127,13 +146,13 @@ export async function listLibrary() {
     const tracks = [];
     for (const name of names.sort()) {
       if (name.startsWith('.') || !AUDIO.has(path.extname(name).toLowerCase())) continue;
-      const filePath = path.join(libraryRoot(), entry.name, name);
+      const filePath = path.join(dir, name);
       const info = await durationOf(filePath);
       if (!info) continue;
 
       tracks.push({
-        id: `${entry.name}/${name}`,
-        theme: entry.name,
+        id: `${theme}/${name}`,
+        theme,
         title: name.replace(/\.[^.]+$/, ''),
         seconds: info.seconds,
         bytes: info.bytes,
@@ -142,7 +161,7 @@ export async function listLibrary() {
 
     if (tracks.length > 0) {
       groups.push({
-        theme: entry.name,
+        theme,
         tracks,
         seconds: tracks.reduce((sum, track) => sum + track.seconds, 0),
       });
