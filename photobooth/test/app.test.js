@@ -118,6 +118,21 @@ test('the booth opens and reaches the ready screen', async (t) => {
     'หน้าจอต้องไม่มีทางเรียกโมดูลของ Node ได้เอง');
 });
 
+test('the booth keeps the screen awake by itself', async (t) => {
+  if (skipIfNoElectron(t)) return;
+
+  /*
+   * บูธที่ว่างสิบนาทีแล้วจอมืด คือบูธที่คนเดินผ่านไป — ไม่มีใครแตะจอที่ดูเหมือน
+   * เครื่องปิดอยู่ · ระหว่างแขกสองคนมีช่วงว่างเป็นสิบนาทีได้ง่าย ๆ
+   *
+   * ทำในแอป ไม่พึ่งการตั้งค่าประหยัดพลังงานของเครื่อง เพราะเครื่องที่ยืมมาใช้
+   * หน้างานตั้งค่าไว้ยังไงเราไม่รู้ และไปนั่งแก้ทีละเครื่องไม่ไหว
+   */
+  const awake = await app.evaluate(({ powerSaveBlocker }) =>
+    [0, 1, 2, 3, 4].some((id) => powerSaveBlocker.isStarted(id)));
+  assert.equal(awake, true, 'ต้องมีตัวกันจอดับทำงานอยู่ตั้งแต่เปิดบูธ');
+});
+
 test('the effect chips come from the settings, not from all seven', async (t) => {
   if (skipIfNoElectron(t)) return;
 

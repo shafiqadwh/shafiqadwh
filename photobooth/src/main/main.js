@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, app, globalShortcut, ipcMain, screen } from 'electron';
+import { BrowserWindow, app, globalShortcut, ipcMain, powerSaveBlocker, screen } from 'electron';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { THEMES, themeById, themeName } from '../../../shared/themes.js';
@@ -89,6 +89,21 @@ async function createWindow() {
   // ปุ่มที่หน้าจอรับเองไม่ได้ (ปุ่มเสียงที่เดสก์ท็อปยึดไว้) — ที่เหลือหน้าจอจัดการเอง
   if (settings.remote.enabled) {
     registerGlobalKeys(globalShortcut, settings.remote.globalKeys, press);
+  }
+
+  /*
+   * กันจอดับ — **บูธที่ว่างสิบนาทีแล้วจอมืด คือบูธที่คนเดินผ่านไป**
+   *
+   * ระหว่างแขกสองคนมีช่วงว่างเป็นสิบนาทีได้ง่าย ๆ พอจอดับ คนถัดไปที่เดินมาเห็น
+   * จอดำจะไม่รู้ว่าบูธเปิดอยู่ — และไม่มีใครแตะจอที่ดูเหมือนเครื่องปิดอยู่
+   *
+   * ทำในแอปแทนที่จะพึ่งการตั้งค่าของ Windows/Linux เพราะเครื่องที่ยืมมาใช้หน้างาน
+   * ตั้งค่าไว้ยังไงเราไม่รู้ · ปล่อยคืนเองตอนแอปปิด ไม่ต้องเก็บกวาด
+   */
+  try {
+    powerSaveBlocker.start('prevent-display-sleep');
+  } catch (error) {
+    console.warn('[booth] กันจอดับไม่สำเร็จ — ตั้งค่าประหยัดพลังงานของเครื่องเอง:', error.message);
   }
 
   /*
