@@ -15,7 +15,7 @@ import {
 import {
   clearSession, discardSession, isToken, listSessions, reserveSession, saveSession,
 } from './session.js';
-import { uploadPending, uploadSession } from './upload.js';
+import { LIVE_TIMEOUT_MS, uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printPageHtml, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
 import { recordSale, takings } from './sales.js';
@@ -589,8 +589,9 @@ ipcMain.handle('booth:deliver', async (event, { token }) => {
   if (settings.deliver !== 'print' && canPublish(settings)) {
     out.url = photoUrl(settings, token);
     try {
+      // เพดานเวลาสั้น ๆ — แขกยังยืนรออยู่ และส่งไม่สำเร็จตอนนี้ไม่เสียอะไรเลย
       await uploadSession(sessionsDir(), token, {
-        baseUrl: settings.baseUrl, key: settings.uploadKey,
+        baseUrl: settings.baseUrl, key: settings.uploadKey, timeoutMs: LIVE_TIMEOUT_MS,
       });
       out.published = true;
     } catch (error) {
