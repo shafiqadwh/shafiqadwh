@@ -642,7 +642,24 @@ async function boot() {
     return;
   }
 
-  const { settings, theme, effects } = state.setup;
+  const { settings, theme, effects, heldTicket } = state.setup;
+
+  /*
+   * ตั๋วที่จ่ายมาแล้วแต่ยังไม่ได้ของ ค้างมาจากก่อนโปรแกรมปิด
+   *
+   * `state.paidFor` เดิมอยู่ในความจำของแท็บเท่านั้น · ไฟดับในเต็นท์ หรือตัวเปิด
+   * เปิดโปรแกรมใหม่ให้ (ซึ่งเป็นสิ่งที่เราตั้งใจให้เกิดเอง) = ตั๋วหายไปพร้อมเงิน
+   * แล้วแขกคนเดิมจะถูกเก็บเงินอีกรอบโดยที่เจ้าของบูธไม่มีทางรู้ว่าไม่ควรเก็บ
+   *
+   * เฉพาะโหมดจ่ายก่อนถ่าย — โหมดจ่ายทีหลังจดเงินหลังมีแผ่นแล้ว จึงไม่มีตั๋วแบบนี้
+   * ที่เหลือใช้เส้นทางเดิมทั้งหมด: `holdingPaid()` เป็นจริง ปุ่มแรกขึ้น
+   * "จ่ายแล้ว — เริ่มถ่าย" และมีปุ่มยกเลิกตั๋วให้ถ้าแขกเดินหายไปแล้วจริง ๆ
+   */
+  if (heldTicket && payFirst()) {
+    state.token = heldTicket;
+    state.paidFor = heldTicket;
+    notify(`มีตั๋วที่จ่ายแล้วค้างอยู่ (รหัส ${heldTicket}) — ถ่ายต่อได้เลย ไม่ต้องเก็บเงินอีก`);
+  }
 
   document.documentElement.lang = settings.lang;
   el('event-title').textContent = settings.eventTitle;

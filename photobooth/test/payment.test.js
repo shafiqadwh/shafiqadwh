@@ -511,3 +511,65 @@ test('a printer that fails after taking the money never takes it twice', async (
 
   await saveSettings(path.join(userData, 'booth'), { printer: { driver: 'file', name: '' } });
 });
+
+/**
+ * ไฟดับหลังรับเงิน — **ตั๋วต้องยังอยู่หลังโปรแกรมเปิดใหม่**
+ *
+ * จอหน้าจำตั๋วที่จ่ายมาแล้วแต่ยังไม่ได้ของได้อยู่แล้วเมื่อรอบล้มกลางทาง แต่ความจำนั้น
+ * อยู่ในแท็บเท่านั้น · บูธรันด้วยแบตในเต็นท์ และตัวเปิดบน Windows ตั้งใจให้เปิด
+ * โปรแกรมใหม่เองเมื่อปิดไป — สองอย่างนี้ล้างความจำนั้นทิ้งทั้งคู่
+ *
+ * ผลของเดิม: แขกที่เพิ่งจ่าย 150 บาทเดินกลับมาเจอปุ่ม "จ่าย 150 บาท" อีกครั้ง
+ * และเจ้าของบูธไม่มีทางรู้ว่าไม่ควรเก็บ — เงินหายไปจากมือแขกโดยไม่มีใครผิด
+ *
+ * สภาพบนดิสก์ของ "ไฟดับหลังรับเงิน" คือ: มีบรรทัดในสมุดบัญชี + โฟลเดอร์รอบถ่าย
+ * ที่ยังไม่มี session.json (เพราะยังไม่ได้ประกอบแผ่น) · เทสต์สร้างสภาพนั้นตรง ๆ
+ * แล้วโหลดหน้าจอใหม่ ซึ่งเดินเส้นทางบูตจริงทั้งเส้น
+ */
+test('a ticket paid for before the power cut is still paid for after it', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  const booth = path.join(userData, 'booth');
+  await saveSettings(booth, {
+    sale: { enabled: true, target: PHONE, price: PRICE, payWhen: 'before' },
+    printer: { driver: 'file', name: '' },
+  });
+
+  const { reserveSession } = await import('../src/main/session.js');
+  const { recordSale } = await import('../src/main/sales.js');
+
+  // โทเคนถูกจองตอนรับเงิน (โหมดจ่ายก่อนถ่าย) แล้วไฟดับก่อนจะได้ประกอบแผ่น
+  const { token } = await reserveSession(path.join(booth, 'sessions'));
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  await recordSale(booth, { token, amount: PRICE, when: tenMinutesAgo });
+  const rowsAfterCut = (await ledger()).length;
+
+  await Promise.all([guest.reload(), operator.reload()]);
+  await guest.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+  await operator.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+
+  // ตัวตัดสิน: ปุ่มแรกของทั้งสองจอต้องไม่ขอเงินจากคนที่จ่ายมาแล้ว
+  assert.match(await guest.locator('#start-label').textContent(), /จ่ายแล้ว/,
+    'เปิดโปรแกรมใหม่แล้วตั๋วที่จ่ายมาแล้วต้องยังอยู่');
+  await operator.waitForFunction(
+    () => document.getElementById('go').textContent.includes('จ่ายแล้ว'), { timeout: 30000 });
+  assert.equal((await ledger()).length, rowsAfterCut,
+    'การกู้ตั๋วคืนไม่ใช่การขาย — สมุดบัญชีต้องไม่ขยับ');
+
+  // และปลดได้ตามปกติถ้าแขกเดินหายไปจริง ๆ
+  await operator.locator('#back').click();
+  await guest.waitForFunction(
+    () => !document.getElementById('start-label').textContent.includes('จ่ายแล้ว'),
+    { timeout: 30000 });
+
+  /*
+   * ปลดแล้วต้องปลดตก — เปิดโปรแกรมใหม่อีกครั้งต้องไม่เสนอตั๋วใบเดิมอีก
+   * บรรทัดในสมุดบัญชียังอยู่ตลอดไป (เงินรับมาแล้วจริง) ถ้าไม่จดการปลดไว้ที่อื่น
+   * ตั๋วใบนี้จะกลับมาทุกครั้งที่บูตเป็นตั๋วผีที่ปลดไม่ตก
+   */
+  await Promise.all([guest.reload(), operator.reload()]);
+  await guest.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+  assert.doesNotMatch(await guest.locator('#start-label').textContent(), /จ่ายแล้ว/,
+    'ตั๋วที่ปลดไปแล้วต้องไม่กลับมาตอนเปิดโปรแกรมใหม่');
+  assert.equal((await ledger()).length, rowsAfterCut, 'และสมุดบัญชียังต้องไม่ขยับ');
+});

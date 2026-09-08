@@ -13,12 +13,12 @@ import {
   canPublish, ensureAlbumCode, isAlbumCode, loadSettings, photoUrl, saveSettings, sheetQrUrl,
 } from './settings.js';
 import {
-  clearSession, discardSession, isToken, listSessions, reserveSession, saveSession,
+  clearSession, discardSession, isToken, listSessions, readSession, reserveSession, saveSession,
 } from './session.js';
 import { LIVE_TIMEOUT_MS, uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printPageHtml, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
-import { recordSale, takings } from './sales.js';
+import { recordSale, shiftRows, takings, voidTicket, voidedTokens } from './sales.js';
 import { createCamera } from './camera.js';
 import { createRemote } from '../core/keys.js';
 import { registerGlobalKeys } from './remote.js';
@@ -195,10 +195,47 @@ ipcMain.handle('booth:shot', async () => {
   return { ok: true, data: `data:image/jpeg;base64,${shot.data.toString('base64')}` };
 });
 
+/**
+ * ตั๋วที่จ่ายเงินมาแล้วแต่ยังไม่ได้ของ — หาจากดิสก์ ไม่ใช่จากความจำของหน้าจอ
+ *
+ * จอหน้าจำตั๋วที่ค้างไว้ได้อยู่แล้วเมื่อรอบล้มกลางทาง **แต่ความจำนั้นอยู่ในแท็บ
+ * เท่านั้น** · ไฟดับในเต็นท์ หรือโปรแกรมปิดไปแล้วตัวเปิดเปิดใหม่ (ซึ่งเป็นสิ่งที่
+ * เราตั้งใจให้เกิดเอง) = ตั๋วหายไปพร้อมกับเงินที่รับมาแล้ว · รอบถัดไปปุ่มแรกจะขึ้น
+ * "เก็บเงิน" ให้คนที่เพิ่งจ่ายไป และเจ้าของบูธก็ไม่มีทางรู้ว่าไม่ควรเก็บ
+ *
+ * สมุดบัญชีกับโฟลเดอร์รอบถ่ายรู้คำตอบอยู่แล้วทั้งคู่: **บรรทัดที่จดไว้ แต่รอบนั้น
+ * ยังไม่มี `session.json`** คือรอบที่รับเงินแล้วยังไม่ได้ส่งมอบ (ในโหมดจ่ายก่อนถ่าย
+ * โทเคนถูกจองตอนรับเงิน และ session.json ถูกเขียนเป็นชิ้นสุดท้ายหลังประกอบแผ่นเสร็จ)
+ *
+ * เอาเฉพาะใบล่าสุดของกะนี้ และเฉพาะที่เก่ากว่า `SETTLE_MS` — แขกที่ยังยืนอยู่หน้า
+ * บูธตรงนั้นก็เข้าเงื่อนไข "จดแล้วยังไม่มีไฟล์" เหมือนกัน ต่างกันแค่เขายังไม่ได้ไปไหน
+ */
+const SETTLE_MS = 5 * 60 * 1000;
+
+async function heldTicket() {
+  const rows = await shiftRows(dataRoot());
+  const voided = await voidedTokens(dataRoot());
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const { token, at } = rows[i];
+    if (!isToken(token) || Date.now() - Date.parse(at) < SETTLE_MS) continue;
+    // ตั๋วที่เจ้าของบูธกดปลดไปแล้ว ต้องไม่ถูกเสนอใหม่ — ไม่งั้นเป็นตั๋วผีที่ปลดไม่ตก
+    if (voided.has(token)) continue;
+    // รอบที่ส่งมอบไปแล้วจบการค้นหา — ใบที่เก่ากว่านั้นเป็นเรื่องของรอบก่อน ๆ ที่จบแล้ว
+    if (await readSession(sessionsDir(), token)) return null;
+    return token;
+  }
+  return null;
+}
+
 ipcMain.handle('booth:setup', async () => {
   const settings = await loadSettings(dataRoot());
   return {
     settings,
+    /*
+     * ตั๋วที่จ่ายแล้วแต่ยังไม่ได้ของ ค้างมาจากก่อนโปรแกรมปิด · null เกือบทุกครั้ง
+     * โหมดจ่ายทีหลังไม่มีทางมีตั๋วแบบนี้ (จดเงินหลังมีแผ่นแล้ว) — จอหน้ากรองเอง
+     */
+    heldTicket: settings.sale?.enabled ? await heldTicket() : null,
     // หน้าจอต้องรู้ตั้งแต่ตอนบูตว่าจะขอรูปจากฝั่งหลัก หรือเก็บเฟรมเอง
     dslr: usingDslr(settings),
     theme: themeById(settings.theme),
@@ -540,6 +577,13 @@ ipcMain.handle('booth:paid', async (event, { token, free }) => {
 ipcMain.handle('booth:discard', async (event, { token }) => {
   if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   await discardSession(sessionsDir(), token);
+  /*
+   * จดว่าตั๋วใบนี้ถูกปลดแล้ว — **ไม่ใช่บรรทัดในสมุดบัญชี** ยอดเงินต้องไม่ขยับ
+   * เพราะการปลดตั๋วไม่ใช่การขายและไม่ใช่การคืนเงิน · แต่ถ้าไม่จดไว้ที่ไหนเลย
+   * ตัวหาตั๋วค้างตอนบูตจะเจอบรรทัดเดิม (จดเงินไว้ ไม่มีรอบถ่าย) แล้วเสนอตั๋วใบนั้น
+   * ให้ใหม่ทุกครั้งที่เปิดโปรแกรม
+   */
+  await voidTicket(dataRoot(), token);
   return { ok: true };
 });
 

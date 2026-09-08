@@ -87,7 +87,42 @@ async function needsNewline(file) {
  */
 const SHIFT_GAP_MS = 6 * 60 * 60 * 1000;
 
-export async function takings(dir, now = new Date()) {
+/*
+ * ตั๋วที่ถูกปลดทิ้ง — "จ่ายแล้วแต่แขกเดินหายไป" ที่เจ้าของบูธกดยกเลิกเอง
+ *
+ * **ไม่ใช่บรรทัดในสมุดบัญชี** เพราะการปลดตั๋วไม่ใช่การขายและไม่ใช่การคืนเงิน
+ * เงินยังรับมาแล้วจริง ยอดต้องไม่ขยับ · แต่ต้องจดไว้ที่ไหนที่หนึ่ง ไม่งั้นตัวหา
+ * ตั๋วค้างจะเจอบรรทัดเดิม (จดไว้ ไม่มีรอบถ่าย) แล้วเสนอตั๋วใบนั้นใหม่ทุกครั้งที่
+ * เปิดโปรแกรม — ตั๋วผีที่ปลดไม่ตก
+ */
+const voidFile = (dir) => path.join(dir, 'voided.ndjson');
+
+export async function voidTicket(dir, token, when = new Date()) {
+  const file = voidFile(dir);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const row = JSON.stringify({ at: when.toISOString(), token: String(token ?? '') });
+  await fs.appendFile(file, `${await needsNewline(file) ? '\n' : ''}${row}\n`);
+}
+
+export async function voidedTokens(dir) {
+  const out = new Set();
+  let text;
+  try {
+    text = await fs.readFile(voidFile(dir), 'utf8');
+  } catch {
+    return out;   // ยังไม่เคยปลดตั๋วไหนเลย = สภาพปกติ
+  }
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      out.add(JSON.parse(line).token);
+    } catch { /* บรรทัดที่ไฟดับทับ — ข้ามไป */ }
+  }
+  return out;
+}
+
+/** บรรทัดของกะนี้ เรียงเก่าไปใหม่ — ตัวที่ `takings` กับตัวหาตั๋วค้างใช้ร่วมกัน */
+export async function shiftRows(dir, now = new Date()) {
   const rows = [];
   // อ่านสองวัน — กะที่ข้ามเที่ยงคืนมีบรรทัดอยู่คนละไฟล์
   for (const day of [dayOf(new Date(now.getTime() - 86400000)), dayOf(now)]) {
@@ -110,15 +145,23 @@ export async function takings(dir, now = new Date()) {
 
   rows.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
-  const summary = { day: dayOf(now), rounds: 0, free: 0, total: 0 };
+  const shift = [];
   let next = now.getTime();
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     const at = Date.parse(rows[i].at);
     if (next - at > SHIFT_GAP_MS) break;
     next = at;
+    shift.unshift(rows[i]);
+  }
+  return shift;
+}
+
+export async function takings(dir, now = new Date()) {
+  const summary = { day: dayOf(now), rounds: 0, free: 0, total: 0 };
+  for (const row of await shiftRows(dir, now)) {
     summary.rounds += 1;
-    if (rows[i].free) summary.free += 1;
-    else summary.total += Number(rows[i].amount) || 0;
+    if (row.free) summary.free += 1;
+    else summary.total += Number(row.amount) || 0;
   }
   summary.total = Math.round(summary.total * 100) / 100;
   return summary;
