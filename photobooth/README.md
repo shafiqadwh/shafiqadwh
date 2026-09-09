@@ -96,6 +96,16 @@ npm start
 ต้องมี **Node.js 22** กับ **Git** เท่านั้น · `sharp` กับ `electron` มีไฟล์สำเร็จรูป
 สำหรับ Windows อยู่แล้ว ไม่ต้องคอมไพล์อะไร
 
+> ⚠️ **ตัวโปรแกรม Electron (~150 MB) ไม่ได้มากับ `npm install`** — Electron 44
+> เลิกมี postinstall แล้ว มันจะถูกโหลดตอน `npm start` ครั้งแรกแทน · **ต้องมี
+> อินเทอร์เน็ตตอนนั้น** ซึ่งหน้างานมักไม่มี จึงควรสั่งโหลดตอนติดตั้งให้จบไปเลย
+>
+> ```powershell
+> npm run install:electron
+> ```
+>
+> รันซ้ำได้ (มีอยู่แล้วมันข้ามให้เอง) · `scripts/install-local.ps1` เรียกให้แล้ว
+
 **ค่าตั้งอยู่ที่** `%APPDATA%\photobooth\booth\settings.json` (หรือกดเข้าหน้าตั้งค่าในแอป)
 
 | | บน Windows |
