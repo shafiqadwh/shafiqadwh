@@ -73,6 +73,7 @@ ADMIN_PASSWORD=changeme123 npm start        # http://localhost:3000
 7. [ติดตั้งบน Shafiq-NAS (as-built)](docs/07-shafiq-nas.md) — ค่าจริงของ infra ชุดนั้น: `wedding.shafiq-lap.com`, AdGuard + Cloudflare, wildcard cert, MikroTik NAT และวิธีส่งโค้ดขึ้น NAS ที่ไม่มี git
 8. [export หนังงานแต่ง](docs/08-export-film.md) — คลังเพลง ความยาวที่คำนวณเอง และ GPU
 9. [หลายงานในเครื่องเดียว](docs/09-many-events.md) — คอนโซล `/console`, โดเมนต่องาน, รหัสแอดมินของลูกค้าแต่ละราย, ภาษาต่องาน
+10. [ส่งมอบงาน](docs/10-handoff.md) — **เริ่มอ่านที่นี่ถ้าเพิ่งมารับงานต่อ**: ตอนนี้อยู่ตรงไหน อะไรพิสูจน์บนของจริงแล้วอะไรยัง และงานที่ยังค้าง
 
 ## การตั้งค่า
 
