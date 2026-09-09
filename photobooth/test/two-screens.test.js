@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
 /**
@@ -52,8 +53,7 @@ before(async () => {
 
     await ensureDisplay();
     const { _electron } = await import('playwright');
-    const electronPath = path.join(appDir, 'node_modules', 'electron', 'dist', 'electron');
-    await fs.access(electronPath);
+    const electronPath = await electronBinary();
 
     app = await _electron.launch({
       executablePath: electronPath,
@@ -92,8 +92,7 @@ after(async () => {
 
 const skipUnlessBoth = (t) => {
   if (guest && operator) return false;
-  t.skip(`เปิดสองหน้าต่างไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-  return true;
+  return skipOrFail(t, launchError, 'เปิดสองหน้าต่างไม่ได้');
 };
 
 /** พาทั้งสองจอกลับหน้าเริ่ม ไม่ว่าข้อก่อนหน้าจะทิ้งไว้ที่ไหน */

@@ -14,6 +14,12 @@ try {
         try {
             & npm.cmd ci --no-audit --no-fund
             if ($LASTEXITCODE -ne 0) { throw 'Photo Booth dependencies failed to install.' }
+            # Electron 44 dropped its postinstall, so npm ci leaves the 150 MB
+            # runtime undownloaded. Fetch it now, while there is internet: the
+            # booth is meant to run at venues that have none, and the first
+            # launch would otherwise try to download it there.
+            & npm.cmd run install:electron
+            if ($LASTEXITCODE -ne 0) { throw 'The Electron runtime failed to download.' }
         } finally { Pop-Location }
     }
     Write-Host 'Installed. Configure .env, run npm.cmd start, then npm.cmd run check:booth.'

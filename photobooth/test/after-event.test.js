@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
 import { spawn } from 'node:child_process';
+import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
 /**
@@ -89,7 +90,7 @@ before(async () => {
     await ensureDisplay();
     const { _electron } = await import('playwright');
     app = await _electron.launch({
-      executablePath: path.join(appDir, 'node_modules', 'electron', 'dist', 'electron'),
+      executablePath: await electronBinary(),
       args: [appDir, '--no-sandbox',
         '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
       env: {
@@ -122,8 +123,7 @@ after(async () => {
 
 const skipUnlessReady = (t) => {
   if (app && guest && operator && web) return false;
-  t.skip(`ยกบูธหรือเว็บไม่ขึ้น — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-  return true;
+  return skipOrFail(t, launchError, 'ยกบูธหรือเว็บไม่ขึ้น');
 };
 
 test('with nothing taken yet, the button says so instead of sitting there grey', async (t) => {

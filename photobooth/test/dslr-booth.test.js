@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
 /**
@@ -102,8 +103,7 @@ before(async () => {
 
     xvfb = await startDisplay([94, 84, 74]);
     const { _electron } = await import('playwright');
-    const electronPath = path.join(appDir, 'node_modules', 'electron', 'dist', 'electron');
-    await fs.access(electronPath);
+    const electronPath = await electronBinary();
 
     app = await _electron.launch({
       executablePath: electronPath,
@@ -143,8 +143,7 @@ after(async () => {
 
 const skipUnlessBoth = (t) => {
   if (guest && operator) return false;
-  t.skip(`เปิดสองหน้าต่างไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-  return true;
+  return skipOrFail(t, launchError, 'เปิดสองหน้าต่างไม่ได้');
 };
 
 /** ถ่ายหนึ่งรอบจนเห็นแผ่น แล้วคืนโทเคนของรอบนั้น */

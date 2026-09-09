@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
+import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
 /**
@@ -44,8 +45,7 @@ before(async () => {
     // ชี้ไบนารีให้ตรง ๆ — playwright อยู่ใน node_modules ของราก ส่วน electron อยู่ใน
     // ของ photobooth · ปล่อยให้มันหาเองจะไม่เจอ แล้วเทสต์ทั้งไฟล์จะถูก skip ทิ้ง
     // โดยที่ดูเหมือน "ผ่าน" ในสรุปผล
-    const electronPath = path.join(appDir, 'node_modules', 'electron', 'dist', 'electron');
-    await fs.access(electronPath);
+    const electronPath = await electronBinary();
 
     app = await _electron.launch({
       executablePath: electronPath,
@@ -93,8 +93,7 @@ async function toReady() {
 
 const skipIfNoElectron = (t) => {
   if (app && page) return false;
-  t.skip(`เปิด Electron ไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-  return true;
+  return skipOrFail(t, launchError, 'เปิด Electron ไม่ได้');
 };
 
 test('the booth opens and reaches the ready screen', async (t) => {

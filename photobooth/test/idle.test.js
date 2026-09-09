@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
 /**
@@ -45,8 +46,7 @@ before(async () => {
 
     xvfb = await startDisplay([96, 86, 76]);
     const { _electron } = await import('playwright');
-    const electronPath = path.join(appDir, 'node_modules', 'electron', 'dist', 'electron');
-    await fs.access(electronPath);
+    const electronPath = await electronBinary();
 
     app = await _electron.launch({
       executablePath: electronPath,
@@ -75,8 +75,7 @@ after(async () => {
 
 const skipIfNoElectron = (t) => {
   if (app && page) return false;
-  t.skip(`เปิด Electron ไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-  return true;
+  return skipOrFail(t, launchError, 'เปิด Electron ไม่ได้');
 };
 
 const stageNow = () => page.getAttribute('body', 'data-stage');

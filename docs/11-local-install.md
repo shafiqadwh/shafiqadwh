@@ -33,8 +33,14 @@ npm.cmd start
 ```powershell
 npm.cmd run check:booth
 Set-Location photobooth
+npm.cmd run install:electron
 npm.cmd start
 ```
+
+คำสั่ง install:electron โหลดตัวโปรแกรม Electron ประมาณ 150 MB ครั้งเดียว
+npm ci ไม่โหลดให้ เพราะ Electron 44 เลิกใช้ postinstall แล้ว
+install-local.ps1 เรียกให้แล้ว ขั้นนี้จำเป็นเฉพาะตอนติดตั้งด้วยมือ
+ต้องรันตอนมีอินเทอร์เน็ต ไม่ใช่หน้างานที่ไม่มีเน็ต
 
 ในหน้าตั้งค่าบูธ ตั้งที่อยู่เว็บให้ตรง BASE_URL และกุญแจให้ตรง BOOTH_KEY
 เริ่มด้วยเว็บแคมและโหมดไฟล์/ไม่พิมพ์เพื่อทดสอบก่อนเลือกเครื่องพิมพ์จริง

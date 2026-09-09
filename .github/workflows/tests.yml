@@ -5,12 +5,16 @@
 # แล้วแต่ว่าใครจำได้ว่าต้องรัน — ซึ่งเป็นสิ่งที่ใช้ไม่ได้ทันทีที่มีคนที่สองมาแตะโค้ด
 # และเป็นช่องว่างที่ใหญ่ที่สุดของเอกสารส่งมอบงาน (docs/10-handoff.md)
 #
-# สิ่งที่ต้องเตรียมนอกจาก npm มีอยู่สามอย่างเท่านั้น
+# สิ่งที่ต้องเตรียมนอกจาก npm มีอยู่สี่อย่าง
 #   1. `ffmpeg` — ไม่มี ffmpeg-static ใน dependencies โค้ดจึงตกไปหาตัวใน PATH
 #      (ดู `resolveBinary` ใน src/lib/media.js) เหมือนที่ Dockerfile ลงให้
 #   2. `Xvfb` — เทสต์ของบูธเปิดหน้าต่าง Electron จริง ต้องมี X server
 #      (ตัวช่วยใน photobooth/test/helpers/display.js ยกขึ้นเอง ถ้ามีคำสั่งให้ใช้)
 #   3. ไลบรารีระบบของ Electron — ใช้ตัวเดียวกับที่ playwright ต้องใช้
+#   4. **ตัวโปรแกรม Electron เอง** — `npm ci` ไม่โหลดให้อีกแล้วตั้งแต่ Electron 44
+#      (เลิกมี postinstall · ไบนารีถูกโหลดตอน `require('electron')` ครั้งแรกแทน)
+#      ข้อนี้เป็นสิ่งที่รอบแรกของ workflow นี้ตกไป แล้ว **ขึ้นเขียวทั้งที่เทสต์
+#      ของบูธ 53 ข้อถูกข้าม** — ดู BOOTH_REQUIRE_ELECTRON ท้ายไฟล์
 #
 # ฟอนต์ไทย/อาหรับ **อยู่ใน repo แล้ว** (`assets/fonts/`) ไม่ต้องลงจาก apt
 name: Tests
@@ -59,9 +63,22 @@ jobs:
       - name: ลงไลบรารีระบบของ Electron
         run: npx playwright install-deps chromium
 
+      # ตัวโปรแกรม Electron (~150 MB) · `install.js` ของมันข้ามให้เองถ้ามีอยู่แล้ว
+      # ทำเป็นขั้นของตัวเอง เพราะถ้าโหลดล้มต้องเห็นว่าล้มที่นี่ ไม่ใช่ไปโผล่เป็น
+      # เทสต์ห้าสิบข้อที่ถูกข้ามปลายทาง
+      - name: ลงตัวโปรแกรม Electron
+        run: npm run install:electron
+        working-directory: photobooth
+
       - name: เทสต์ฝั่งเว็บ
         run: node --test test/*.test.js
 
       # แยกขั้นจากฝั่งเว็บ เพื่อให้อ่านออกทันทีว่าฝั่งไหนล้ม โดยไม่ต้องเปิด log
+      #
+      # BOOTH_REQUIRE_ELECTRON: เทสต์ที่เปิดหน้าต่างไม่ได้จะ **ล้ม** ไม่ใช่ถูกข้าม
+      # — บนเครื่องคนเขียนการข้ามมีประโยชน์ (รันส่วนที่เหลือต่อได้) แต่บน CI
+      # การข้ามคือการรายงานเท็จ ซึ่งเกิดขึ้นจริงมาแล้วในรอบแรกของไฟล์นี้
       - name: เทสต์ฝั่งบูธ
+        env:
+          BOOTH_REQUIRE_ELECTRON: '1'
         run: node --test --test-concurrency=2 photobooth/test/*.test.js
