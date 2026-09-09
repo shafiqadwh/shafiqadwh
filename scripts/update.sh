@@ -30,10 +30,18 @@ cd "$PROJECT_DIR"
 
 say() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
 
+COMPOSE_FILES_WATCHED="docker-compose.yml docker-compose.gpu.yml"
+
 say "ดึงโค้ดล่าสุดจาก GitHub"
 # โหลดลงไฟล์ชั่วคราวก่อนแตก ถ้าเน็ตสะดุดกลางทางจะได้ไม่แตกทับของเดิมครึ่ง ๆ กลาง ๆ
 TARBALL="$(mktemp)"
-trap 'rm -f "$TARBALL"' EXIT
+BEFORE="$(mktemp -d)"
+trap 'rm -rf "$TARBALL" "$BEFORE"' EXIT
+
+# เก็บไฟล์ compose ไว้เทียบ **ก่อน** แตกทับ
+for f in $COMPOSE_FILES_WATCHED; do
+  [ -f "$f" ] && cp "$f" "$BEFORE/$f"
+done
 
 curl -fsSL -o "$TARBALL" \
   "https://codeload.github.com/${REPO}/tar.gz/refs/heads/${BRANCH}"
@@ -50,6 +58,29 @@ say "แตกไฟล์เรียบร้อย"
 
 # ตรวจ GPU หลังแตกไฟล์ เพราะ lib-compose.sh เพิ่งมากับ tarball รอบนี้เอง
 . ./scripts/lib-compose.sh
+
+# ไฟล์ compose เปลี่ยน = รีสตาร์ทไม่พอ **ต้องสร้างคอนเทนเนอร์ใหม่**
+#
+# `docker compose restart` สตาร์ทคอนเทนเนอร์เดิมด้วยคอนฟิกเดิม มัน **ไม่อ่าน
+# docker-compose.yml ใหม่เลย** · เกิดขึ้นจริงแล้ววันนี้: เพิ่ม mount ของ `shared/`
+# ลง compose แล้วอัปเดตขึ้น NAS — โค้ดใหม่ import `../../shared/text.js` แต่
+# คอนเทนเนอร์ที่ถูกรีสตาร์ทยังไม่มี mount นั้น และอิมเมจก็ถูก build ไว้ก่อนมีโฟลเดอร์นี้
+# ผล: **เว็บล่มทั้งเว็บ** ด้วย ERR_MODULE_NOT_FOUND ทั้งที่อัปเดตขึ้น ✓ ทุกบรรทัด
+changed() {
+  if [ -f "$1" ] && [ -f "$BEFORE/$1" ]; then
+    ! cmp -s "$1" "$BEFORE/$1"
+  else
+    # มีฝั่งใดฝั่งเดียว = ไฟล์เพิ่งมาใหม่ หรือเพิ่งถูกถอดออก ทั้งสองอย่างคือเปลี่ยน
+    [ -f "$1" ] || [ -f "$BEFORE/$1" ]
+  fi
+}
+
+for f in $COMPOSE_FILES_WATCHED; do
+  if changed "$f"; then
+    say "$f เปลี่ยน — ต้องสร้างคอนเทนเนอร์ใหม่ ไม่ใช่แค่รีสตาร์ท"
+    RECREATE="1"
+  fi
+done
 
 if [ "$RECREATE" = "1" ]; then
   FILES="$(compose_files)"
