@@ -107,8 +107,22 @@ function keyMatches(given) {
 const discard = (files) =>
   Promise.all((files ?? []).map((file) => fs.rm(file.path, { force: true })));
 
-// Read-only pairing check: never create a photo or disclose the configured key.
-boothRouter.get('/api/booth/status', uploadLimiter, (req, res) => {
+/*
+ * ตัวตรวจการจับคู่ — อ่านอย่างเดียว ไม่สร้างรูป ไม่บอกกุญแจที่ตั้งไว้
+ *
+ * **มีโควตาของตัวเอง ไม่ใช้ร่วมกับการอัปโหลด** · โควตาของการอัปโหลดมีไว้กัน
+ * เส้นทางที่เขียนได้ถึง 250 MB ต่อคำขอ · ให้การเคาะถามเฉย ๆ ไปกินโควตานั้น
+ * แปลว่าบูธที่เคาะถามเป็นระยะจะทำให้ตัวเองส่งรูปไม่ได้ตอนกลับถึงบ้าน
+ * ซึ่งเป็นความล้มเหลวที่หาสาเหตุยากมากเพราะสองอย่างนี้ดูไม่เกี่ยวกันเลย
+ */
+const statusLimiter = createLimiter({
+  name: 'booth-status',
+  limit: 600,
+  windowMs: 60 * 60 * 1000,
+  key: byIp,
+});
+
+boothRouter.get('/api/booth/status', statusLimiter, (req, res) => {
   res.set('Cache-Control', 'no-store');
   if (!keyMatches(req.get('x-booth-key'))) {
     return res.status(401).json({ error: 'bad_key' });
