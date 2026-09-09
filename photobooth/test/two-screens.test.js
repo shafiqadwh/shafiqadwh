@@ -64,6 +64,9 @@ before(async () => {
         BOOTH_WINDOWED: '1',
         BOOTH_USER_DATA: userData,
         BOOTH_OPERATOR: '1',
+        // ดิสก์ของเครื่องที่รันเทสต์ว่างเกินกว่าจะจำลองสภาพ "ใกล้เต็ม" ได้ —
+        // ตั้งเพดานสูงจนดิสก์ไหนก็นับว่าใกล้เต็ม เพื่อบังคับให้เส้นทางเตือนเดินจริง
+        BOOTH_DISK_WARN_BYTES: String(Number.MAX_SAFE_INTEGER),
       },
       timeout: 60000,
     });
@@ -193,4 +196,28 @@ test('a shutter remote is just a keyboard, and the booth answers it', async (t) 
   // กดจากจอหลังก็ต้องได้เหมือนกัน — ช่างภาพยืนอยู่หลังบูธ รีโมทอยู่ในมือเขา
   await operator.keyboard.press('PageUp');
   await guest.waitForSelector('body[data-stage="ready"]', { timeout: 10000 });
+});
+
+test('the photographer is warned about a filling disk, on a line of its own', async (t) => {
+  if (skipUnlessBoth(t)) return;
+
+  /*
+   * บูธเก็บรูปดิบทุกใบของทุกรอบไว้ถาวรและไม่มีอะไรลบให้ · วัดแล้ว ~3.8 MB ต่อรอบ
+   * ด้วยเว็บแคม และ ~20.6 MB ด้วยกล้องใหญ่ — งาน 200 รอบด้วย DSLR คือ 4 GB
+   * ที่ไม่มีวันหายไปเอง · ดิสก์เต็มกลางงานคือรอบที่ล้มหลังรับเงินไปแล้ว และรอบถัดไป
+   * ก็ล้มเหมือนกันทุกรอบจนกว่าจะมีคนไปลบไฟล์ ซึ่งไม่มีทางเกิดตอนคนต่อแถวอยู่
+   */
+  const disk = operator.locator('#disk');
+  assert.equal(await disk.isHidden(), false, 'พื้นที่ใกล้หมดแล้วแต่จอช่างภาพเงียบ');
+  assert.match(await disk.textContent(), /อีกราว \d+ รอบ/,
+    'ต้องบอกเป็น "อีกกี่รอบ" ไม่ใช่จำนวนกิกะไบต์ที่คนหน้าบูธเอาไปตัดสินใจไม่ได้');
+
+  /*
+   * **ต้องอยู่คนละบรรทัดกับ .notice** — .notice ถูกล้างทุกครั้งที่ขึ้นรอบใหม่
+   * โดยตั้งใจ (คำเตือนของรอบก่อนไม่ควรค้าง) แต่พื้นที่ใกล้หมดไม่ใช่เรื่องของรอบไหน
+   * รอบหนึ่ง มันจริงอยู่อย่างนั้นจนกว่าจะมีคนย้ายไฟล์ออก
+   */
+  await operator.evaluate(() => window.booth.broadcast({ type: 'reset' }));
+  await guest.waitForSelector('body[data-stage="ready"]', { timeout: 30000 });
+  assert.equal(await disk.isHidden(), false, 'ขึ้นรอบใหม่แล้วคำเตือนพื้นที่หายไปด้วย');
 });

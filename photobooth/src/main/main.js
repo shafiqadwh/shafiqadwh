@@ -19,6 +19,7 @@ import { LIVE_TIMEOUT_MS, uploadPending, uploadSession } from './upload.js';
 import { preparePrintFile, printPageHtml, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
 import { recordSale, shiftRows, takings, voidTicket, voidedTokens } from './sales.js';
+import { ROUND_BYTES, diskWarning } from './disk.js';
 import { createCamera } from './camera.js';
 import { createRemote } from '../core/keys.js';
 import { registerGlobalKeys } from './remote.js';
@@ -120,7 +121,26 @@ async function createWindow() {
         : `[camera] ยังใช้กล้องใหญ่ไม่ได้ (จะใช้เว็บแคมแทน) — ${found.reason}`))
       .catch((error) => console.warn('[camera] ตรวจกล้องไม่สำเร็จ:', error.message));
   }
+  await reportDisk(settings);
   return opened;
+}
+
+/**
+ * บอกจอช่างภาพว่าพื้นที่เหลือน้อย — และเงียบสนิทเมื่อยังไม่ต้องเตือน
+ *
+ * ส่งเป็นข้อความชนิดของตัวเอง ไม่ใช่ `notice` ที่ใช้ร่วมกับเรื่องอื่น เพราะ
+ * `notice` ถูกล้างทิ้งทุกครั้งที่ขึ้นรอบใหม่ (ตั้งใจ — คำเตือนของรอบก่อนไม่ควรค้าง)
+ * แต่พื้นที่ใกล้หมดไม่ใช่เรื่องของรอบไหนรอบหนึ่ง มันจริงอยู่อย่างนั้นจนกว่าจะมีคน
+ * ย้ายไฟล์ออก · ค้างไว้จึงถูก และหายเองเมื่อพื้นที่กลับมา
+ */
+async function reportDisk(settings) {
+  const low = await diskWarning(dataRoot(), {
+    perRound: usingDslr(settings) ? ROUND_BYTES.dslr : ROUND_BYTES.webcam,
+  });
+  if (low) console.warn('[booth]', low.text);
+  if (alive(windows.operator)) {
+    windows.operator.webContents.send('booth:message', { type: 'disk', text: low?.text ?? '' });
+  }
 }
 
 /** รูปจากกล้องมาเป็น data URL — แปลงเป็น Buffer ก่อนส่งต่อให้ sharp */
@@ -236,6 +256,16 @@ ipcMain.handle('booth:setup', async () => {
      * โหมดจ่ายทีหลังไม่มีทางมีตั๋วแบบนี้ (จดเงินหลังมีแผ่นแล้ว) — จอหน้ากรองเอง
      */
     heldTicket: settings.sale?.enabled ? await heldTicket() : null,
+    /*
+     * พื้นที่ดิสก์ ณ ตอนเปิดจอ — **ตอบตรงนี้ด้วย ไม่ใช่ push อย่างเดียว**
+     *
+     * ข้อความที่ push ตอนบูตออกจาก main ก่อนที่จอหลังจะทันผูกตัวรับข้อความของมัน
+     * ได้ง่าย ๆ แล้วคำเตือนก็หายไปเงียบ ๆ จนกว่าจะถ่ายรอบแรก · ถามตอนเปิดจอจึง
+     * ไม่มีการแข่งกันเรื่องลำดับเลย ส่วน push ที่เหลือไว้ใช้ตอนค่าเปลี่ยนระหว่างงาน
+     */
+    disk: (await diskWarning(dataRoot(), {
+      perRound: usingDslr(settings) ? ROUND_BYTES.dslr : ROUND_BYTES.webcam,
+    }))?.text ?? '',
     // หน้าจอต้องรู้ตั้งแต่ตอนบูตว่าจะขอรูปจากฝั่งหลัก หรือเก็บเฟรมเอง
     dslr: usingDslr(settings),
     theme: themeById(settings.theme),
@@ -480,6 +510,10 @@ ipcMain.handle('booth:compose', async (event, { shots, effect, token: paid }) =>
     await saveSession(sessionsDir(), {
       token, photos, sheet, gif, settings, effect, template: settings.template,
     });
+
+    // ดูพื้นที่ทุกรอบ — ราคาถูกมาก (อ่านค่าจากระบบไฟล์ครั้งเดียว) และเป็นจังหวะที่
+    // เพิ่งกินที่ไปจริง · ไม่ให้ล้มรอบของแขกไม่ว่ากรณีใด จึงกลืน error ทิ้งทั้งหมด
+    void reportDisk(settings).catch(() => {});
 
     return {
       token,

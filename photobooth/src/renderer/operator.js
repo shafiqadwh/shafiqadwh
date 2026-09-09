@@ -147,6 +147,14 @@ const HANDLERS = {
   },
   progress: ({ text }) => { el('progress').textContent = text ?? ''; },
   /*
+   * พื้นที่ดิสก์ใกล้หมด — ค้างไว้จนกว่าจะหายจริง ไม่ล้างตอนขึ้นรอบใหม่เหมือน notice
+   * บูธเก็บรูปดิบทุกใบไว้ถาวรและไม่มีอะไรลบให้ · ข้อความว่างคือพื้นที่กลับมาปกติแล้ว
+   */
+  disk: ({ text }) => {
+    el('disk').textContent = text ?? '';
+    el('disk').hidden = !text;
+  },
+  /*
    * เรื่องที่คนทำงานต้องลงมือแก้ แต่แขกไม่ต้องอ่าน (กล้องใหญ่ไม่ทำงาน ฯลฯ)
    *
    * ต้องมีบรรทัดของตัวเอง ไม่ใช่ไปเขียนทับ `.progress` — วัดแล้วเจอ: ข้อความจะถูก
@@ -197,6 +205,8 @@ async function boot() {
     remote = setup.settings.remote.enabled;
     document.documentElement.lang = setup.settings.lang;
     el('event-title').textContent = setup.settings.eventTitle;
+    // พื้นที่ดิสก์ที่ main ตอบมาตอนเปิดจอ — ไม่ต้องรอข้อความที่อาจมาถึงก่อนเราฟัง
+    HANDLERS.disk({ text: setup.disk ?? '' });
     for (const [name, value] of Object.entries(setup.theme.colours)) {
       document.documentElement.style.setProperty(`--${name}`, value);
     }
