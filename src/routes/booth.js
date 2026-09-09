@@ -107,6 +107,15 @@ function keyMatches(given) {
 const discard = (files) =>
   Promise.all((files ?? []).map((file) => fs.rm(file.path, { force: true })));
 
+// Read-only pairing check: never create a photo or disclose the configured key.
+boothRouter.get('/api/booth/status', uploadLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!keyMatches(req.get('x-booth-key'))) {
+    return res.status(401).json({ error: 'bad_key' });
+  }
+  return res.json({ ok: true, service: 'wedding-share-booth', protocol: 1 });
+});
+
 /**
  * ตรวจ GIF แยกจากตัวตรวจกลาง
  *

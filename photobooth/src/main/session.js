@@ -154,8 +154,11 @@ export async function discardSession(root, token) {
 export async function clearSession(root, token) {
   if (!isToken(token)) throw new Error(`โทเคนไม่ถูกต้อง: ${token}`);
   const dir = dirFor(root, token);
-  await fs.rm(dir, { recursive: true, force: true });
   await fs.mkdir(dir, { recursive: true });
+  // Keep the reservation directory present throughout a retake.
+  for (const name of await fs.readdir(dir)) {
+    await fs.rm(path.join(dir, name), { recursive: true, force: true });
+  }
 }
 
 export async function readSession(root, token) {

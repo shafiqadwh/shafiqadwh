@@ -110,6 +110,7 @@ export async function uploadSession(root, token, {
   try {
     response = await fetchImpl(`${baseUrl.replace(/\/+$/, '')}/api/booth/upload`, {
       method: 'POST',
+      redirect: 'error',
       headers: { 'x-booth-key': key },
       body: await bundleFor(root, manifest),
       signal: AbortSignal.timeout(timeoutMs),

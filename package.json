@@ -8,7 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "check:booth": "node --env-file-if-exists=.env scripts/check-booth.mjs",
+    "test:integration": "node --test test/booth-system-smoke.test.js photobooth/test/transfer-regressions.test.js photobooth/test/upload.test.js",
     "dev": "node --watch src/server.js",
     "test": "node --test test/*.test.js && node --test --test-concurrency=2 photobooth/test/*.test.js"
   },
