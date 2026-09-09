@@ -23,7 +23,19 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  */
 
 const WORK = await fs.mkdtemp(path.join(os.tmpdir(), 'ensure-up-'));
-after(() => fs.rm(WORK, { recursive: true, force: true }));
+
+/*
+ * เซิร์ฟเวอร์ปลอมทุกตัวต้องถูกปิดตอนจบไฟล์ ไม่ใช่แค่ตอนที่เทสต์ผ่าน
+ *
+ * แต่ละเทสต์เรียก `close()` ของตัวเองอยู่แล้ว แต่เทสต์ที่ **ล้ม** จะโยนก่อนถึง
+ * บรรทัดนั้น แล้วเซิร์ฟเวอร์ที่ยังเปิดค้างจะกันไม่ให้โปรเซสจบ — กลายเป็นการรัน
+ * ที่ค้างจนโดนฆ่า แทนที่จะรายงานว่าข้อไหนล้มเพราะอะไร ซึ่งกลบสิ่งที่เทสต์เจอทิ้ง
+ */
+const openServers = [];
+after(async () => {
+  for (const server of openServers) await new Promise((done) => server.close(done));
+  await fs.rm(WORK, { recursive: true, force: true });
+});
 
 /**
  * เว็บปลอม — ตอบ 200 ก็ต่อเมื่อมีไฟล์ธง ซึ่ง docker ปลอมเป็นคนสร้าง
@@ -40,6 +52,7 @@ function serveHealth(flagPath) {
       () => res.writeHead(503).end(),
     );
   });
+  openServers.push(server);
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port }));
   });
@@ -51,7 +64,7 @@ function serveHealth(flagPath) {
  * gpuProbe   — `docker run --gpus` สำเร็จไหม (ไดรเวอร์ยังดีอยู่หรือเปล่า)
  * gpuStarts  — `compose ... -f docker-compose.gpu.yml up` ทำให้เว็บขึ้นได้ไหม
  */
-async function project({ label, gpuProbe, gpuStarts }) {
+async function project({ label, gpuProbe, gpuStarts, infoFails = 0 }) {
   const dir = path.join(WORK, label);
   await fs.mkdir(path.join(dir, 'scripts'), { recursive: true });
   await fs.mkdir(path.join(dir, 'bin'), { recursive: true });
@@ -70,8 +83,16 @@ async function project({ label, gpuProbe, gpuStarts }) {
   await fs.writeFile(path.join(dir, '.env'), `HTTP_PORT=${port}\nDATA_DIR=${dir}\n`);
 
   // docker ปลอม: จดทุกคำสั่งที่ถูกเรียก แล้วทำตามสถานการณ์ที่ตั้งไว้
+  const infoTries = path.join(dir, 'info-tries');
   await fs.writeFile(path.join(dir, 'bin', 'docker'), `#!/bin/sh
 echo "$@" >> ${JSON.stringify(calls)}
+if [ "$1" = "info" ]; then
+  # นับครั้ง — เลียนแบบ Docker ที่ยังไม่พร้อมตอนเครื่องเพิ่งบูต
+  tries=$(cat ${JSON.stringify(infoTries)} 2>/dev/null || echo 0)
+  echo $((tries + 1)) > ${JSON.stringify(infoTries)}
+  [ "$tries" -lt ${infoFails} ] && exit 1
+  exit 0
+fi
 case "$1 $2" in
   "image inspect") exit 0 ;;
   "run --rm")      exit ${gpuProbe ? 0 : 1} ;;   # ตัวตรวจ GPU
@@ -89,6 +110,7 @@ exit 0
   return {
     dir,
     flag,
+    lock: path.join(dir, 'ensure-up.lock'),
     close: () => new Promise((resolve) => server.close(resolve)),
     calls: async () => {
       try {
@@ -166,6 +188,66 @@ test('a GPU that probes fine but will not start still ends with the site up', as
 
   assert.equal(await fs.access(p.flag).then(() => true, () => false), true, 'สุดท้ายเว็บยังไม่ขึ้น');
   assert.match(await p.log(), /ถอยเป็น CPU/);
+
+  await p.close();
+});
+
+test('two rescues at once do not fight over the same container', async () => {
+  /*
+   * วัดมาแล้วบนเครื่องจริงตอนรีบูต: งานตอนบูต (10:03:33) ยังทำงานไม่จบ
+   * งานทุกห้านาที (10:05:02) ก็เริ่มอีกตัว แล้วคนก็กดเองอีก — สามรอบสั่ง
+   * `docker compose up` ใส่คอนเทนเนอร์ตัวเดียวกันตอนที่เครื่องกำลังลำบากที่สุด
+   * ล็อกอ่านไม่ออกว่าใครทำอะไร และการกู้ยืดจากไม่กี่วินาทีเป็นหลายนาที
+   */
+  const p = await project({ label: 'busy', gpuProbe: true, gpuStarts: true });
+
+  // จำลองรอบที่กำลังทำงานอยู่: ล็อกที่เพิ่งถูกจับไปเมื่อกี้
+  await fs.mkdir(p.lock, { recursive: true });
+  await fs.writeFile(path.join(p.lock, 'started'), String(Math.floor(Date.now() / 1000)));
+
+  await p.run();
+
+  assert.equal(await p.calls(), '', 'มีรอบอื่นกู้อยู่แล้ว แต่ยังไปสั่ง docker ซ้อน');
+  assert.match(await p.log(), /ข้ามรอบนี้/, 'ต้องบอกในล็อกว่าทำไมรอบนี้ไม่ทำอะไร');
+
+  await p.close();
+});
+
+test('a lock left behind by a rescue that died never wedges the safety net', async () => {
+  /*
+   * ไฟดับกลางการกู้ทิ้งล็อกค้างไว้ · ถ้าถือว่า "มีคนทำอยู่" ตลอดไป ตาข่ายจะเงียบ
+   * ไปทั้งงานโดยที่ทุกอย่างดูเหมือนตั้งไว้เรียบร้อย — แย่กว่าไม่มีล็อกเสียอีก
+   */
+  const p = await project({ label: 'stale', gpuProbe: true, gpuStarts: true });
+
+  await fs.mkdir(p.lock, { recursive: true });
+  const longAgo = Math.floor(Date.now() / 1000) - 3600;
+  await fs.writeFile(path.join(p.lock, 'started'), String(longAgo));
+
+  await p.run();
+
+  assert.match(await p.calls(), /compose .*up -d/, 'ล็อกค้างต้องถูกยึดมาแล้วกู้ต่อ');
+  assert.match(await p.log(), /ตายคาไว้/);
+  assert.match(await p.log(), /กู้สำเร็จ/);
+
+  await p.close();
+});
+
+test('a rescue right after boot waits for Docker instead of giving up on the GPU', async () => {
+  /*
+   * งานตอนบูตถูกยิงตั้งแต่ระบบขึ้นได้ไม่กี่สิบวินาที ซึ่งเร็วกว่าที่ Docker กับ
+   * ไดรเวอร์การ์ดจอจะพร้อม · ของเดิมตัดสินทันทีแล้วได้คำตอบผิด — ตัวตรวจ GPU
+   * ตอบว่าใช้ไม่ได้ ทั้งที่อีกไม่กี่นาทีต่อมามันใช้ได้ตามปกติ (เห็นบนเครื่องจริง
+   * 10:03 ว่าไม่ได้ · 10:08 ว่าได้) ผลคือเว็บวิ่งบน CPU ไปทั้งวันโดยไม่มีเหตุผล
+   */
+  const p = await project({ label: 'booting', gpuProbe: true, gpuStarts: true, infoFails: 1 });
+
+  await p.run();
+
+  const log = await p.log();
+  assert.match(log, /Docker ยังไม่พร้อม/, 'ต้องรอ ไม่ใช่ตัดสินทันทีตอนเครื่องเพิ่งบูต');
+  assert.match(log, /Docker พร้อมแล้วหลังรอ/);
+  assert.match(await p.calls(), /docker-compose\.gpu\.yml.*up -d/, 'รอแล้วต้องได้ GPU ตามที่ควรเป็น');
 
   await p.close();
 });
