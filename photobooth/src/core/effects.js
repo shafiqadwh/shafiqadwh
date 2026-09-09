@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { measure, planFrom } from './auto.js';
 
 /**
  * เอฟเฟคแต่งภาพ — ไม่ใช่สติกเกอร์ ไม่ใช่กรอบ PNG
@@ -15,7 +16,50 @@ import sharp from 'sharp';
  * เกรนต้อง composite ไม่ใช่ปรับค่าสี — ทำในขั้นเดียวกันไม่ได้
  */
 
+/**
+ * วัดภาพเพื่อหาค่าที่จะใช้กับ `auto`
+ *
+ * ย่อเหลือ 200 px ก่อนวัด — ภาพเต็มไม่ได้ให้คำตอบที่ต่างกันอย่างมีความหมาย
+ * (ค่าเฉลี่ยกับเปอร์เซ็นไทล์ไม่ได้ขึ้นกับความละเอียด) แต่ราคาต่างกันหลายสิบเท่า
+ * และแขกยืนรออยู่หน้าบูธ
+ *
+ * ล้มเมื่อไรคืน `null` แล้วปล่อยภาพผ่านไปตามเดิม — **ตัวแต่งอัตโนมัติที่ทำให้
+ * รอบของแขกพัง แย่กว่าการไม่มีตัวแต่งอัตโนมัติ**
+ */
+async function autoPlan(input) {
+  try {
+    const { data, info } = await sharp(input, { failOn: 'none' })
+      .rotate()
+      .resize(200, 200, { fit: 'inside' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return planFrom(measure(data, info.channels));
+  } catch (error) {
+    console.warn('[effects] วัดภาพเพื่อแต่งอัตโนมัติไม่สำเร็จ ใช้ภาพเดิม:', error.message);
+    return null;
+  }
+}
+
 const EFFECTS = {
+  /*
+   * ตัวเดียวในไฟล์นี้ที่ **ดูภาพก่อนตัดสินใจ** · ที่เหลือเป็นค่าตายตัวทั้งหมด
+   * ซึ่งถูกต้องสำหรับ "สไตล์" แต่ใช้เป็นการแก้ภาพไม่ได้ เพราะภาพที่มืดกับภาพที่
+   * สว่างเกินต้องการคนละทางแก้ · เหตุผลและเพดานทุกตัวอยู่ใน core/auto.js
+   */
+  auto: {
+    name: { th: 'อัตโนมัติ', ms: 'Automatik', en: 'Auto', ar: 'تلقائي' },
+    grain: 0,
+    measure: autoPlan,
+    apply: (img, plan) => {
+      if (!plan) return img.sharpen({ sigma: 0.6 });
+      return img
+        .linear(plan.linear.a, plan.linear.b)
+        .modulate({ saturation: plan.saturation })
+        .sharpen({ sigma: 0.6 });
+    },
+  },
+
   clean: {
     name: { th: 'ธรรมชาติ', ms: 'Semula jadi', en: 'Natural', ar: 'طبيعي' },
     grain: 0,
@@ -72,7 +116,17 @@ const EFFECTS = {
 };
 
 export const EFFECT_IDS = Object.freeze(Object.keys(EFFECTS));
-export const DEFAULT_EFFECT = 'clean';
+/*
+ * ค่าเริ่มต้นคือ `auto` — ตัวที่ดูภาพก่อนตัดสินใจ
+ *
+ * แขกส่วนใหญ่กดถ่ายโดยไม่แตะแถบเอฟเฟคเลย สิ่งที่ค่าเริ่มต้นเป็นจึงคือสิ่งที่บูธนี้
+ * ให้คนส่วนใหญ่จริง ๆ · `clean` (เดิม) แค่เพิ่มความคมแล้วปล่อยภาพไปตามที่กล้องให้มา
+ * ซึ่งแปลว่าภาพที่ถ่ายใต้ไฟเหลืองก็ออกไปเหลืองอย่างนั้น
+ *
+ * และเป็นตัวสำรองของ id ที่ไม่รู้จักด้วย ซึ่งถูกกว่าเดิม: เดาไม่ออกว่าคนตั้งใจอะไร
+ * ก็ทำสิ่งที่ปลอดภัยที่สุด คือแก้ให้ภาพถูกต้อง ไม่ใช่ปล่อยผ่าน
+ */
+export const DEFAULT_EFFECT = 'auto';
 
 export function effectById(id) {
   return EFFECTS[id] ?? EFFECTS[DEFAULT_EFFECT];
@@ -121,7 +175,28 @@ async function grainTile(width, height, strength) {
  * ครอบ (`cover`) ไม่ใช่ยืด — หน้าคนที่ถูกยืดให้พอดีกรอบคือของเสียที่พิมพ์ออกมาแล้ว
  * แก้ไม่ได้ · ตัดขอบทิ้งบ้างยอมรับได้ ยืดหน้าไม่ได้
  */
-export async function applyEffect(input, effectId, { width, height, position = 'attention' }) {
+/**
+ * คิดค่าของ `auto` ให้ **ทั้งรอบถ่าย ครั้งเดียว** — ไม่ใช่ทีละรูป
+ *
+ * เหตุผลคือ **สามรูปบนแผ่นเดียวต้องถูกเกรดเหมือนกัน** · ถ่ายห่างกันสองวินาทีใต้ไฟ
+ * ดวงเดียวกัน ความต่างระหว่างสามใบคือจุดรบกวน ไม่ใช่ความต่างของแสง · ปล่อยให้
+ * ต่างคนต่างวัดแล้วแผ่นจะออกมาสามใบสามโทน ซึ่งคนดูออกทันทีว่าไม่ได้ตั้งใจ
+ * และ GIF ที่โทนไม่ตรงกับแผ่นคือของสองชิ้นจากรอบเดียวกันที่ดูเหมือนคนละงาน
+ *
+ * **ไม่ได้ทำเพื่อความเร็ว** — วัดแล้วเท่ากันเป๊ะ (2.22 กับ 2.23 วินาทีต่อรอบ)
+ * เพราะ sharp วัดหกรูปขนานกันบนหลายเธรดอยู่แล้ว เวลารวมจึงถูกกำหนดโดยเส้นที่ช้าที่สุด
+ * ไม่ใช่ผลรวม · เขียนไว้ตรงนี้เพราะเคยคิดว่าจะประหยัดได้ แล้ววัดออกมาไม่จริง
+ *
+ * เอฟเฟคที่ไม่ต้องดูภาพคืน `undefined` — ผู้เรียกส่งต่อไปได้เลยโดยไม่ต้องแยกกรณี
+ */
+export function planFor(input, effectId) {
+  const effect = effectById(effectId);
+  return effect.measure ? effect.measure(input) : Promise.resolve(undefined);
+}
+
+export async function applyEffect(input, effectId, {
+  width, height, position = 'attention', plan: given,
+}) {
   const effect = effectById(effectId);
 
   /*
@@ -129,10 +204,20 @@ export async function applyEffect(input, effectId, { width, height, position = '
    * แต่ **ใช้กับเฟรมของภาพเคลื่อนไหวไม่ได้** เพราะแต่ละเฟรมจะถูกตัดคนละที่
    * แล้วภาพจะกระตุกไปมาเหมือนกล้องสั่น — ตัวเรียกฝั่ง GIF จึงส่ง 'centre' มาแทน
    */
+  /*
+   * ค่าที่ผู้เรียกคิดมาให้แล้วมาก่อนเสมอ (ทั้งรอบใช้ชุดเดียวกัน — ดู `planFor`)
+   * ไม่ได้ส่งมาก็วัดเอง เพื่อให้เรียกใช้เดี่ยว ๆ ได้โดยไม่ต้องรู้เรื่องนี้
+   *
+   * วัดจากต้นฉบับ ไม่ใช่จากภาพที่ครอบแล้ว — ต่างกันน้อยมาก แต่วัดก่อนครอบทำให้ผล
+   * ไม่ขึ้นกับว่าตัดขอบตรงไหน
+   */
+  const plan = given ?? (effect.measure ? await effect.measure(input) : undefined);
+
   const base = effect.apply(
     sharp(input, { failOn: 'none' })
       .rotate()
       .resize(width, height, { fit: 'cover', position }),
+    plan,
   );
 
   if (!effect.grain) return base.jpeg({ quality: 95, mozjpeg: true }).toBuffer();

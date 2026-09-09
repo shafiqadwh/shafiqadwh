@@ -48,6 +48,9 @@ export const bounceOrder = (count) => (count > 2
  */
 export async function makeGif(photos, {
   effect = 'clean', width = GIF_WIDTH, delayMs = GIF_DELAY_MS,
+  // เกรดชุดเดียวกับที่แผ่นใช้ — GIF กับแผ่นที่โทนไม่ตรงกันคือของสองชิ้นจากรอบเดียวกัน
+  // ที่ดูเหมือนคนละงาน (ดู `planFor` ใน effects.js)
+  plan = undefined,
 } = {}) {
   if (!Array.isArray(photos) || photos.length < 2) return null;
 
@@ -61,7 +64,7 @@ export async function makeGif(photos, {
    * แล้วภาพจะกระตุกไปมาเหมือนกล้องสั่น (ดูคอมเมนต์ใน effects.js)
    */
   const frames = await Promise.all(photos.map(
-    (photo) => applyEffect(photo, effect, { width, height, position: 'centre' }),
+    (photo) => applyEffect(photo, effect, { width, height, position: 'centre', plan }),
   ));
 
   const order = bounceOrder(frames.length).map((index) => frames[index]);

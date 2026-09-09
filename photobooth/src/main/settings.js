@@ -29,7 +29,7 @@ export const DEFAULTS = Object.freeze({
   printPage: 'same',
   // เอฟเฟคที่จะโชว์ให้แขกเลือกหน้างาน · เลือกไว้ตั้งแต่แรกว่าจะให้มีกี่แบบ
   // แขกยืนหน้าบูธเลือกจากเจ็ดแบบคือแถวยาว — สองสามแบบพอ
-  effects: ['clean', 'soft', 'film'],
+  effects: ['auto', 'soft', 'film'],
   countdownSeconds: 3,
   copies: 1,
   /*

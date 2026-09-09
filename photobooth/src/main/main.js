@@ -7,7 +7,7 @@ import sharp from 'sharp';
 import { THEMES, themeById, themeName } from '../../../shared/themes.js';
 import { composeSheet } from '../core/sheet.js';
 import { makeGif } from '../core/animation.js';
-import { listEffects } from '../core/effects.js';
+import { listEffects, planFor } from '../core/effects.js';
 import { listTemplates, shotsFor } from '../core/templates.js';
 import {
   canPublish, ensureAlbumCode, isAlbumCode, loadSettings, photoUrl, saveSettings, sheetQrUrl,
@@ -513,8 +513,17 @@ ipcMain.handle('booth:compose', async (event, { shots, effect, token: paid }) =>
      *
      * GIF เป็นของแถม ไม่ใช่ของหลัก — ทำไม่สำเร็จต้องไม่ทำให้รอบถ่ายล้ม
      */
+    /*
+     * เกรดของ `auto` คิดครั้งเดียวสำหรับทั้งรอบ แล้วส่งให้ทั้งแผ่นและ GIF ใช้ชุดเดียวกัน
+     *
+     * ที่นี่คือที่เดียวที่รู้ว่า "สามรูปนี้คือรอบเดียวกัน" · ปล่อยให้แต่ละรูปวัดเอง
+     * จะได้แผ่นสามใบสามโทนจากไฟดวงเดียวกัน และเสียเวลาวัดหกรอบแทนที่จะเป็นรอบเดียว
+     */
+    const plan = await planFor(photos[0], effect);
+
     const [sheet, gif] = await Promise.all([
       composeSheet({
+        plan,
         photos,
         template: settings.template,
         paper: settings.paper,
@@ -525,7 +534,7 @@ ipcMain.handle('booth:compose', async (event, { shots, effect, token: paid }) =>
         qrUrl,
       }),
       settings.gif
-        ? makeGif(photos, { effect }).catch((error) => {
+        ? makeGif(photos, { effect, plan }).catch((error) => {
           console.warn('[booth] ทำภาพเคลื่อนไหวไม่สำเร็จ ข้ามไป:', error.message);
           return null;
         })

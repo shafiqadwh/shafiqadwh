@@ -174,6 +174,9 @@ export async function composeSheet({
   title = '',
   subtitle = '',
   qrUrl = null,
+  // ค่าของเอฟเฟคที่ดูภาพก่อน (auto) คิดมาแล้วทั้งรอบ — ดู `planFor` ใน effects.js
+  // ไม่ส่งมาก็ยังทำงานได้ แค่แต่ละรูปจะวัดของตัวเอง
+  plan = undefined,
   landscape = false,
   format = 'jpeg',
 }) {
@@ -190,7 +193,9 @@ export async function composeSheet({
   const colours = themeById(theme).colours;
 
   const slotLayers = await Promise.all(layout.slots.map(async (slot) => ({
-    input: await applyEffect(photos[slot.shot], effect, { width: slot.width, height: slot.height }),
+    input: await applyEffect(photos[slot.shot], effect, {
+      width: slot.width, height: slot.height, plan,
+    }),
     left: slot.left,
     top: slot.top,
   })));
