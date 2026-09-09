@@ -1,0 +1,67 @@
+# รันเทสต์ทั้งหมดทุกครั้งที่ push
+#
+# **ก่อนหน้านี้ไม่มีอะไรรันเทสต์บน GitHub เลย** มีแต่ workflow สร้าง APK ของทีวี
+# ซึ่งทำงานเฉพาะตอนแก้ไฟล์ใน `tv/` · เทสต์ 594 ข้อจึงถูกรันแค่บนเครื่องคนเขียน
+# แล้วแต่ว่าใครจำได้ว่าต้องรัน — ซึ่งเป็นสิ่งที่ใช้ไม่ได้ทันทีที่มีคนที่สองมาแตะโค้ด
+# และเป็นช่องว่างที่ใหญ่ที่สุดของเอกสารส่งมอบงาน (docs/10-handoff.md)
+#
+# สิ่งที่ต้องเตรียมนอกจาก npm มีอยู่สามอย่างเท่านั้น
+#   1. `ffmpeg` — ไม่มี ffmpeg-static ใน dependencies โค้ดจึงตกไปหาตัวใน PATH
+#      (ดู `resolveBinary` ใน src/lib/media.js) เหมือนที่ Dockerfile ลงให้
+#   2. `Xvfb` — เทสต์ของบูธเปิดหน้าต่าง Electron จริง ต้องมี X server
+#      (ตัวช่วยใน photobooth/test/helpers/display.js ยกขึ้นเอง ถ้ามีคำสั่งให้ใช้)
+#   3. ไลบรารีระบบของ Electron — ใช้ตัวเดียวกับที่ playwright ต้องใช้
+#
+# ฟอนต์ไทย/อาหรับ **อยู่ใน repo แล้ว** (`assets/fonts/`) ไม่ต้องลงจาก apt
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# push ติด ๆ กันหลายครั้ง เอาแค่ครั้งล่าสุดพอ — ชุดนี้กินเวลาหลายนาที
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # เทสต์ของบูธเปิด Electron จริงหลายสิบครั้ง ช้ากว่าฝั่งเว็บมาก
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            photobooth/package-lock.json
+
+      - name: ลงของที่ระบบต้องมี
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg xvfb
+
+      - run: npm ci
+
+      # เทสต์ของบูธอยู่คนละแพ็กเกจ และ import playwright จาก node_modules ของราก
+      # (ดูคอมเมนต์ใน photobooth/test/app.test.js) จึงต้องลงทั้งสองชุด
+      - run: npm ci
+        working-directory: photobooth
+
+      # ไลบรารีระบบของ Chromium/Electron — playwright รู้รายการนี้ดีกว่าเราเดาเอง
+      - name: ลงไลบรารีระบบของ Electron
+        run: npx playwright install-deps chromium
+
+      - name: เทสต์ฝั่งเว็บ
+        run: node --test test/*.test.js
+
+      # แยกขั้นจากฝั่งเว็บ เพื่อให้อ่านออกทันทีว่าฝั่งไหนล้ม โดยไม่ต้องเปิด log
+      - name: เทสต์ฝั่งบูธ
+        run: node --test --test-concurrency=2 photobooth/test/*.test.js
