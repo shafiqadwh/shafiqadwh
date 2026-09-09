@@ -49,8 +49,39 @@ const say = (message) => {
   }
 };
 
+/**
+ * สิ่งที่ทำเมื่อไม่มีใครแตะจอนานพอ · ขั้นที่ไม่อยู่ในตารางนี้ไม่มีการตั้งเวลาเลย
+ *
+ * `pay` ไม่อยู่ในนี้โดยตั้งใจ — แขกกำลังเปิดแอปธนาคาร รีเซ็ตตรงนั้นคือยกเลิกการขาย
+ * กลางคัน · `shoot` ก็ไม่อยู่ เพราะมีคนยืนถ่ายอยู่ตรงหน้า
+ *
+ * ขั้น `review` ใช้ **ตารางการตัดสินใจเดียวกับปุ่มถ่ายใหม่** ไม่ใช่ทิ้งรอบเสมอ:
+ * รอบที่จ่ายเงินมาแล้วต้องเก็บตั๋วไว้ ไม่ใช่ทิ้งไปพร้อมเงินเพราะแขกเดินไปเข้าห้องน้ำ
+ */
+const IDLE_ACTION = {
+  done: () => reset(),
+  review: () => (holdingPaid() ? parkPaidRound() : reset({ discard: true })),
+};
+
+let idleTimer = null;
+
+function armIdle(name) {
+  clearTimeout(idleTimer);
+  idleTimer = null;
+
+  const act = IDLE_ACTION[name];
+  const ms = state.setup?.idle?.[name];
+  if (!act || !ms) return;
+
+  idleTimer = setTimeout(() => {
+    // ขั้นเปลี่ยนไปแล้วระหว่างรอ = มีคนแตะจริง ไม่ต้องทำอะไร
+    if (body.dataset.stage === name && !state.busy) act();
+  }, ms);
+}
+
 const stage = (name) => {
   body.dataset.stage = name;
+  armIdle(name);
   say({ type: 'stage', stage: name });
 };
 
@@ -516,18 +547,42 @@ async function reset({ discard = false, keep = false } = {}) {
  * โทเคนใบเดิมถูกถือไว้ตลอด รอบที่จ่ายแล้วจึงยังเป็นรอบเดียวกันไม่ว่าถ่ายกี่ครั้ง
  * (ล้างเฉพาะของข้างใน ดู `clearSession` — คืนโฟลเดอร์ทิ้งคือคืนโทเคนให้คนถัดไป)
  */
-async function retake() {
-  if (!state.token) return reset({ discard: true });
-
+/**
+ * ล้างรูปของรอบนี้ทิ้ง **แต่ถือโทเคนใบเดิมไว้** · คืน `false` เมื่อล้างไม่สำเร็จ
+ *
+ * ล้างของเดิมไม่สำเร็จแล้วถ่ายทับ = รูปสองรอบปนกันในโฟลเดอร์เดียว · อยู่ที่เดิม
+ * ให้แขกกดใหม่ดีกว่า เพราะแผ่นที่เห็นอยู่ตอนนี้ยังส่งมอบได้ตามปกติ
+ */
+async function clearForRetake() {
   const cleared = await guard(() => window.booth.retake({ token: state.token }));
-  // ล้างของเดิมไม่สำเร็จแล้วถ่ายทับ = รูปสองรอบปนกันในโฟลเดอร์เดียว · อยู่ที่เดิม
-  // ให้แขกกดใหม่ดีกว่า เพราะแผ่นที่เห็นอยู่ตอนนี้ยังส่งมอบได้ตามปกติ
-  if (!cleared) return undefined;
+  if (!cleared) return false;
 
   el('sheet').removeAttribute('src');
   el('token').textContent = '';
   say({ type: 'reset' });
+  return true;
+}
+
+async function retake() {
+  if (!state.token) return reset({ discard: true });
+  if (!await clearForRetake()) return undefined;
   return shoot();
+}
+
+/**
+ * แขกที่จ่ายแล้วเดินหายไประหว่างดูแผ่น — **พักตั๋วไว้ ไม่ใช่ถ่ายใหม่ให้ห้องเปล่า**
+ *
+ * ต่างจากปุ่ม "ถ่ายใหม่" ตรงที่ตรงนั้นมีคนยืนอยู่ตรงหน้า กดแล้วถ่ายต่อได้เลย
+ * ส่วนตรงนี้ไม่มีใครอยู่แล้ว · เริ่มนับถอยหลังต่อคือการถ่ายรูปห้องเปล่าสามใบ
+ * แล้วเอาไปกินรอบที่แขกจ่ายเงินมา
+ *
+ * ล้างรูปทิ้ง (โฟลเดอร์ต้องว่างก่อนถ่ายรอบใหม่ทับโทเคนเดิม) แล้วกลับหน้าพร้อมถ่าย
+ * โดยยังถือตั๋วอยู่ — แขกกลับมาก็ถ่ายต่อได้ ไม่กลับมาเจ้าของบูธก็กดปลดตั๋วได้
+ */
+async function parkPaidRound() {
+  if (!state.token) return reset({ discard: true });
+  if (!await clearForRetake()) return undefined;
+  return reset({ keep: true });
 }
 
 // ── คำสั่งจากรีโมทและจอช่างภาพ ─────────────────────────────────────────────
