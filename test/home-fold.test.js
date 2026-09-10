@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
+import { launchChromium, skipOrFail } from './helpers/browser.js';
 import { login, startTestServer, useTempDataDir } from './helpers/app.js';
 import { makeJpeg } from './helpers/fixtures.js';
 
@@ -25,31 +26,6 @@ let app;
 let browser;
 let launchError = null;
 
-async function launchChromium(chromium) {
-  try {
-    return await chromium.launch();
-  } catch (error) {
-    launchError = error;
-  }
-  const root = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
-  let entries = [];
-  try {
-    entries = await fs.readdir(root);
-  } catch {
-    return null;
-  }
-  for (const entry of entries.filter((name) => name.startsWith('chromium-'))) {
-    const executablePath = path.join(root, entry, 'chrome-linux', 'chrome');
-    try {
-      await fs.access(executablePath);
-      return await chromium.launch({ executablePath });
-    } catch (error) {
-      launchError = error;
-    }
-  }
-  return null;
-}
-
 before(async () => {
   app = await startTestServer();
   const cookie = await login(app.baseUrl);
@@ -69,8 +45,7 @@ before(async () => {
   }
 
   try {
-    const { chromium } = await import('playwright');
-    browser = await launchChromium(chromium);
+    browser = await launchChromium();
   } catch (error) {
     launchError = error;
   }
@@ -83,10 +58,7 @@ after(async () => {
 });
 
 test('the upload button stays on screen with a cover image above it', async (t) => {
-  if (!browser) {
-    t.skip(`เปิดเบราว์เซอร์ไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-    return;
-  }
+  if (!browser) return skipOrFail(t, launchError);
 
   const page = await browser.newPage({ viewport: VIEWPORT });
   await page.goto(`${app.baseUrl}/`, { waitUntil: 'networkidle' });
@@ -109,10 +81,7 @@ test('the upload button stays on screen with a cover image above it', async (t) 
 });
 
 test('the cover never grows past its share of the screen', async (t) => {
-  if (!browser) {
-    t.skip(`เปิดเบราว์เซอร์ไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-    return;
-  }
+  if (!browser) return skipOrFail(t, launchError);
 
   const page = await browser.newPage({ viewport: VIEWPORT });
   await page.goto(`${app.baseUrl}/`, { waitUntil: 'networkidle' });
@@ -128,10 +97,7 @@ test('the cover never grows past its share of the screen', async (t) => {
 });
 
 test('tapping a host photo opens it in the viewer the gallery already uses', async (t) => {
-  if (!browser) {
-    t.skip(`เปิดเบราว์เซอร์ไม่ได้ — ${launchError?.message ?? 'ไม่ทราบสาเหตุ'}`);
-    return;
-  }
+  if (!browser) return skipOrFail(t, launchError);
 
   const page = await browser.newPage({ viewport: VIEWPORT });
   await page.goto(`${app.baseUrl}/`, { waitUntil: 'networkidle' });

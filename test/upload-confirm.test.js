@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test, { after, before } from 'node:test';
+import { launchChromium, skipOrFail } from './helpers/browser.js';
 import { startTestServer, useTempDataDir } from './helpers/app.js';
 import { makeJpeg } from './helpers/fixtures.js';
 
@@ -32,38 +33,11 @@ let launchError = null;
  * (แพ็กเกจมองหา build ตามเลขที่มันปักไว้ ส่วนอิมเมจมีเลขอื่น) — ลองแบบปกติก่อน
  * แล้วค่อยชี้ไปที่ไบนารีที่มีอยู่จริง แทนที่จะยอมแพ้แล้ว skip ทั้งไฟล์
  */
-async function launchChromium(chromium) {
-  try {
-    return await chromium.launch();
-  } catch (error) {
-    launchError = error;
-  }
-
-  const root = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
-  let entries = [];
-  try {
-    entries = await fs.readdir(root);
-  } catch {
-    return null;
-  }
-
-  for (const entry of entries.filter((name) => name.startsWith('chromium-'))) {
-    const executablePath = path.join(root, entry, 'chrome-linux', 'chrome');
-    try {
-      await fs.access(executablePath);
-      return await chromium.launch({ executablePath });
-    } catch (error) {
-      launchError = error;
-    }
-  }
-  return null;
-}
 
 before(async () => {
   app = await startTestServer();
   try {
-    const { chromium } = await import('playwright');
-    browser = await launchChromium(chromium);
+    browser = await launchChromium();
   } catch (error) {
     launchError = error;
   }
@@ -116,7 +90,7 @@ async function pickFiles(page, files) {
 }
 
 test('choosing files stages them for review without sending anything', async (t) => {
-  if (!browser) return t.skip(`เปิดเบราว์เซอร์ไม่ได้: ${launchError?.message}`);
+  if (!browser) return skipOrFail(t, launchError);
 
   const one = await makeJpeg(path.join(dataDir, 'first.jpg'), { colour: '#b45f4d' });
   const two = await makeJpeg(path.join(dataDir, 'second.jpg'), { colour: '#4d7fb4' });
@@ -141,7 +115,7 @@ test('choosing files stages them for review without sending anything', async (t)
 });
 
 test('removing a tile takes that file out of what actually gets sent', async (t) => {
-  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+  if (!browser) return skipOrFail(t, launchError);
 
   const one = await makeJpeg(path.join(dataDir, 'keep.jpg'), { colour: '#6f8f5a' });
   const two = await makeJpeg(path.join(dataDir, 'drop.jpg'), { colour: '#8f5a6f' });
@@ -164,7 +138,7 @@ test('removing a tile takes that file out of what actually gets sent', async (t)
 });
 
 test('cancelling throws the whole selection away and sends nothing', async (t) => {
-  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+  if (!browser) return skipOrFail(t, launchError);
 
   const file = await makeJpeg(path.join(dataDir, 'never.jpg'), { colour: '#3f3a35' });
 
@@ -185,7 +159,7 @@ test('cancelling throws the whole selection away and sends nothing', async (t) =
 });
 
 test('a second pick adds to the selection instead of replacing it', async (t) => {
-  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+  if (!browser) return skipOrFail(t, launchError);
 
   // แขกที่เลือกรูปสองใบแล้วกดเลือกเพิ่ม ต้องไม่ทำให้สองใบแรกหายไปเงียบ ๆ
   const one = await makeJpeg(path.join(dataDir, 'batch-a.jpg'), { colour: '#a8743f' });
@@ -202,7 +176,7 @@ test('a second pick adds to the selection instead of replacing it', async (t) =>
 });
 
 test('the confirm button counts what is staged, in the guest own language', async (t) => {
-  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+  if (!browser) return skipOrFail(t, launchError);
 
   const one = await makeJpeg(path.join(dataDir, 'count-a.jpg'));
   const two = await makeJpeg(path.join(dataDir, 'count-b.jpg'));
@@ -219,7 +193,7 @@ test('the confirm button counts what is staged, in the guest own language', asyn
 });
 
 test('a file the browser cannot preview still shows its name and can still be removed', async (t) => {
-  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+  if (!browser) return skipOrFail(t, launchError);
 
   // HEIC ของ iPhone เรนเดอร์ได้บน Safari แต่ Chrome บน Android เรนเดอร์ไม่ได้
   // ต้องได้กล่องชื่อไฟล์ ไม่ใช่ไอคอนรูปแตกที่อ่านแล้วเหมือนไฟล์เสีย
@@ -243,7 +217,7 @@ test('a file the browser cannot preview still shows its name and can still be re
 });
 
 test('the send button is brought into view, not left somewhere the guest never looks', async (t) => {
-  if (!browser) return t.skip('เปิดเบราว์เซอร์ไม่ได้');
+  if (!browser) return skipOrFail(t, launchError);
 
   // ถ้าแขกเลือกรูปเสร็จแล้วไม่เห็นปุ่ม "ส่ง N ไฟล์" จะเดินจากไปโดยคิดว่าส่งแล้ว
   // เงียบ ไม่มี error ไม่มีใครรู้ทั้งงาน ซึ่งทำลายจุดประสงค์ทั้งหมดของระบบ

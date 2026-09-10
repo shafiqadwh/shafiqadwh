@@ -40,6 +40,22 @@ test('on CI a booth test that cannot open a window fails instead of being skippe
   assert.match(booth, /BOOTH_REQUIRE_ELECTRON/);
 });
 
+test('CI downloads Chromium, not just the libraries it needs', () => {
+  // `install-deps` ลงไลบรารีของระบบ · ตัวเบราว์เซอร์ต้องสั่งแยก — ข้อนี้ตกไป
+  // ตั้งแต่รอบแรก เทสต์ฝั่งเว็บที่ขับเบราว์เซอร์จริง 11 ข้อจึงถูกข้ามทุกรอบ
+  assert.match(workflow, /playwright install chromium/);
+
+  const install = workflow.indexOf('playwright install chromium');
+  const webStep = workflow.indexOf('node --test test/*.test.js');
+  assert.ok(install > 0 && webStep > 0);
+  assert.ok(install < webStep, 'ขั้นลงเบราว์เซอร์ต้องมาก่อนขั้นเทสต์ฝั่งเว็บ');
+});
+
+test('on CI a web test that cannot open a browser fails instead of being skipped', () => {
+  const web = workflow.slice(workflow.indexOf('เทสต์ฝั่งเว็บ'), workflow.indexOf('เทสต์ฝั่งบูธ'));
+  assert.match(web, /WEB_REQUIRE_BROWSER/);
+});
+
 test('no booth test hardcodes the Linux name of the Electron binary', async () => {
   // ชื่อไบนารีต่างกันทุกระบบ (`electron`, `electron.exe`, `Electron.app/…`)
   // ฮาร์ดโค้ด `dist/electron` ไว้ = เทสต์ชุดนี้ถูกข้ามตลอดไปบนวินโดวส์

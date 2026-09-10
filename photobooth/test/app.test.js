@@ -109,7 +109,10 @@ test('the booth opens and reaches the ready screen', async (t) => {
     (await page.evaluate(() => Object.keys(window.booth))).sort(),
     // รายการนี้เป็นบัญชีที่ตั้งใจ ไม่ใช่ผลข้างเคียง — เพิ่มชื่อลงมาต้องเป็นการ
     // ตัดสินใจที่มีคนเห็น ไม่ใช่ของที่ไหลเข้ามาเงียบ ๆ พร้อมฟีเจอร์ใหม่
-    ['broadcast', 'camera', 'checkPay', 'closeSettings', 'compose', 'deliver', 'discard',
+    // checkConnection: ตรวจว่าจับคู่กับเว็บได้ก่อนเสียเวลาถ่ายจริง — อ่านอย่างเดียว
+    // ไม่ส่งรูป ไม่ตาม redirect (ดู src/main/connection.js) และ handler รับเฉพาะ
+    // หน้าต่างตั้งค่า · เป็นการเพิ่มที่ตั้งใจ ไม่ใช่ของที่ไหลเข้ามาเงียบ ๆ
+    ['broadcast', 'camera', 'checkConnection', 'checkPay', 'closeSettings', 'compose', 'deliver', 'discard',
       'onMessage', 'openSettings', 'paid', 'pending', 'printers', 'retake', 'sale', 'save',
       'settings', 'setup', 'shot', 'upload'],
   );

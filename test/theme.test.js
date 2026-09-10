@@ -84,10 +84,14 @@ test('anything that is not a plain hex colour is dropped, not escaped', () => {
 test('a page with no theme carries no extra byte in its head', async () => {
   const html = await (await fetch(`${app.baseUrl}/`)).text();
 
-  // ไม่ได้เช็คแค่ว่า "ไม่มีคำว่า themeStyle" แต่เช็คว่าสองบรรทัดที่เคยติดกัน
-  // ยังติดกันอยู่เป๊ะ — ถ้ามีบรรทัดว่างแทรก แปลว่า EJS ไม่ได้ตัดช่องว่างให้จริง
-  assert.match(html, /app\.css\?v=[a-f0-9]+">\n {2}<link rel="icon"/);
-  assert.ok(!html.includes('<style>'), 'หน้าที่ไม่ตั้งสีต้องไม่มี <style> เลย');
+  // ใจความคือ "บล็อก if ที่ไม่ทำงานต้องไม่ทิ้งร่องรอยไว้" — ไม่มี <style> และ
+  // ไม่มีบรรทัดว่างที่ EJS ลืมตัด · **ห้ามผูกกับว่าบรรทัดไหนอยู่ติดบรรทัดไหน**
+  // เดิมเช็คว่า app.css ติดกับ <link rel="icon"> เป๊ะ แล้วพอมีใครเพิ่ม
+  // stylesheet ใบที่สองเข้ามาตามปกติ เทสต์ก็ล้มทั้งที่ head ถูกต้องทุกอย่าง
+  // (เกิดขึ้นจริงกับ studio.css — CI ล้มด้วยเหตุนี้ ไม่ใช่เพราะของจริงพัง)
+  const head = html.slice(0, html.indexOf('</head>'));
+  assert.ok(!head.includes('<style>'), 'หน้าที่ไม่ตั้งสีต้องไม่มี <style> เลย');
+  assert.doesNotMatch(head, /\n[ \t]*\n/, 'บล็อก if ที่ไม่ทำงานต้องไม่ทิ้งบรรทัดว่างไว้');
 });
 
 test('colours from the environment reach the page the guests open', () => {

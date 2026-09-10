@@ -63,6 +63,12 @@ jobs:
       - name: ลงไลบรารีระบบของ Electron
         run: npx playwright install-deps chromium
 
+      # **`install-deps` ไม่ได้โหลดตัวเบราว์เซอร์** มันลงแต่ไลบรารีที่เบราว์เซอร์
+      # ต้องใช้ · ตัว Chromium ต้องสั่งแยก — ข้อนี้ตกไปตั้งแต่รอบแรก ผลคือเทสต์
+      # ฝั่งเว็บที่เปิดเบราว์เซอร์จริง 11 ข้อถูกข้ามทุกรอบโดยไม่มีอะไรเป็นสีแดง
+      - name: ลงเบราว์เซอร์ให้เทสต์ที่ขับหน้าเว็บจริง
+        run: npx playwright install chromium
+
       # ตัวโปรแกรม Electron (~150 MB) · `install.js` ของมันข้ามให้เองถ้ามีอยู่แล้ว
       # ทำเป็นขั้นของตัวเอง เพราะถ้าโหลดล้มต้องเห็นว่าล้มที่นี่ ไม่ใช่ไปโผล่เป็น
       # เทสต์ห้าสิบข้อที่ถูกข้ามปลายทาง
@@ -70,7 +76,10 @@ jobs:
         run: npm run install:electron
         working-directory: photobooth
 
+      # WEB_REQUIRE_BROWSER คู่กับ BOOTH_REQUIRE_ELECTRON ข้างล่าง — เหตุผลเดียวกัน
       - name: เทสต์ฝั่งเว็บ
+        env:
+          WEB_REQUIRE_BROWSER: '1'
         run: node --test test/*.test.js
 
       # แยกขั้นจากฝั่งเว็บ เพื่อให้อ่านออกทันทีว่าฝั่งไหนล้ม โดยไม่ต้องเปิด log
