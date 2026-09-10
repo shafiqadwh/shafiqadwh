@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f1ea">
+  <meta name="theme-color" content="#101d30">
   <title><%= event.title %><%= typeof pageTitle !== 'undefined' ? ' · ' + pageTitle : '' %></title>
   <link rel="stylesheet" href="/static/css/app.css?v=<%= assetVersion %>">
+  <link rel="stylesheet" href="/static/css/studio.css?v=<%= assetVersion %>">
 <%_ if (themeStyle) { _%>
   <%# สีต่องานทับตัวแปรใน app.css ตรงนี้ ไม่ได้แก้ไฟล์ CSS — งานที่ไม่ตั้งสีเองจะไม่มีบรรทัดนี้เลย %>
   <style><%- themeStyle %></style>

@@ -20,7 +20,8 @@
   const fileInput = document.getElementById('message-file');
 
   const NAME_KEY = 'wedding-share.name';
-  const saved = localStorage.getItem(NAME_KEY);
+  let saved;
+  try { saved = localStorage.getItem(NAME_KEY); } catch { /* Remembering a name is optional. */ }
   if (saved && authorInput) authorInput.value = saved;
 
   function setStatus(text, isError) {
@@ -88,7 +89,7 @@
     const author = authorInput.value.trim();
     if (author) {
       data.append('author', author);
-      localStorage.setItem(NAME_KEY, author);
+      try { localStorage.setItem(NAME_KEY, author); } catch { /* Sending a wish must still work. */ }
     }
     if (fileInput?.files?.[0]) data.append('attachment', fileInput.files[0]);
 

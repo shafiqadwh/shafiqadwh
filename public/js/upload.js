@@ -27,9 +27,14 @@
   const cancelButton = document.getElementById('upload-cancel');
 
   const NAME_KEY = 'wedding-share.name';
-  const saved = localStorage.getItem(NAME_KEY);
+  // Remembering a name is optional: storage may be disabled in private browsers.
+  let saved;
+  try { saved = localStorage.getItem(NAME_KEY); } catch { /* Upload still works. */ }
+  const rememberName = (name) => {
+    try { localStorage.setItem(NAME_KEY, name); } catch { /* Optional preference. */ }
+  };
   if (saved && nameInput) nameInput.value = saved;
-  nameInput?.addEventListener('change', () => localStorage.setItem(NAME_KEY, nameInput.value.trim()));
+  nameInput?.addEventListener('change', () => rememberName(nameInput.value.trim()));
 
   function setStatus(text, isError) {
     if (!statusLine) return;
@@ -145,7 +150,7 @@
     setStatus(t('upload.sending', { done: 0, total: files.length }));
 
     const uploader = nameInput?.value.trim() ?? '';
-    if (uploader) localStorage.setItem(NAME_KEY, uploader);
+    if (uploader) rememberName(uploader);
 
     let done = 0;
     let failed = 0;

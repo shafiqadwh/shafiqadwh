@@ -9,8 +9,7 @@
 
 const el = (id) => document.getElementById(id);
 
-// ส่งรูปขึ้นเว็บได้ไหม — ตอบจากฝั่งหลักตอนเปิดหน้า · ค่านี้เปลี่ยนไม่ได้จากหน้านี้
-// (ที่อยู่เว็บกับกุญแจอยู่ใน settings.json) จึงอ่านครั้งเดียวแล้วถือไว้
+// Availability updates when the connection fields change; the live check is separate.
 let canPublish = false;
 
 function status(text, kind = '') {
@@ -31,6 +30,8 @@ function fillOptions(select, items) {
 
 /** วาดฟอร์มจากค่าตั้งชุดหนึ่ง — ใช้ทั้งตอนเปิดหน้าและตอนบันทึกเสร็จ */
 function paint(settings) {
+  el('baseUrl').value = settings.baseUrl || '';
+  el('uploadKey').value = settings.uploadKey || '';
   el('eventTitle').value = settings.eventTitle;
   el('eventSubtitle').value = settings.eventSubtitle;
   el('theme').value = settings.theme;
@@ -69,6 +70,8 @@ function paint(settings) {
 }
 
 const patchFromForm = () => ({
+  baseUrl: el('baseUrl').value.trim().replace(/\/+$/, ''),
+  uploadKey: el('uploadKey').value,
   eventTitle: el('eventTitle').value,
   eventSubtitle: el('eventSubtitle').value,
   theme: el('theme').value,
@@ -91,6 +94,18 @@ const patchFromForm = () => ({
 
 async function save() {
   const wanted = patchFromForm();
+  if (wanted.baseUrl || wanted.uploadKey) {
+    try {
+      const url = new URL(wanted.baseUrl);
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
+          || url.pathname !== '/' || url.search || url.hash
+          || wanted.uploadKey.length < 16 || !/^[\x20-\x7e]+$/.test(wanted.uploadKey)) throw new Error();
+    } catch {
+      status('ตรวจที่อยู่เว็บและกุญแจเชื่อมต่อให้ครบก่อนบันทึก', 'bad');
+      el('baseUrl').focus();
+      return;
+    }
+  }
   el('save').disabled = true;
   status('กำลังบันทึก…');
 
@@ -118,6 +133,38 @@ async function save() {
     el('save').disabled = false;
   }
 }
+
+function updateConnectionOptions() {
+  const patch = patchFromForm();
+  canPublish = false;
+  try {
+    const url = new URL(patch.baseUrl);
+    canPublish = ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+      && url.pathname === '/' && !url.search && !url.hash
+      && patch.uploadKey.length >= 16 && /^[\x20-\x7e]+$/.test(patch.uploadKey);
+  } catch { /* Keep unavailable modes disabled until the fields are complete. */ }
+  for (const option of el('deliver').options) option.disabled = option.value !== 'print' && !canPublish;
+  el('deliver-hint').hidden = canPublish;
+  el('connection-note').textContent = 'ค่าการเชื่อมต่อเปลี่ยนแล้ว — กดตรวจอีกครั้ง';
+}
+
+for (const id of ['baseUrl', 'uploadKey']) el(id).addEventListener('input', updateConnectionOptions);
+el('check-connection').addEventListener('click', async () => {
+  const button = el('check-connection');
+  button.disabled = true;
+  el('connection-note').textContent = 'กำลังตรวจการเชื่อมต่อ…';
+  const input = patchFromForm();
+  try {
+    await window.booth.checkConnection(input);
+    if (input.baseUrl === patchFromForm().baseUrl && input.uploadKey === patchFromForm().uploadKey) {
+      el('connection-note').textContent = 'เชื่อมต่อสำเร็จ · กดบันทึกเพื่อใช้ค่าชุดนี้';
+    }
+  } catch (error) {
+    if (input.baseUrl === patchFromForm().baseUrl && input.uploadKey === patchFromForm().uploadKey) {
+      el('connection-note').textContent = error.message;
+    }
+  } finally { button.disabled = false; }
+});
 
 /** สร้าง QR จากค่าที่กำลังพิมพ์อยู่ ยังไม่ต้องบันทึก — จะได้แก้เบอร์ต่อได้ทันทีถ้าผิด */
 async function checkPay() {

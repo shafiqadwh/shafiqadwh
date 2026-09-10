@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process';
  * และไม่ต้องไปลบไฟล์ใน /tmp ของใครทิ้ง ซึ่งอาจเป็นจอที่คนอื่นใช้อยู่จริง
  */
 export async function startDisplay(numbers) {
+  if (process.platform !== 'linux') return null;
   if (process.env.DISPLAY) return null;
 
   const problems = [];

@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('booth', {
   openSettings: () => ipcRenderer.send('booth:open-settings'),
   closeSettings: () => ipcRenderer.send('booth:close-settings'),
   settings: () => ipcRenderer.invoke('booth:settings'),
+  checkConnection: (input) => ipcRenderer.invoke('booth:check-connection', input),
   save: (patch) => ipcRenderer.invoke('booth:save', patch),
   checkPay: (payload) => ipcRenderer.invoke('booth:check-pay', payload),
   upload: () => ipcRenderer.invoke('booth:upload'),

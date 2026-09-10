@@ -2,17 +2,19 @@
 <html lang="th">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Photo Booth · จอช่างภาพ</title>
   <link rel="stylesheet" href="operator.css">
+  <link rel="stylesheet" href="studio.css">
 </head>
-<body>
+<body class="studio-operator">
   <!--
     จอด้านหลัง — ช่างภาพเป็นคนดู ไม่ใช่แขก
     เห็นทุกอย่างที่จอหน้าเห็น (ส่งต่อมาทาง booth:message) แล้วสั่งงานกลับไปได้
     ปุ่มสองปุ่มตรงกับปุ่มสองปุ่มบนรีโมทเป๊ะ ๆ — ใครหยิบรีโมทมาก็เดาถูกทันที
   -->
   <header class="bar">
-    <h1 class="bar__title" id="event-title"></h1>
+    <div><span class="eyebrow">PHOTO BOOTH / CONTROL</span><h1 class="bar__title" id="event-title"></h1></div>
     <p class="bar__stage" id="stage-label">กำลังเชื่อมต่อ…</p>
   </header>
 
@@ -66,7 +68,7 @@
       ตั้งค่า — เปิดได้เฉพาะตอนพร้อมถ่าย
       บันทึกค่าแล้วจอบูธโหลดใหม่ · กดกลางรอบถ่ายคือทิ้งรอบของแขกที่ยืนอยู่ตรงนั้น
     -->
-    <button class="foot__setup" id="setup" type="button" title="ตั้งค่าบูธ">⚙︎</button>
+    <button class="foot__setup" id="setup" type="button" title="ตั้งค่าบูธ">ตั้งค่าบูธ</button>
   </footer>
 
   <script type="module" src="operator.js"></script>

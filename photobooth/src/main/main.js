@@ -16,6 +16,7 @@ import {
   clearSession, discardSession, isToken, listSessions, readSession, reserveSession, saveSession,
 } from './session.js';
 import { LIVE_TIMEOUT_MS, uploadPending, uploadSession } from './upload.js';
+import { checkConnection } from './connection.js';
 import { preparePrintFile, printPageHtml, printSheet } from './print.js';
 import { promptPayPayload } from '../core/promptpay.js';
 import { recordSale, shiftRows, takings, voidTicket, voidedTokens } from './sales.js';
@@ -422,6 +423,13 @@ ipcMain.handle('booth:save', async (event, patch) => {
     if (alive(win)) win.webContents.reload();
   }
   return saved;
+});
+
+ipcMain.handle('booth:check-connection', async (event, input) => {
+  if (!alive(windows.setup) || event.sender !== windows.setup.webContents) {
+    throw new Error('เปิดหน้าตั้งค่าก่อนตรวจการเชื่อมต่อ');
+  }
+  return checkConnection(input);
 });
 
 /**

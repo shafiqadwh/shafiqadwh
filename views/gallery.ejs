@@ -24,29 +24,23 @@
   <section class="uploader" id="uploader">
     <h2 class="section-title"><%= t('upload.heading') %></h2>
 
-    <label class="field">
-      <span class="field__label"><%= t('upload.your_name') %></span>
-      <input type="text" id="uploader-name" maxlength="60"
-             placeholder="<%= t('upload.name_placeholder') %>" autocomplete="name">
-    </label>
-
     <div class="dropzone" id="dropzone">
       <div class="dropzone__actions">
-        <label class="button button--primary">
+        <label class="button button--primary file-picker">
           <%= t('upload.choose') %>
-          <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
+          <input type="file" id="file-input" accept="image/*,video/*" multiple aria-label="<%= t('upload.choose') %>">
         </label>
 
         <!-- capture ทำงานเฉพาะเมื่อ accept ระบุชนิดเดียว ถ้าใส่ทั้ง image/* และ
              video/* เบราว์เซอร์จะเลือกโหมดกล้องไม่ได้ แล้วถอยไปเปิดตัวเลือกไฟล์แทน
              จึงต้องแยกเป็นสองปุ่ม ปุ่มพวกนี้ซ่อนบนคอมเพราะเดสก์ท็อปไม่รองรับ capture -->
-        <label class="button button--ghost camera-only">
+        <label class="button button--ghost camera-only file-picker">
           <%= t('upload.camera_photo') %>
-          <input type="file" id="camera-photo" accept="image/*" capture="environment" hidden>
+          <input type="file" id="camera-photo" accept="image/*" capture="environment" aria-label="<%= t('upload.camera_photo') %>">
         </label>
-        <label class="button button--ghost camera-only">
+        <label class="button button--ghost camera-only file-picker">
           <%= t('upload.camera_video') %>
-          <input type="file" id="camera-video" accept="video/*" capture="environment" hidden>
+          <input type="file" id="camera-video" accept="video/*" capture="environment" aria-label="<%= t('upload.camera_video') %>">
         </label>
       </div>
       <p class="dropzone__hint"><%= t('upload.drop_hint') %></p>
@@ -59,6 +53,11 @@
         คลังภาพในมือถือเรียงตามเวลา รูปที่ไม่ได้ตั้งใจส่งจึงมักอยู่ติดกับรูปที่ตั้งใจส่งพอดี
         แผงนี้โชว์รูปย่อ "ของจริง" ไม่ใช่ชื่อไฟล์ เพราะ IMG_4823.HEIC บอกไม่ได้เลย
         ว่าเป็นรูปไหน ซึ่งคือทั้งหมดที่ฟีเจอร์นี้มีไว้กัน %>
+    <label class="field uploader__name">
+      <span class="field__label"><%= t('upload.your_name') %></span>
+      <input type="text" id="uploader-name" maxlength="60"
+             placeholder="<%= t('upload.name_placeholder') %>" autocomplete="name">
+    </label>
     <section class="review" id="upload-review" hidden>
       <h3 class="review__title"><%= t('upload.review_title') %></h3>
       <p class="review__hint"><%= t('upload.review_hint') %></p>

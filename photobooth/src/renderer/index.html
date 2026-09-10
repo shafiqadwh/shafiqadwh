@@ -2,10 +2,16 @@
 <html lang="th">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Photo Booth</title>
   <link rel="stylesheet" href="booth.css">
+  <link rel="stylesheet" href="studio.css">
 </head>
-<body>
+<body class="studio-guest">
+  <header class="studio-header">
+    <span class="studio-brand">PHOTO BOOTH</span>
+    <nav class="studio-progress" aria-label="ขั้นตอนถ่ายภาพ"><span><b>1</b> ถ่ายภาพ</span><span><b>2</b> เลือกรูป</span><span><b>3</b> รับรูป</span></nav>
+  </header>
   <!--
     หน้าจอเดียว สี่สถานะ สลับกันด้วย data-stage บน <body>
     แขกยืนอยู่หน้าบูธ ทุกอย่างต้องอ่านออกจากระยะสองเมตรและกดด้วยนิ้วโป้งได้
@@ -13,6 +19,7 @@
   <main class="booth">
     <!-- 1. พร้อมเริ่ม -->
     <section class="stage stage--ready" data-stage-panel="ready">
+      <span class="eyebrow">พร้อมเก็บช่วงเวลาดี ๆ</span>
       <h1 class="event" id="event-title"></h1>
       <p class="event__sub" id="event-subtitle"></p>
 
@@ -38,8 +45,8 @@
     <section class="stage stage--review" data-stage-panel="review">
       <img class="sheet" id="sheet" alt="แผ่นที่ประกอบแล้ว">
       <div class="row">
-        <button class="big big--ghost" id="again" type="button">ถ่ายใหม่</button>
         <button class="big" id="deliver" type="button">พิมพ์</button>
+        <button class="big big--ghost" id="again" type="button">ถ่ายใหม่</button>
       </div>
       <p class="token" id="token"></p>
     </section>

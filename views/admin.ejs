@@ -18,6 +18,13 @@
   ];
 %>
 
+<nav class="admin-nav" aria-label="<%= t('admin.tools') %>">
+  <a href="#admin-tools"><%= t('admin.tools') %></a>
+  <a href="#admin-items"><%= t('admin.items') %></a>
+  <a href="#admin-settings"><%= t('admin.settings') %></a>
+  <a href="#home-media"><%= t('home.panel') %></a>
+  <a href="#film"><%= t('film.heading') %></a>
+</nav>
 <section class="stats">
   <% figures.forEach(function (figure) { %>
     <div class="stat">
@@ -34,7 +41,7 @@
   </p>
 <% } %>
 
-<section class="card">
+<section class="card" id="admin-tools">
   <h2 class="section-title"><%= t('admin.tools') %></h2>
 
   <div class="tools">
@@ -325,7 +332,7 @@
   </ul>
 </section>
 
-<section class="card">
+<section class="card" id="admin-settings">
   <h2 class="section-title"><%= t('admin.settings') %></h2>
   <form method="post" action="/admin/settings" class="settings">
     <label class="setting">
@@ -377,7 +384,7 @@
   </section>
 <% } %>
 
-<section class="card">
+<section class="card" id="admin-items">
   <h2 class="section-title"><%= t('admin.items') %> <span class="section-count"><%= items.length %></span></h2>
 
   <%# ฟอร์มเปล่าที่ checkbox แต่ละใบผูกเข้ามาด้วย form="bulk-delete-form" — ไม่ครอบกริด
