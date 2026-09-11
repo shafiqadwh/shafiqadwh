@@ -5,13 +5,12 @@
 # แล้วแต่ว่าใครจำได้ว่าต้องรัน — ซึ่งเป็นสิ่งที่ใช้ไม่ได้ทันทีที่มีคนที่สองมาแตะโค้ด
 # และเป็นช่องว่างที่ใหญ่ที่สุดของเอกสารส่งมอบงาน (docs/10-handoff.md)
 #
-# สิ่งที่ต้องเตรียมนอกจาก npm มีอยู่สี่อย่าง
-#   1. `ffmpeg` — ไม่มี ffmpeg-static ใน dependencies โค้ดจึงตกไปหาตัวใน PATH
-#      (ดู `resolveBinary` ใน src/lib/media.js) เหมือนที่ Dockerfile ลงให้
-#   2. `Xvfb` — เทสต์ของบูธเปิดหน้าต่าง Electron จริง ต้องมี X server
+# สิ่งที่ต้องเตรียมนอกจาก npm มีอยู่สามอย่าง
+#   1. `Xvfb` — เทสต์ของบูธเปิดหน้าต่าง Electron จริง ต้องมี X server
 #      (ตัวช่วยใน photobooth/test/helpers/display.js ยกขึ้นเอง ถ้ามีคำสั่งให้ใช้)
-#   3. ไลบรารีระบบของ Electron — ใช้ตัวเดียวกับที่ playwright ต้องใช้
-#   4. **ตัวโปรแกรม Electron เอง** — `npm ci` ไม่โหลดให้อีกแล้วตั้งแต่ Electron 44
+#   2. ไลบรารีระบบของ Chromium/Electron — ใช้รายการเดียวกับที่ playwright ต้องใช้
+#      และ **ตัว Chromium เอง** สำหรับเทสต์ฝั่งเว็บที่ขับเบราว์เซอร์จริง
+#   3. **ตัวโปรแกรม Electron เอง** — `npm ci` ไม่โหลดให้อีกแล้วตั้งแต่ Electron 44
 #      (เลิกมี postinstall · ไบนารีถูกโหลดตอน `require('electron')` ครั้งแรกแทน)
 #      ข้อนี้เป็นสิ่งที่รอบแรกของ workflow นี้ตกไป แล้ว **ขึ้นเขียวทั้งที่เทสต์
 #      ของบูธ 53 ข้อถูกข้าม** — ดู BOOTH_REQUIRE_ELECTRON ท้ายไฟล์
@@ -50,7 +49,7 @@ jobs:
       - name: ลงของที่ระบบต้องมี
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg xvfb
+          sudo apt-get install -y --no-install-recommends xvfb
 
       - run: npm ci
 
