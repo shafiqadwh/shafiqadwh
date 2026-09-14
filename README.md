@@ -77,6 +77,7 @@ ADMIN_PASSWORD=changeme123 npm start        # http://localhost:3000
 11. [ติดตั้งและตรวจบนเครื่องตัวเอง](docs/11-local-install.md) — ลงทั้งสองโปรแกรมบน Windows/Linux แล้วตรวจว่าบูธคุยกับเว็บได้จริงด้วย `npm run check:booth`
 12. [หน้าตาของสตูดิโอ](docs/12-studio-ux.md) — ธีมร่วมของเว็บกับบูธ และการจับคู่บูธกับเว็บที่ทำให้สั้นลง
 13. [สร้างเครื่องใหม่จากศูนย์](docs/13-install-linux.md) — **ลง Linux เองตั้งแต่แฟลชไดรฟ์** แล้วต่อกล้อง DSLR เครื่องพิมพ์ รีโมท จอที่สอง ทีวี และตั้งให้ทุกอย่างขึ้นเองหลังไฟดับ
+14. [Zigbee บน Home Assistant ที่รันเป็น VM บน Synology](docs/14-home-assistant-zigbee.md) — ส่ง USB dongle **Sonoff ZBDongle-P** จาก NAS เข้าเครื่องเสมือน (พร้อมทางสำรองถ้ารุ่น NAS ไม่รองรับ) แล้วจับคู่เซ็นเซอร์อุณหภูมิผ่าน Zigbee2MQTT
 
 ## การตั้งค่า
 
