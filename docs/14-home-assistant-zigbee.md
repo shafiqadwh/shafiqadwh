@@ -145,6 +145,16 @@ usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_20230415123456-if00-port0 -> ../../t
 
 ## 4. ลง Mosquitto + Zigbee2MQTT
 
+**ก่อนอื่น — กด `Ignore` ที่การ์ดที่ HA เด้งขึ้นมาเอง**
+
+ทันทีที่ VM เห็นดองเกิล HA จะเจอมันเองแล้วขึ้นการ์ดใน `Settings → Devices & Services`
+ว่า **Sonoff Zigbee 3.0 USB Dongle Plus — Zigbee Home Automation** พร้อมปุ่ม Add / Ignore
+
+**การ์ดนั้นคือ ZHA — กด `Ignore` ห้ามกด `Add`** ถ้ากด Add มันจะยึดพอร์ต USB ไปทันที
+แล้ว Zigbee2MQTT จะเปิดไม่ขึ้น ขึ้น `Resource temporarily unavailable` อย่างเดียว
+· กด Ignore แล้วการ์ดหายไปเฉย ๆ ดองเกิลยังใช้งานได้ปกติ
+· ถ้าเผลอกด Add ไปแล้ว ให้ลบ integration ZHA ออกก่อน แล้วรีสตาร์ต HA
+
 ต้องเป็น **Home Assistant OS หรือ Supervised** ถึงจะมีร้าน add-on
 ⚠️ ถ้า VM ของคุณลงเป็น HA **Container/Core** จะไม่มีเมนูนี้ ต้องรัน Z2M เป็นคอนเทนเนอร์แยก — บอกผมได้ ผมเขียนส่วนนั้นเพิ่มให้
 
