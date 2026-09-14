@@ -89,7 +89,7 @@ ls -l /dev/serial/by-id/          # ดูชื่อจริงของ dong
 ```yaml
 connection: &zigbee
   accepter: tcp,6638
-  connector: serialdev,/dev/serial/by-id/usb-ITead_SONOFF_Zigbee_3.0_USB_Dongle_Plus_XXXXXXXX-if00-port0,115200n81,local
+  connector: serialdev,/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_XXXXXXXX-if00-port0,115200n81,local
   options:
     kickolduser: true
 ```
@@ -128,11 +128,16 @@ ls -l /dev/serial/by-id/
 จะได้ประมาณ
 
 ```
-usb-ITead_SONOFF_Zigbee_3.0_USB_Dongle_Plus_20230415123456-if00-port0 -> ../../ttyUSB0
+usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_20230415123456-if00-port0 -> ../../ttyUSB0
 ```
 
 **ใช้ชื่อยาว ๆ ของ `by-id` เสมอ อย่าใช้ `/dev/ttyUSB0`** — เพราะวันไหนเสียบ dongle ตัวที่สอง
 หรือมี USB อื่นเพิ่ม เลข `0` `1` สลับกันได้ แต่ชื่อ by-id ผูกกับซีเรียลของตัวนั้นตลอดไป
+
+**ไม่ได้ลง add-on Terminal ก็อ่านจากหน้า Hardware ได้** — กดที่แถว `ttyUSB0` แล้วดูบรรทัด
+`DEVLINKS` บรรทัดแรก นั่นคือชื่อ by-id เต็ม ๆ · ถ้าบรรทัดโดนตัดจนอ่านไม่ครบ ให้ประกอบเองจาก
+`ID_SERIAL` โดยเติม `-if00-port0` ต่อท้าย เป็น
+`/dev/serial/by-id/usb-` + ค่า `ID_SERIAL` + `-if00-port0`
 
 **ไม่เจอ `ttyUSB` เลย?** → กลับไปข้อ 2 · VM ยังไม่ได้รับ USB จริง ๆ ไม่ใช่ปัญหาของ HA
 
@@ -158,7 +163,7 @@ usb-ITead_SONOFF_Zigbee_3.0_USB_Dongle_Plus_20230415123456-if00-port0 -> ../../t
 
 ```yaml
 serial:
-  port: /dev/serial/by-id/usb-ITead_SONOFF_Zigbee_3.0_USB_Dongle_Plus_XXXXXXXX-if00-port0
+  port: /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_XXXXXXXX-if00-port0
   adapter: zstack
   baudrate: 115200
   rtscts: false
