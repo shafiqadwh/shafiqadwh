@@ -159,6 +159,37 @@ test('a fresh machine gets an .env with a usable key and its own address', async
   assert.equal(env.match(/^BASE_URL=/gm).length, 1);
 });
 
+test('a real generated key is accepted, whatever the machine locale says', async () => {
+  // กุญแจตัวจริงที่สคริปต์สุ่มให้บนเครื่อง Ubuntu 26.04 แล้ว **ถูกตัดสินว่าใช้ไม่ได้**
+  // ทั้งที่เป็นตัวอักษรอังกฤษกับตัวเลขล้วน 32 ตัว · สาเหตุคือตัวตรวจเดิมใช้ช่วง
+  // อักขระ `[ -~]` ซึ่ง grep ตีความตามลำดับการเรียงของ locale ไม่ใช่ตามรหัสอักขระ
+  const real = 'jhdTuxAUqWIzhnCjwOGyhit9B7tccLiY';
+
+  for (const locale of ['C', 'en_US.UTF-8', 'th_TH.UTF-8']) {
+    const project = await makeProject();
+    await fs.writeFile(path.join(project.dir, '.env'),
+      `BASE_URL=http://192.168.2.10:3000\nBOOTH_KEY=${real}\n`);
+
+    const { stdout } = await run('./scripts/install-ubuntu.sh', [], {
+      cwd: project.dir,
+      env: { ...process.env, PATH: `${project.bin}:${process.env.PATH}`, LC_ALL: locale },
+    });
+    assert.match(stdout, /BOOTH_KEY ใช้ได้/, `locale ${locale} ตัดสินกุญแจที่ถูกต้องว่าใช้ไม่ได้`);
+  }
+});
+
+test('a key that really is unusable is still caught, and says what it saw', async () => {
+  const project = await makeProject();
+  // ยาวพอแต่มีอักขระไทยปน — ส่งเป็น HTTP header ไม่ได้ config จะเมินมันเงียบ ๆ
+  await fs.writeFile(path.join(project.dir, '.env'),
+    'BASE_URL=http://192.168.2.10:3000\nBOOTH_KEY=abcdefghijklmnopกขค\n');
+
+  await assert.rejects(() => install(project), (error) => {
+    assert.match(String(error.stdout), /BOOTH_KEY ใช้ไม่ได้: ยาว \d+ ตัว/);
+    return true;
+  });
+});
+
 test('an .env that already exists is never overwritten', async () => {
   const project = await makeProject({ withEnv: true });
   await install(project);
