@@ -71,14 +71,42 @@ body[data-stage="done"]   .stage--done { display: flex; }
  * ปุ่มกับคำแนะนำโผล่เฉพาะตอนจัดท่า · พอเริ่มนับถอยหลังแล้วต้องหายไปทั้งคู่
  * ไม่งั้นแขกจะกดปุ่มซ้ำตอนกล้องกำลังจะลั่น แล้วได้รูปที่ทุกคนกำลังมองมือตัวเอง
  */
-#go,
-#frame-hint { display: none; }
-body[data-stage="frame"] #go,
-body[data-stage="frame"] #frame-hint { display: block; }
+#frame-bar { display: none; }
+body[data-stage="frame"] #frame-bar { display: flex; }
 
-#frame-hint {
+/*
+ * แถบควบคุมลอยทับภาพสด ชิดขอบล่าง
+ *
+ * บูธของจริงเป็นจอสัมผัสล้วน ไม่มีเมาส์ไม่มีคีย์บอร์ด — ปุ่มที่มองไม่เห็นหรือ
+ * กดไม่โดนแปลว่าไม่มีทางถ่ายรูปได้เลย · ปุ่มจึงต้องใหญ่และอยู่ในภาพเสมอ
+ */
+#frame-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px 24px;
+  /* ไล่เฉดให้ตัวหนังสืออ่านออกไม่ว่าภาพข้างหลังจะสว่างแค่ไหน */
+  background: linear-gradient(to top, rgba(6, 10, 18, 0.88), rgba(6, 10, 18, 0));
+}
+
+#frame-bar .frame-hint {
   margin: 0;
-  opacity: 0.75;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+#frame-left {
+  font-variant-numeric: tabular-nums;
+}
+
+/* นิ้วโป้งคนที่ยืนห่างจอหนึ่งช่วงแขน — เล็กกว่านี้กดพลาด */
+.big--touch {
+  min-width: min(70%, 420px);
+  min-height: 84px;
 }
 
 /* ── ฉากพร้อมเริ่ม ── */
@@ -152,9 +180,21 @@ body[data-busy] .big,
 body[data-busy] .chip { opacity: 0.5; pointer-events: none; }
 
 /* ── ฉากถ่ายรูป ── */
+/*
+ * ช่องภาพสดต้องอยู่ในจอทั้งช่อง — **ความสูงคุมก่อน ความกว้างตามทีหลัง**
+ *
+ * เดิมกว้างเต็มที่แล้วสูงตาม 4:3 ซึ่งบนจอที่ไม่สูงพอ (จอทัชสกรีน 16:9 แทบทุกตัว)
+ * ขอบล่างของช่องภาพตกออกนอกจอไปเลย · ตอนนั้นยังไม่มีใครสังเกตเพราะของที่หายไป
+ * เป็นแค่ขอบภาพ แต่พอเอาปุ่มถ่ายไปแปะชิดขอบล่างของช่อง ปุ่มก็หายไปกับขอบนั้น
+ * แล้วบูธจอสัมผัสล้วนก็ไม่เหลือทางกดถ่ายเลย — เจอจริงบนเครื่องหน้างาน
+ *
+ * `--shootChrome` = ที่ที่ของอื่นในฉากนี้กินไป (ขอบของ .booth สองด้าน + ช่องไฟ
+ * ระหว่างช่องภาพกับบรรทัดสถานะ + ตัวบรรทัดสถานะเอง) เผื่อไว้ด้านมากกว่าด้านน้อย
+ */
 .viewfinder {
+  --shootChrome: calc(3 * var(--stageGap) + 44px);
   position: relative;
-  width: 100%;
+  width: min(100%, (100vh - var(--shootChrome)) * 4 / 3);
   aspect-ratio: 4 / 3;
   background: #000;
   border-radius: 20px;

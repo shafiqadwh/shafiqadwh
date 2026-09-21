@@ -145,17 +145,26 @@ test('the countdown is never cut short by the idle timer', async (t) => {
   await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
 });
 
-test('the framing stage waits for a person, and gives the screen back if nobody comes', async (t) => {
+test('the framing stage counts down and shoots by itself when nobody touches anything', async (t) => {
   if (skipIfNoElectron(t)) return;
   await toReady();
 
   /*
-   * ขั้นจัดท่ามีไว้ให้กลุ่มใหญ่จัดแถวทัน — สามวินาทีไม่พอ เจอจริงตอนลองใช้
-   * แล้วได้รูปที่ครึ่งกลุ่มยังไม่เข้าเฟรม ซึ่งเป็นรูปที่ลูกค้าจ่ายเงินไปแล้ว
+   * บูธจริงเป็นจอสัมผัสล้วน **ไม่มีเมาส์ไม่มีคีย์บอร์ด** — ของเดิมเดินต่อได้ทาง
+   * เดียวคือกด Enter ซึ่งหน้างานไม่มีปุ่มนั้น บูธจึงค้างอยู่ตรงนั้นทั้งคืน
    *
-   * สองอย่างที่ต้องจริงพร้อมกัน: **ไม่เร่ง** (ไม่มีนาฬิกาพาไปถ่ายเอง) และ
-   * **ไม่ค้าง** (คนเดินหายไปแล้วจอต้องกลับไปเชิญคนถัดไป ไม่ใช่ฉายภาพสดทั้งคืน)
+   * สามอย่างที่ต้องจริงพร้อมกัน:
+   *   1. **มีปุ่มที่แตะถึงจริง** — อยู่ในกรอบจอ และใหญ่พอสำหรับนิ้ว
+   *   2. **นับให้เห็น** แขกจะได้รู้ว่าเหลือเวลาเท่าไร ไม่ใช่เดินเงียบ ๆ
+   *   3. **หมดเวลาแล้วถ่ายเอง** ครบทุกรูปจนถึงหน้าดูแผ่น โดยไม่มีใครแตะอะไรเลย
+   *
+   * และข้อ 3 พิสูจน์อีกอย่างไปพร้อมกัน: ตัวจับเวลา "ไม่มีคนอยู่" (สั้นกว่ากันหลายเท่า
+   * ในเทสต์นี้) ต้องไม่แตะขั้นนี้ ไม่งั้นจอจะรีเซ็ตทิ้งกลางที่คนกำลังจัดแถวอยู่
    */
+  await saveSettings(path.join(userData, 'booth'), { frameSeconds: 10 });
+  await page.reload();
+  await page.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+
   await page.locator('#start').click();
   await page.waitForSelector('body[data-stage="frame"]', { timeout: 10000 });
 
@@ -165,13 +174,43 @@ test('the framing stage waits for a person, and gives the screen back if nobody 
     return video && video.videoWidth > 0;
   }, { timeout: 20000 });
 
-  // ไม่มีใครแตะอะไรเลยนานกว่าเวลานับถอยหลังหลายเท่า — ต้องยังอยู่ขั้นเดิม
-  await new Promise((done) => { setTimeout(done, 1500); });
-  assert.equal(await page.getAttribute('body', 'data-stage'), 'frame',
-    'ขั้นจัดท่าต้องไม่พาไปถ่ายเอง');
+  // 1 · ปุ่มต้องอยู่ในกรอบจอจริง — ของเดิมมันหลุดใต้ภาพสดซึ่งสูงเต็มความกว้าง
+  // แล้วไม่มีใครเห็น · เทสต์ที่ถามแค่ว่า "มีปุ่มอยู่ใน DOM ไหม" จับข้อนี้ไม่ได้
+  const box = await page.locator('#go').boundingBox();
+  const view = page.viewportSize() ?? await page.evaluate(() => ({
+    width: window.innerWidth, height: window.innerHeight,
+  }));
+  assert.ok(box, 'ไม่มีปุ่มถ่ายบนขั้นจัดท่า');
+  assert.ok(box.y >= 0 && box.y + box.height <= view.height + 1,
+    `ปุ่มถ่ายอยู่นอกจอ: y=${box.y} สูง=${box.height} จอสูง=${view.height}`);
+  assert.ok(box.height >= 60, `ปุ่มเล็กเกินกว่าจะแตะด้วยนิ้ว: สูง=${box.height}`);
 
-  // แล้วเมื่อทิ้งไว้จนหมดเวลา ต้องคืนจอให้คนถัดไป
-  await page.waitForSelector('body[data-stage="ready"]', { timeout: IDLE_MS * 6 });
+  // 2 · ต้องนับให้เห็น
+  const first = Number(await page.locator('#frame-left').textContent());
+  assert.ok(first > 0 && first <= 10, `เลขนับถอยหลังผิดช่วง: ${first}`);
+  await page.waitForFunction(
+    (was) => Number(document.getElementById('frame-left').textContent) < was,
+    first, { timeout: 4000 },
+  );
+
+  // 3 · ไม่มีใครแตะอะไรเลยตั้งแต่ต้นจนจบ แล้วต้องได้แผ่นมาดู
+  await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+});
+
+test('the button shoots at once, without waiting the clock out', async (t) => {
+  if (skipIfNoElectron(t)) return;
+  await toReady();
+
+  // นาฬิกาเป็นเพดาน ไม่ใช่การบังคับรอ — ตั้งไว้ยาวมากแล้วกดเอง ต้องไปทันที
+  await saveSettings(path.join(userData, 'booth'), { frameSeconds: 120 });
+  await page.reload();
+  await page.waitForSelector('body[data-ready="1"]', { timeout: 30000 });
+
+  await page.locator('#start').click();
+  await page.waitForSelector('body[data-stage="frame"]', { timeout: 10000 });
+  await page.locator('#go').click();
+  await page.waitForSelector('body[data-stage="shoot"]', { timeout: 5000 });
+  await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
 });
 
 test('walking away from a paid round keeps the ticket, it does not eat the money', async (t) => {

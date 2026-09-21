@@ -45,13 +45,23 @@
         <video id="preview" autoplay playsinline muted></video>
         <div class="count" id="count" aria-live="assertive"></div>
         <div class="flash" id="flash" aria-hidden="true"></div>
+
+        <!--
+          ปุ่มกับนาฬิกา **วางทับบนภาพสด ไม่ใช่วางใต้ภาพ**
+
+          ช่องภาพกว้างเต็มจอและสูงตาม 4:3 · อะไรที่วางต่อท้ายจึงตกออกนอกพื้นที่ที่
+          มองเห็นทันทีบนจอที่ไม่สูงพอ — ปุ่มหายไปทั้งปุ่มบนเครื่องจริง แล้วบูธที่
+          เป็นจอสัมผัสล้วนก็ไม่เหลือทางกดอะไรเลย
+        -->
+        <div class="frame-bar" id="frame-bar">
+          <p class="frame-hint">จัดท่าให้พอดีจอ · ถ่ายเองใน <strong id="frame-left">30</strong> วินาที</p>
+          <button class="big big--touch" id="go" type="button">
+            <span>ถ่ายเลย</span>
+            <small id="go-count"></small>
+          </button>
+        </div>
       </div>
       <p class="progress" id="progress"></p>
-      <p class="frame-hint" id="frame-hint">จัดท่าให้พอดีจอ แล้วกดเริ่มถ่าย</p>
-      <button class="big" id="go" type="button">
-        <span>เริ่มถ่าย</span>
-        <small id="go-count"></small>
-      </button>
     </section>
 
     <!-- 3. ดูแผ่นที่ได้ -->

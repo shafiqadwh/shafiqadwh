@@ -40,6 +40,7 @@ function paint(settings) {
   el('copies').value = settings.copies;
   el('deliver').value = settings.deliver;
   el('cameraSource').value = settings.camera.source;
+  el('frameSeconds').value = settings.frameSeconds;
   el('cameraKeepOnCard').checked = settings.camera.keepOnCard;
   el('cameraLiveView').checked = settings.camera.liveView;
   el('printerDriver').value = settings.printer.driver;
@@ -80,6 +81,7 @@ const patchFromForm = () => ({
   countdownSeconds: Number(el('countdownSeconds').value),
   copies: Number(el('copies').value),
   deliver: el('deliver').value,
+  frameSeconds: Number(el('frameSeconds').value),
   camera: {
     source: el('cameraSource').value,
     keepOnCard: el('cameraKeepOnCard').checked,

@@ -31,6 +31,13 @@ export const DEFAULTS = Object.freeze({
   // แขกยืนหน้าบูธเลือกจากเจ็ดแบบคือแถวยาว — สองสามแบบพอ
   effects: ['auto', 'soft', 'film'],
   countdownSeconds: 3,
+  /*
+   * เวลาจัดท่าก่อนถ่ายเอง — เพดาน ไม่ใช่การบังคับรอ · กดเองได้ตลอด
+   *
+   * บูธจริงเป็นจอสัมผัสล้วน แขกที่ยืนหน้ากล้องมักไม่กล้าแตะจอเอง ถ้าไม่มีอะไร
+   * เดินหน้าให้ บูธจะค้างจนมีคนเดินมาช่วย ซึ่งเท่ากับไม่มีบูธ
+   */
+  frameSeconds: 30,
   copies: 1,
   /*
    * แขกได้รูปกลับไปทางไหน — คนละเรื่องกับ `qrMode` ที่คุม QR *บนกระดาษ*
@@ -258,6 +265,9 @@ export function normaliseSettings(raw) {
     effects: effects(given.effects),
     // นับถอยหลังสั้นกว่า 2 วิ แขกยังไม่ทันตั้งท่า ยาวกว่า 10 วิ แถวเริ่มยาว
     countdownSeconds: clampInt(given.countdownSeconds, 2, 10, DEFAULTS.countdownSeconds),
+    // ต่ำกว่า 10 วินาทีคือจัดแถวไม่ทันซึ่งเป็นปัญหาที่ขั้นนี้มีไว้แก้ · เกินสองนาที
+    // คือจอที่ค้างอยู่กับคนที่เดินไปแล้ว
+    frameSeconds: clampInt(given.frameSeconds, 10, 120, DEFAULTS.frameSeconds),
     // เพดาน 4 ใบต่อครั้ง กันมือลั่นสั่งพิมพ์ทีละร้อยใบซึ่งกินม้วนหมดใน 20 นาที
     copies: clampInt(given.copies, 1, 4, DEFAULTS.copies),
     qrMode: oneOf(given.qrMode, ['off', 'later', 'live'], DEFAULTS.qrMode),

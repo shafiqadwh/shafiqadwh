@@ -307,6 +307,8 @@ ipcMain.handle('booth:setup', async () => {
     dslr: usingDslr(settings),
     theme: themeById(settings.theme),
     shots: shotsFor(settings.template),
+    // เวลาจัดท่าก่อนถ่ายเอง — หน้าจอเป็นคนนับ ฝั่งหลักแค่บอกว่ากี่วินาที
+    frameSeconds: settings.frameSeconds,
     templates: listTemplates(settings.lang),
     // โชว์เฉพาะเอฟเฟคที่เลือกไว้ตั้งแต่ต้น ไม่ใช่ทั้งเจ็ดแบบ — แขกยืนหน้าบูธ
     // เลือกจากรายการยาว ๆ คือแถวที่ยาวขึ้นตามไปด้วย
