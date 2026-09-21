@@ -328,6 +328,7 @@ gphoto2 --auto-detect
 | `Could not claim the USB device` | เดสก์ท็อปของ Ubuntu ไปเมาต์กล้องเป็นไดรฟ์ก่อน — `pkill -f gvfs-gphoto2` แล้วลองใหม่ |
 | โฟกัสไม่เข้า ลั่นชัตเตอร์ไม่ออก | **ตั้งเลนส์เป็น MF** บูธควรเป็น MF อยู่แล้วเพราะเร็วกว่าและไม่หลุดกลางคิว |
 | `command not found` | ยังไม่ได้ลง gphoto2 |
+| `PTP Store Not Available` | **ไม่มีการ์ดในกล้อง** · ตรวจด้วย `gphoto2 --storage-info` ว่างเปล่า = ไม่มีที่เก็บเลย · ใส่การ์ดแล้วฟอร์แมตในกล้องหนึ่งครั้ง · ถ้าใส่แล้วยังไม่ได้ ดูเมนู **Slot empty release lock** ต้องเป็น Enable release |
 
 ข้อความผิดพลาดของ `gphoto2` ถูกแปลเป็นสิ่งที่คนหน้าบูธลงมือแก้ได้แล้วใน
 `photobooth/src/main/camera.js` — ไม่ต้องจำตารางนี้ หน้าจอจะบอกเอง

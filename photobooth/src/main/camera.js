@@ -209,7 +209,18 @@ export function createCamera({
       console.warn('[camera] กล้องไม่รับคำสั่งเก็บลงการ์ด — ถ่ายต่อโดยไม่มีสำเนาในกล้อง');
     }
 
-    const plain = await attempt(base);
+    /*
+     * ถอยมาถ่ายโดยไม่เก็บลงการ์ด — **ต้องสั่ง capturetarget=0 ตรง ๆ**
+     *
+     * `capturetarget` ค้างอยู่หลังถูกตั้ง มันไม่รีเซ็ตเมื่อจบคำสั่ง · วัดบนกล้องจริง
+     * (D7000): สั่ง `--set-config capturetarget=1` ครั้งหนึ่ง แล้วเรียก
+     * `--get-config capturetarget` ในคำสั่งใหม่คนละครั้งกัน ยังได้ `Current: Memory card`
+     *
+     * เดิมเส้นทางนี้แค่ **ไม่ใส่** ธงนั้น ซึ่งไม่เหมือนกับการสั่งให้เลิกใช้การ์ด —
+     * กล้องยังเล็งไปที่การ์ดอยู่ การถอยจึงล้มด้วยเหตุผลเดียวกับครั้งแรกเป๊ะ
+     * แปลว่า "กล้องที่ไม่รับคำสั่งเก็บลงการ์ดต้องยังถ่ายได้" เป็นคำสัญญาที่ไม่เป็นจริง
+     */
+    const plain = await attempt(['--set-config', 'capturetarget=0', ...base]);
     return plain.ok ? plain : { ok: false, reason: explain(plain.stderr) };
   });
 

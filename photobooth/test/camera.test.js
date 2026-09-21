@@ -153,7 +153,15 @@ test('a camera that refuses the card copy still takes the photo', async () => {
   const camera = createCamera({ spawnImpl });
   assert.equal((await camera.capture(file)).ok, true);
   assert.equal(calls.length, 2);
-  assert.equal(calls[1].includes('--set-config'), false, 'ครั้งที่สองต้องไม่สั่งเก็บลงการ์ดอีก');
+
+  /*
+   * ครั้งที่สองต้อง **สั่งเลิกใช้การ์ดตรง ๆ** ไม่ใช่แค่ไม่ใส่ธงนั้น
+   *
+   * `capturetarget` ค้างอยู่หลังถูกตั้ง — วัดบนกล้องจริง (D7000) ว่าเรียก
+   * `--get-config` ในคำสั่งใหม่คนละครั้งกันแล้วยังได้ `Current: Memory card`
+   * การไม่ใส่ธงจึงแปลว่ากล้องยังเล็งไปที่การ์ดอยู่ แล้วการถอยก็ล้มซ้ำรอยเดิม
+   */
+  assert.deepEqual(calls[1].slice(0, 2), ['--set-config', 'capturetarget=0']);
 
   // และต้องจำไว้ — รูปถัดไปห้ามเสียเวลาลองทางที่รู้แล้วว่าไม่ได้
   assert.equal((await camera.capture(file)).ok, true);
