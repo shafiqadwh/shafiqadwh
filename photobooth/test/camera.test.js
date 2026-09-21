@@ -168,6 +168,51 @@ test('a camera that refuses the card copy still takes the photo', async () => {
   assert.equal(calls.length, 3, 'รูปที่สองต้องยิงคำสั่งเดียว ไม่ใช่สองคำสั่งซ้ำเดิม');
 });
 
+test('the HDMI rig gets its live view back after every shot', async () => {
+  /*
+   * ชุด HDMI + capture card: กล้องส่งภาพออกได้เฉพาะตอนอยู่ใน Live View และ
+   * **การลั่นชัตเตอร์พากล้องออกจาก Live View ทุกครั้ง** — ภาพสดจึงหายหลังถ่าย
+   * รูปแรก แล้วรอบถัดไปหากล้องไม่เจอ · เจอจริงบนชุดของเจ้าของ
+   */
+  const dir = await fresh();
+  const file = path.join(dir, 'capture.jpg');
+  const { spawnImpl, calls } = fakeGphoto([{ writes: jpeg }]);
+
+  const shot = await createCamera({ spawnImpl }).capture(file, { liveView: true });
+  assert.equal(shot.ok, true);
+
+  // คำสั่งสุดท้ายต้องเป็นการพากล้องกลับเข้า Live View · และต้องมาทีหลังการถ่าย
+  // ไม่ใช่ก่อน — คืนภาพสดให้เร็วที่สุด แต่ไม่ก่อนที่รูปจะอยู่ในมือ
+  assert.deepEqual(calls.at(-1), ['--set-config', 'viewfinder=1']);
+  assert.ok(calls.length >= 2, 'ต้องมีทั้งคำสั่งถ่ายและคำสั่งคืน Live View');
+});
+
+test('a booth that previews from a webcam never touches live view', async () => {
+  // ค่าเริ่มต้นคือเว็บแคม · สั่ง Live View ใส่กล้องที่ไม่ได้ต่อ HDMI ไม่มีประโยชน์
+  // และเป็นคำสั่งส่วนเกินที่ทำให้กล้องตื่นโดยไม่จำเป็นทุกรอบ
+  const dir = await fresh();
+  const { spawnImpl, calls } = fakeGphoto([{ writes: jpeg }]);
+
+  await createCamera({ spawnImpl }).capture(path.join(dir, 'capture.jpg'));
+  assert.equal(calls.some((args) => args.includes('viewfinder=1')), false);
+});
+
+test('failing to restore live view never turns a good shot into a failed round', async () => {
+  /*
+   * รูปอยู่ในมือแล้ว · การคืนภาพสดเป็นของที่ซ่อมรอบหน้าได้ แต่รอบที่ถ่ายสำเร็จ
+   * แล้วถูกนับว่าล้มคือรูปของแขกที่หายไปทั้งที่กล้องทำงานถูกต้องทุกอย่าง
+   */
+  const dir = await fresh();
+  const { spawnImpl } = fakeGphoto([
+    { writes: jpeg },
+    { code: 1, stderr: 'PTP Device Busy' },
+  ]);
+
+  const shot = await createCamera({ spawnImpl }).capture(path.join(dir, 'capture.jpg'), { liveView: true });
+  assert.equal(shot.ok, true, 'คืน Live View ไม่ได้ ต้องไม่ทำให้รอบนี้ล้ม');
+  assert.ok(shot.data.equals(jpeg));
+});
+
 test('a capture that exits clean but writes rubbish is still a failure', async () => {
   // gphoto2 คืนรหัส 0 ได้ทั้งที่ไฟล์ถูกตัดกลางคัน (สายหลวม การ์ดเต็ม) — ถ้าปล่อยผ่าน
   // รอบนั้นจะไปล้มตอนประกอบแผ่นแทน ซึ่งไกลจากต้นเหตุจนหาสาเหตุไม่เจอ
@@ -245,11 +290,17 @@ test('one failed call does not jam the queue for every call after it', async () 
 
 test('the booth stays on the webcam unless someone deliberately picks the DSLR', () => {
   // ค่าเริ่มต้นต้องเป็นทางที่ใช้ได้เสมอโดยไม่ต้องมีอุปกรณ์อะไรเพิ่ม
-  assert.deepEqual(normaliseSettings({}).camera, { source: 'webcam', keepOnCard: true });
+  // liveView ปิดไว้โดยตั้งใจ — มีความหมายเฉพาะชุด HDMI + capture card เท่านั้น
+  assert.deepEqual(normaliseSettings({}).camera,
+    { source: 'webcam', keepOnCard: true, liveView: false });
   assert.equal(normaliseSettings({ camera: { source: 'dslr' } }).camera.source, 'dslr');
 
   // ค่าที่พิมพ์ผิดต้องตกกลับไปทางที่ใช้ได้ ไม่ใช่ทำให้บูธเปิดไม่ขึ้น
   assert.equal(normaliseSettings({ camera: { source: 'nikon' } }).camera.source, 'webcam');
   assert.equal(normaliseSettings({ camera: 'dslr' }).camera.source, 'webcam');
   assert.equal(normaliseSettings({ camera: { keepOnCard: false } }).camera.keepOnCard, false);
+
+  // ต้องติ๊กเองเท่านั้น · ค่าที่ไม่ใช่ true ต้องไม่กลายเป็นเปิด
+  assert.equal(normaliseSettings({ camera: { liveView: true } }).camera.liveView, true);
+  assert.equal(normaliseSettings({ camera: { liveView: 'yes' } }).camera.liveView, false);
 });

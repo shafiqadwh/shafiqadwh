@@ -41,6 +41,7 @@ function paint(settings) {
   el('deliver').value = settings.deliver;
   el('cameraSource').value = settings.camera.source;
   el('cameraKeepOnCard').checked = settings.camera.keepOnCard;
+  el('cameraLiveView').checked = settings.camera.liveView;
   el('printerDriver').value = settings.printer.driver;
   /*
    * ชื่อเครื่องพิมพ์ที่ตั้งไว้อาจไม่อยู่ในรายการที่ระบบเห็นตอนนี้ (ยังไม่ได้เสียบ
@@ -82,6 +83,7 @@ const patchFromForm = () => ({
   camera: {
     source: el('cameraSource').value,
     keepOnCard: el('cameraKeepOnCard').checked,
+    liveView: el('cameraLiveView').checked,
   },
   printer: { driver: el('printerDriver').value, name: el('printerPick').value },
   sale: {

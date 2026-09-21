@@ -17,6 +17,10 @@ import path from 'node:path';
  *   กล้องใหญ่ → นั่งเฉย ๆ รอคำสั่ง ตื่นเฉพาะตอนลั่นชัตเตอร์
  * ผลคือกล้องเย็น แบตอยู่ได้ทั้งคืน และได้ไฟล์เต็มความละเอียดจากเซนเซอร์ APS-C
  *
+ * **แต่ถ้าเจ้าของเลือกชุด HDMI + capture card จริง ๆ** (อยากให้พรีวิวตรงกับเฟรม
+ * ของเลนส์เป๊ะ) ก็ต้องรองรับให้ถูกต้อง ไม่ใช่ปล่อยให้พังเงียบ ๆ — ดู `liveView()`
+ * ข้อแลกเปลี่ยนสามข้อข้างบนยังอยู่ครบทุกข้อ ไม่ได้หายไปเพราะเปิดสวิตช์
+ *
  * ⚠️ **โมดูลนี้ไม่เคยถูกทดสอบกับกล้องจริงจากเครื่องพัฒนา** — เขียนตามสเปกของ
  * libgphoto2 และมีเทสต์คุมทุกเส้นทางด้วยกล้องจำลอง แต่ตัวตัดสินคือเจ้าของบูธ
  * ต้องเสียบกล้องจริงลองหนึ่งรอบก่อนวันงาน
@@ -170,6 +174,22 @@ export function createCamera({
   });
 
   /**
+   * เปิด/ปิด Live View ของกล้อง — **จำเป็นเมื่อภาพพรีวิวมาจาก HDMI + capture card**
+   *
+   * ชุดนั้นกล้องส่งภาพออก HDMI ได้เฉพาะตอนอยู่ใน Live View · แต่การลั่นชัตเตอร์
+   * ทำให้กระจกตกลงมาและกล้อง **ออกจาก Live View กลับไปโหมดช่องมองภาพ** ภาพสด
+   * จึงหายหลังถ่ายรูปแรก แล้วรอบถัดไปหากล้องไม่เจอ — เจอจริงบนชุดของเจ้าของ
+   *
+   * `viewfinder=1` คือชื่อค่าของ Nikon ใน libgphoto2 · กล้องที่ไม่รู้จักค่านี้
+   * ต้องไม่ทำให้อะไรล้ม เพราะบูธที่พรีวิวด้วยเว็บแคมไม่ต้องใช้มันเลย
+   */
+  const liveView = (on = true) => serial(async () => {
+    const result = await run(bin, ['--set-config', `viewfinder=${on ? 1 : 0}`], detectTimeoutMs);
+    if (result.code === 0) return { ok: true };
+    return { ok: false, reason: explain(result.stderr) };
+  });
+
+  /**
    * ลั่นชัตเตอร์หนึ่งครั้ง แล้วคืนไฟล์ JPEG
    *
    * `keepOnCard` สั่งให้กล้องเขียนลงการ์ดด้วย ไม่ใช่แค่ส่งผ่านสายมา — D7000 มีช่อง
@@ -224,5 +244,21 @@ export function createCamera({
     return plain.ok ? plain : { ok: false, reason: explain(plain.stderr) };
   });
 
-  return { detect, capture };
+  /**
+   * ถ่ายหนึ่งรูป แล้ว **พากล้องกลับเข้า Live View ถ้าชุดนี้ต้องใช้**
+   *
+   * ทำหลังได้รูปแล้วเสมอ ไม่ใช่ก่อน — คืนภาพสดให้เร็วที่สุดเท่าที่จะทำได้ เพราะ
+   * คนถัดไปอาจยืนรออยู่แล้ว · และ **ล้มตรงนี้ต้องไม่ทำให้รอบที่ถ่ายสำเร็จกลายเป็น
+   * รอบที่ล้ม** รูปอยู่ในมือแล้ว การคืนภาพสดเป็นของที่ซ่อมรอบหน้าได้
+   */
+  const shootAndKeepLive = async (file, options = {}) => {
+    const shot = await capture(file, options);
+    if (options.liveView) {
+      const back = await liveView(true);
+      if (!back.ok) console.warn('[camera] พากล้องกลับเข้า Live View ไม่สำเร็จ:', back.reason);
+    }
+    return shot;
+  };
+
+  return { detect, capture: shootAndKeepLive, liveView };
 }

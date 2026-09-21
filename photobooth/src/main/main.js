@@ -239,7 +239,10 @@ ipcMain.handle('booth:shot', async () => {
   const settings = await loadSettings(dataRoot());
   if (!usingDslr(settings)) return { ok: false, reason: 'บูธนี้ตั้งให้ถ่ายด้วยเว็บแคม' };
 
-  const shot = await camera.capture(captureFile(), { keepOnCard: settings.camera.keepOnCard });
+  const shot = await camera.capture(captureFile(), {
+    keepOnCard: settings.camera.keepOnCard,
+    liveView: settings.camera.liveView,
+  });
   if (!shot.ok) {
     console.warn('[camera] ถ่ายไม่สำเร็จ ใช้ภาพจากเว็บแคมแทน:', shot.reason);
     return { ok: false, reason: shot.reason };

@@ -101,7 +101,17 @@ export const DEFAULTS = Object.freeze({
    *
    * `keepOnCard` ให้กล้องเขียนลงการ์ดของตัวเองด้วย = สำเนาสำรองของทุกรูปที่ขายไป
    */
-  camera: { source: 'webcam', keepOnCard: true },
+  /*
+   * `liveView` = ภาพพรีวิวมาจาก HDMI ของกล้องผ่าน capture card ไม่ใช่เว็บแคม
+   *
+   * ชุดนั้นกล้องส่งภาพออก HDMI ได้เฉพาะตอนอยู่ใน Live View และ **การลั่นชัตเตอร์
+   * พากล้องออกจาก Live View ทุกครั้ง** ภาพสดจึงหายหลังถ่ายรูปแรก · เปิดค่านี้แล้ว
+   * โปรแกรมพากล้องกลับเข้า Live View ให้เองหลังถ่ายเสร็จทุกครั้ง
+   *
+   * ค่าเริ่มต้นปิด เพราะบูธที่พรีวิวด้วยเว็บแคม (ซึ่งเป็นแบบที่แนะนำ) ไม่ต้องใช้
+   * และการสั่ง Live View ใส่กล้องที่ไม่ได้ต่อ HDMI ก็ไม่มีประโยชน์อะไร
+   */
+  camera: { source: 'webcam', keepOnCard: true, liveView: false },
   printer: { driver: 'file', name: '' },
   // จอที่สองสำหรับช่างภาพ · auto = ใช้เมื่อเสียบจอไว้จริง, off = ไม่ใช้แม้จะมีจอ
   operatorScreen: 'auto',
@@ -207,6 +217,7 @@ function camera(value) {
   return {
     source: oneOf(given.source, ['webcam', 'dslr'], DEFAULTS.camera.source),
     keepOnCard: given.keepOnCard !== false,
+    liveView: given.liveView === true,
   };
 }
 
