@@ -33,14 +33,14 @@
 
 ---
 
-## 1. ลง Ubuntu 24.04 LTS Desktop
+## 1. ลง Ubuntu LTS รุ่น Desktop
 
 เลือก **Desktop ไม่ใช่ Server** — Electron ต้องมีหน้าจอกราฟิกจริงถึงจะเปิดหน้าต่างได้
 และเลือก **LTS** เพราะไม่มีอัปเดตบังคับรีสตาร์ตกลางงานที่แขกต่อแถวอยู่
 
 ### ทำแฟลชไดรฟ์
 
-โหลด ISO จาก `releases.ubuntu.com/24.04` แล้วเขียนลง USB ด้วย **Rufus** (Windows)
+โหลด ISO รุ่น LTS ล่าสุดจาก `releases.ubuntu.com` แล้วเขียนลง USB ด้วย **Rufus** (Windows)
 หรือ **balenaEtcher** · ขนาด USB 4 GB พอ
 
 ### ตอนลง
@@ -78,8 +78,19 @@ sudo systemctl disable --now unattended-upgrades
 
 > **ทางลัด: ข้อ 2 ถึง 4 ทั้งหมดรวมอยู่ในสคริปต์เดียวแล้ว**
 >
+> `git` ไม่ได้ติดมากับ Ubuntu — ต้องลงก่อนถึงจะโคลนได้ (เจอจริงบนเครื่องจริง)
+>
 > ```sh
-> git clone <ที่อยู่ repo> ~/wedding && cd ~/wedding
+> sudo apt update
+> ```
+> ```sh
+> sudo apt install -y git
+> ```
+> ```sh
+> git clone https://github.com/shafiqadwh/shafiqadwh.git ~/wedding
+> ```
+> ```sh
+> cd ~/wedding
 > ```
 > ```sh
 > ./scripts/install-ubuntu.sh --camera --printer
@@ -104,7 +115,14 @@ sudo apt install -y git curl build-essential python3
 
 ### Node.js 22
 
-ของใน apt ของ Ubuntu 24.04 **เก่ากว่าที่โปรเจกต์นี้ต้องใช้** ลงจาก NodeSource แทน
+Ubuntu บางรุ่นมี Node ใน apt ที่ใหม่พอแล้ว บางรุ่นเก่าเกินไป · **ตรวจก่อนเสมอ
+อย่าลงทับของที่ใช้ได้อยู่** (`install-ubuntu.sh` ตรวจให้เองและข้ามถ้าไม่จำเป็น)
+
+```sh
+node --version
+```
+
+ได้ v22 ขึ้นไปคือข้ามข้อนี้ไปได้เลย · ต่ำกว่านั้นหรือไม่มีเลยค่อยลงจาก NodeSource
 
 ```sh
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -128,15 +146,25 @@ node --version
 
 ## 3. เอาโค้ดลงเครื่อง
 
+**`git` ไม่ได้ติดมากับ Ubuntu** ต้องลงก่อน ไม่งั้นได้ `Command 'git' not found`
+แล้วบรรทัดถัดไปจะล้มตาม ๆ กันเพราะโฟลเดอร์ยังไม่ถูกสร้าง
+
 ```sh
-cd ~
+sudo apt update
 ```
 ```sh
-git clone <ที่อยู่ repo> wedding
+sudo apt install -y git
+```
+```sh
+git clone https://github.com/shafiqadwh/shafiqadwh.git ~/wedding
 ```
 ```sh
 cd ~/wedding
 ```
+
+repo เป็นแบบ public และ default branch คือสาขาที่ใช้งานอยู่ โคลนมาแล้วได้โค้ดล่าสุด
+ทันทีโดยไม่ต้องใส่รหัสอะไร · `.env` ที่สคริปต์สร้างให้อยู่ใน `.gitignore` แล้ว
+**กุญแจกับรหัสแอดมินจึงไม่มีทางหลุดขึ้น repo สาธารณะ** ต่อให้เผลอ `git add .`
 
 ลง dependencies ของทั้งสองโปรแกรม — **ต้องอยู่ในโฟลเดอร์เดียวกัน** เพราะบูธ
 เรียกใช้ `shared/` กับ `assets/` จากโฟลเดอร์แม่
