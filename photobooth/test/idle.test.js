@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -90,6 +91,8 @@ test('a guest who walks off after collecting the print leaves a clean screen', a
   await toReady();
 
   await page.locator('#start').click();
+
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   await page.locator('#deliver').click();
   await page.waitForSelector('body[data-stage="done"]', { timeout: 30000 });
@@ -111,6 +114,8 @@ test('a guest who never decides at the review screen frees the booth too', async
   const before_ = (await fs.readdir(dir).catch(() => [])).sort();
 
   await page.locator('#start').click();
+
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
 
   await page.waitForSelector('body[data-stage="ready"]', { timeout: IDLE_MS * 6 });
@@ -131,12 +136,42 @@ test('the countdown is never cut short by the idle timer', async (t) => {
    * ถ้าตัวจับเวลาไปแตะขั้นนี้ รอบถ่ายจะถูกยกเลิกคาหน้ากล้อง
    */
   await page.locator('#start').click();
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="shoot"]', { timeout: 30000 });
   await new Promise((done) => setTimeout(done, IDLE_MS + 500));
 
   const stage = await stageNow();
   assert.ok(['shoot', 'review'].includes(stage), `ขั้นตอนถูกตัดกลางคัน: ${stage}`);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
+});
+
+test('the framing stage waits for a person, and gives the screen back if nobody comes', async (t) => {
+  if (skipIfNoElectron(t)) return;
+  await toReady();
+
+  /*
+   * ขั้นจัดท่ามีไว้ให้กลุ่มใหญ่จัดแถวทัน — สามวินาทีไม่พอ เจอจริงตอนลองใช้
+   * แล้วได้รูปที่ครึ่งกลุ่มยังไม่เข้าเฟรม ซึ่งเป็นรูปที่ลูกค้าจ่ายเงินไปแล้ว
+   *
+   * สองอย่างที่ต้องจริงพร้อมกัน: **ไม่เร่ง** (ไม่มีนาฬิกาพาไปถ่ายเอง) และ
+   * **ไม่ค้าง** (คนเดินหายไปแล้วจอต้องกลับไปเชิญคนถัดไป ไม่ใช่ฉายภาพสดทั้งคืน)
+   */
+  await page.locator('#start').click();
+  await page.waitForSelector('body[data-stage="frame"]', { timeout: 10000 });
+
+  // ภาพสดต้องมาแล้วตั้งแต่ขั้นนี้ ไม่ใช่รอถึงตอนนับถอยหลัง
+  await page.waitForFunction(() => {
+    const video = document.getElementById('preview');
+    return video && video.videoWidth > 0;
+  }, { timeout: 20000 });
+
+  // ไม่มีใครแตะอะไรเลยนานกว่าเวลานับถอยหลังหลายเท่า — ต้องยังอยู่ขั้นเดิม
+  await new Promise((done) => { setTimeout(done, 1500); });
+  assert.equal(await page.getAttribute('body', 'data-stage'), 'frame',
+    'ขั้นจัดท่าต้องไม่พาไปถ่ายเอง');
+
+  // แล้วเมื่อทิ้งไว้จนหมดเวลา ต้องคืนจอให้คนถัดไป
+  await page.waitForSelector('body[data-stage="ready"]', { timeout: IDLE_MS * 6 });
 });
 
 test('walking away from a paid round keeps the ticket, it does not eat the money', async (t) => {
@@ -165,8 +200,12 @@ test('walking away from a paid round keeps the ticket, it does not eat the money
   };
 
   await page.locator('#start').click();
+
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await page.locator('#pay-done').click();
+  // จ่ายแล้วไปหยุดที่ขั้นจัดท่า ไม่ใช่ถ่ายเลย
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   assert.equal((await ledger()).length, 1, 'ต้องจดการขายไว้หนึ่งบรรทัด');
 

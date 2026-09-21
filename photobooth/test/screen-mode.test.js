@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { canPublish, normaliseSettings, saveSettings } from '../src/main/settings.js';
 import { spawn } from 'node:child_process';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -139,6 +140,8 @@ test('a guest gets a QR on screen, and it really leads to their photos', async (
   if (skipUnlessReady(t)) return;
 
   await page.locator('#start').click();
+
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
   await page.locator('#deliver').click();
   await page.waitForSelector('body[data-stage="done"]', { timeout: 30000 });

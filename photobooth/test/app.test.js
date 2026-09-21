@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -153,6 +154,8 @@ test('pressing start really takes photos and builds a sheet', async (t) => {
   if (skipIfNoElectron(t)) return;
 
   await page.locator('#start').click();
+
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="shoot"]', { timeout: 5000 });
 
   // กล้องต้องเดินจริง ไม่ใช่กรอบดำ
@@ -215,6 +218,8 @@ test('a take the guest rejects is deleted, not left on disk', async (t) => {
   const before = (await fs.readdir(sessions)).length;
 
   await page.locator('#start').click();
+
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
   assert.equal((await fs.readdir(sessions)).length, before + 1, 'ถ่ายแล้วต้องมีรอบเพิ่ม');
 
@@ -253,6 +258,7 @@ test('the next guest never sees the sheet the last guest left', async (t) => {
 
   await toReady();
   await page.locator('#start').click();
+  await passFraming(page);
   await page.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
   assert.ok(await page.locator('#sheet').getAttribute('src'), 'ต้องมีแผ่นให้ดูก่อน');
 

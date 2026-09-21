@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
 import { promptPayPayload } from '../src/core/promptpay.js';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -231,6 +232,8 @@ test('settings cannot be opened in the middle of a round', async (t) => {
   assert.equal(await operator.locator('#setup').isDisabled(), false);
 
   await guest.locator('#start').click();
+
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
 
   // การบันทึกทำให้จอบูธโหลดใหม่ — กลางรอบถ่ายคือทิ้งรอบของแขกที่ยืนอยู่ตรงนั้น

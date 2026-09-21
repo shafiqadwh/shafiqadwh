@@ -59,10 +59,27 @@ html, body {
 }
 
 body[data-stage="ready"]  .stage--ready,
+body[data-stage="frame"]  .stage--shoot,
 body[data-stage="shoot"]  .stage--shoot,
 body[data-stage="review"] .stage--review,
 body[data-stage="pay"]    .stage--pay,
 body[data-stage="done"]   .stage--done { display: flex; }
+
+/*
+ * ขั้นจัดท่ากับขั้นถ่ายใช้แผงเดียวกัน ต่างกันแค่ของที่โผล่ทับภาพสด
+ *
+ * ปุ่มกับคำแนะนำโผล่เฉพาะตอนจัดท่า · พอเริ่มนับถอยหลังแล้วต้องหายไปทั้งคู่
+ * ไม่งั้นแขกจะกดปุ่มซ้ำตอนกล้องกำลังจะลั่น แล้วได้รูปที่ทุกคนกำลังมองมือตัวเอง
+ */
+#go,
+#frame-hint { display: none; }
+body[data-stage="frame"] #go,
+body[data-stage="frame"] #frame-hint { display: block; }
+
+#frame-hint {
+  margin: 0;
+  opacity: 0.75;
+}
 
 /* ── ฉากพร้อมเริ่ม ── */
 .event {

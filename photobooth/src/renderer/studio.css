@@ -28,7 +28,7 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 .studio-guest .error { border-radius:12px; background:#6b2436; color:#fff; padding:16px 24px; font-size:18px; }
 .studio-guest .done__qr { padding:18px; background:#fff; border-radius:20px; }
 .studio-guest .done__text { color:var(--studio-text); }
-body[data-stage="ready"] .studio-progress span:nth-child(1),body[data-stage="shoot"] .studio-progress span:nth-child(1),body[data-stage="review"] .studio-progress span:nth-child(2),body[data-stage="done"] .studio-progress span:nth-child(3) { color:var(--studio-action); }
+body[data-stage="ready"] .studio-progress span:nth-child(1),body[data-stage="frame"] .studio-progress span:nth-child(1),body[data-stage="shoot"] .studio-progress span:nth-child(1),body[data-stage="review"] .studio-progress span:nth-child(2),body[data-stage="done"] .studio-progress span:nth-child(3) { color:var(--studio-action); }
 .studio-operator { background:var(--studio-bg); color:var(--studio-text); gap:16px; padding:24px; }
 .studio-operator .bar { border-bottom:1px solid var(--studio-line); padding-bottom:16px; }
 .studio-operator .bar__title { font-size:22px; font-weight:650; }

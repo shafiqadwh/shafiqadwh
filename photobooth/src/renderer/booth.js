@@ -61,6 +61,14 @@ const say = (message) => {
 const IDLE_ACTION = {
   done: () => reset(),
   review: () => (holdingPaid() ? parkPaidRound() : reset({ discard: true })),
+  /*
+   * ยืนจัดท่าค้างไว้แล้วเดินหายไป — กลับหน้าพร้อมเอง ปิดกล้องด้วย
+   *
+   * **ตั๋วที่จ่ายมาแล้วต้องไม่หายไปกับการหมดเวลา** คนที่จ่ายแล้วเดินไปเข้าห้องน้ำ
+   * ต้องกลับมากดถ่ายต่อได้โดยไม่ต้องจ่ายซ้ำ และเจ้าของบูธไม่ต้องมานั่งกด
+   * "ไม่คิดเงิน" ให้ ซึ่งทำให้สมุดบัญชีมีรอบฟรีที่ไม่ได้ฟรีจริง
+   */
+  frame: () => reset({ keep: holdingPaid() }),
 };
 
 let idleTimer = null;
@@ -88,6 +96,30 @@ const stage = (name) => {
 function setProgress(text) {
   el('progress').textContent = text;
   say({ type: 'progress', text });
+}
+
+/**
+ * แปลข้อความของ getUserMedia เป็นสิ่งที่คนหน้าบูธ **ลงมือแก้ได้**
+ *
+ * ของเดิมโชว์ข้อความดิบว่า `Requested device not found` ซึ่งบอกอาการแต่ไม่บอก
+ * ว่าต้องทำอะไร · คนที่อ่านบรรทัดนี้กำลังยืนอยู่หน้าบูธที่มีคนต่อแถว ไม่ได้อยู่
+ * หน้าคอมพร้อมค้นอินเทอร์เน็ต — แนวเดียวกับ `explain()` ของกล้องใหญ่ใน
+ * src/main/camera.js ที่ทำแบบนี้อยู่แล้ว
+ */
+function explainCamera(error) {
+  const name = error?.name ?? '';
+  const message = error?.message ?? '';
+
+  if (name === 'NotFoundError' || /not found/i.test(message)) {
+    return 'ไม่พบเว็บแคม — เสียบเว็บแคมเข้าเครื่องแล้วกดใหม่';
+  }
+  if (name === 'NotReadableError' || /in use|busy/i.test(message)) {
+    return 'มีโปรแกรมอื่นใช้กล้องอยู่ — ปิดโปรแกรมนั้นแล้วกดใหม่';
+  }
+  if (name === 'NotAllowedError') {
+    return 'เครื่องไม่อนุญาตให้ใช้กล้อง — เปิดสิทธิ์กล้องในค่าตั้งของระบบ';
+  }
+  return `เปิดกล้องไม่ได้: ${message || 'ไม่ทราบสาเหตุ'}`;
 }
 
 function fail(message) {
@@ -284,7 +316,7 @@ async function shoot() {
      * เจ้าของบูธยกเลิกตั๋วที่ค้างได้จากปุ่มบนจอช่างภาพ (หรือปุ่มถอยบนรีโมท)
      */
     await reset({ keep: payFirst() });
-    fail(`เปิดกล้องไม่ได้: ${error.message}`);
+    fail(explainCamera(error));
     return;
   }
 
@@ -362,7 +394,33 @@ const payFirst = () => state.setup?.settings?.sale?.enabled === true
 const holdingPaid = () => Boolean(state.token && state.paidFor === state.token);
 
 /** เริ่มรอบใหม่จากหน้าพร้อมถ่าย — จ่ายมาแล้วก็ถ่ายเลย ไม่เก็บซ้ำ */
-const startRound = () => (payFirst() && !holdingPaid() ? askPayment(shoot) : shoot());
+const startRound = () => (payFirst() && !holdingPaid() ? askPayment(frame) : frame());
+
+/**
+ * จัดท่า — ภาพสดค้างไว้จนกว่าแขกจะพร้อม **ไม่มีนาฬิกาจับเวลาในขั้นนี้**
+ *
+ * เดิมกดปุ่มเดียวแล้วนับถอยหลังสามวินาทีเลย ซึ่งพอสำหรับคนเดียว แต่กลุ่มที่มา
+ * กันห้าคนจัดแถวไม่ทัน ได้รูปที่ครึ่งกลุ่มยังไม่เข้าเฟรม — เจอจริงตอนลองใช้
+ * และเป็นรูปที่ลูกค้าจ่ายเงินไปแล้ว
+ *
+ * ขั้นนี้จึงไม่เร่งอะไรเลย แขกเห็นตัวเองเต็มจอ ขยับจนพอใจ แล้วค่อยกดเอง
+ * ส่วนการนับถอยหลังยังอยู่ที่เดิม ทำหน้าที่เดิมคือบอกจังหวะกดชัตเตอร์
+ *
+ * เปิดกล้องตรงนี้ครั้งเดียวแล้วปล่อยค้างยาวไปจนจบรอบ — `openCamera()` คืนสตรีม
+ * เดิมถ้าเปิดอยู่แล้ว ขั้นถ่ายจึงไม่ต้องรู้ว่าใครเปิดไว้ก่อน และภาพไม่สะดุด
+ * ตอนเปลี่ยนขั้น
+ */
+async function frame() {
+  stage('frame');
+  setProgress('');
+  el('go-count').textContent = state.setup.shots > 1 ? `${state.setup.shots} รูป` : '';
+  try {
+    await openCamera();
+  } catch (error) {
+    await reset({ keep: payFirst() });
+    fail(explainCamera(error));
+  }
+}
 
 /**
  * ป้ายบนปุ่มแรก · เป็นที่เดียวที่เขียนป้ายนี้ จะได้ไม่มีทางขัดกับสถานะจริง
@@ -601,6 +659,8 @@ const ACTIONS = {
     // จ่ายก่อนถ่าย: ปุ่มแรกพาไปหน้าจ่ายเงิน · จ่ายทีหลัง: เริ่มถ่ายเลยเหมือนเดิม
     // ถือตั๋วที่จ่ายมาแล้วอยู่ (รอบก่อนล้ม) ก็ถ่ายเลย ไม่เก็บเงินซ้ำ
     ready: () => startRound(),
+    // ขั้นจัดท่า: ปุ่มถ่ายบนรีโมทหมายถึง "พร้อมแล้ว" เหมือนปุ่มบนจอทุกประการ
+    frame: () => shoot(),
     // ถามว่า **รอบนี้จ่ายแล้วหรือยัง** ไม่ใช่ถามว่าบูธตั้งเก็บเงินตอนไหน
     // จ่ายทีหลังที่พิมพ์ล้มไปแล้วก็อยู่ที่ขั้นนี้เหมือนกัน และจ่ายมาแล้วเช่นกัน
     review: () => (holdingPaid() ? deliver() : askPayment(deliver)),
@@ -613,6 +673,8 @@ const ACTIONS = {
     // ยกเลิกตั๋วที่จ่ายแล้วแต่ค้างอยู่ (แขกจ่ายแล้วเดินหายไป) — ทางเดียวที่ปลดได้
     // มีความหมายเฉพาะตอนถือตั๋วอยู่ ขั้นพร้อมถ่ายปกติกดแล้วไม่มีอะไรเกิดขึ้น
     ready: () => (holdingPaid() ? reset({ discard: true }) : undefined),
+    // ถอยจากขั้นจัดท่ากลับหน้าพร้อม · ตั๋วที่จ่ายแล้วยังอยู่ ไม่ต้องจ่ายซ้ำ
+    frame: () => reset({ keep: holdingPaid() }),
     // จ่ายมาแล้ว = ถ่ายใหม่ให้ · ยังไม่จ่าย = ทิ้งรอบนี้ไปเลย
     review: () => (holdingPaid() ? retake() : reset({ discard: true })),
     pay: () => reset({ discard: true }),
@@ -728,6 +790,7 @@ async function boot() {
   }
 
   el('start').addEventListener('click', () => startRound());
+  el('go').addEventListener('click', () => ACTIONS.shutter.frame());
   el('deliver').addEventListener('click', () => ACTIONS.shutter.review());
   el('pay-done').addEventListener('click', () => confirmPaid());
   el('pay-cancel').addEventListener('click', () => reset({ discard: true }));

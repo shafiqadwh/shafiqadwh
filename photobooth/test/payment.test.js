@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
 import { promptPayPayload } from '../src/core/promptpay.js';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -115,6 +116,7 @@ async function backToReady() {
 async function shootUntilPayment() {
   await backToReady();
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   await guest.locator('#deliver').click();
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
@@ -255,6 +257,7 @@ test('paying first: pressing start takes payment instead of taking photos', asyn
 
   const before = (await ledger()).length;
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
 
   // ยังไม่ได้ถ่ายอะไรเลย และยังไม่มีบรรทัดในสมุดบัญชี — แค่ยืนดูราคาอยู่
@@ -277,10 +280,11 @@ test('paying first: the money and the photos end up on the same ticket', async (
   if (skipUnlessBoth(t)) return;
 
   await guest.locator('#start').click();
+
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await operator.locator('#go').click();
-
-  // จ่ายแล้วถึงจะได้ถ่าย — ไปที่ขั้นถ่ายเอง ไม่ต้องกดซ้ำ
+  await passFraming(guest, operator);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
 
   const rows = await ledger();
@@ -324,8 +328,11 @@ test('one failed round does not take the booth down with it', async (t) => {
   await backToReady();
   const before = (await ledger()).length;
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await operator.locator('#go').click();
+  // จ่ายแล้วไปหยุดที่ขั้นจัดท่า ไม่ใช่ถ่ายเลย — ต้องมีคนกดว่าพร้อม
+  await passFraming(guest, operator);
 
   // รอจนโทเคนถูกจองแล้ว (บรรทัดในสมุดบัญชีคือสัญญาณ) แล้วค่อยทำให้เขียนไม่ได้
   let rows = await ledger();
@@ -358,6 +365,7 @@ test('one failed round does not take the booth down with it', async (t) => {
    * จนทุกรอบหลังจากนั้นล้มตามกันหมดทั้งคืน · และคนที่จ่ายมาแล้วต้องไม่จ่ายซ้ำ
    */
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   assert.equal((await ledger()).length, before + 1, 'รอบที่ล้มไปแล้วต้องไม่ถูกเก็บเงินซ้ำ');
 
@@ -381,8 +389,11 @@ test('a paid ticket left behind can be released, and then the next guest pays', 
 
   const before = (await ledger()).length;
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await operator.locator('#go').click();
+  // จ่ายแล้วไปหยุดที่ขั้นจัดท่า ไม่ใช่ถ่ายเลย — ต้องมีคนกดว่าพร้อม
+  await passFraming(guest, operator);
 
   let rows = await ledger();
   for (let i = 0; i < 200 && rows.length === before; i += 1) {
@@ -411,6 +422,8 @@ test('a paid ticket left behind can be released, and then the next guest pays', 
     'การปลดตั๋วไม่ใช่การขาย และไม่ใช่การคืนเงิน — สมุดบัญชีต้องไม่ขยับ');
 
   await guest.locator('#start').click();
+
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await operator.locator('#back').click();
   await guest.waitForSelector('body[data-stage="ready"]', { timeout: 30000 });
@@ -431,8 +444,10 @@ test('paying first: a retake is a retake, not a second sale', async (t) => {
 
   await backToReady();
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
   await operator.locator('#go').click();
+  await passFraming(guest, operator);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
 
   const rows = await ledger();
@@ -485,11 +500,14 @@ test('a printer that fails after taking the money never takes it twice', async (
 
   const before = (await ledger()).length;
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   await guest.locator('#deliver').click();
   await guest.waitForSelector('body[data-stage="pay"]', { timeout: 30000 });
 
   await operator.locator('#go').click();
+  // จ่ายแล้วไปหยุดที่ขั้นจัดท่า ไม่ใช่ถ่ายเลย — ต้องมีคนกดว่าพร้อม
+  await passFraming(guest, operator);
 
   /*
    * พิมพ์ล้ม → ต้องกลับไปหน้าดูแผ่น ไม่ใช่ค้างอยู่หน้าจ่ายเงิน
@@ -504,6 +522,7 @@ test('a printer that fails after taking the money never takes it twice', async (
 
   // กดสั่งพิมพ์ซ้ำ **ต้องไม่พาไปหน้าจ่ายเงินอีก** — รอบนี้จ่ายมาแล้ว
   await operator.locator('#go').click();
+  await passFraming(guest, operator);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   assert.equal((await ledger()).length, before + 1,
     'สั่งพิมพ์ซ้ำหลังเครื่องพิมพ์ล้ม ต้องไม่เก็บเงินเพิ่มอีกรอบ');

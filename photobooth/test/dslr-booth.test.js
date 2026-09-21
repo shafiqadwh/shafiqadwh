@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -154,6 +155,7 @@ async function shootOnce() {
     await guest.waitForSelector('body[data-stage="ready"]', { timeout: 70000 });
   }
   await guest.locator('#start').click();
+  await passFraming(guest);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 70000 });
   return (await operator.locator('#code').textContent()).match(/[0-9A-Z]{6}/)?.[0];
 }

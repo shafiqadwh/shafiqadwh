@@ -31,7 +31,15 @@
       </button>
     </section>
 
-    <!-- 2. กำลังถ่าย -->
+    <!--
+      2. จัดท่า แล้วถ่าย — **ใช้แผงเดียวกันสองขั้น**
+
+      `frame` = ภาพสดค้างไว้ให้จัดท่าได้นานเท่าที่ต้องการ มีปุ่มเริ่มถ่าย
+      `shoot` = นับถอยหลังแล้วเก็บภาพ ปุ่มหายไป
+
+      ใช้แผงเดียวกันเพราะ **ภาพสดต้องไม่กระตุกตอนเปลี่ยนขั้น** — วิดีโอคนละ
+      element แปลว่าสตรีมต้องย้ายที่ แล้วภาพจะสะดุดตรงจังหวะที่แขกเพิ่งจัดท่าเสร็จ
+    -->
     <section class="stage stage--shoot" data-stage-panel="shoot">
       <div class="viewfinder">
         <video id="preview" autoplay playsinline muted></video>
@@ -39,6 +47,11 @@
         <div class="flash" id="flash" aria-hidden="true"></div>
       </div>
       <p class="progress" id="progress"></p>
+      <p class="frame-hint" id="frame-hint">จัดท่าให้พอดีจอ แล้วกดเริ่มถ่าย</p>
+      <button class="big" id="go" type="button">
+        <span>เริ่มถ่าย</span>
+        <small id="go-count"></small>
+      </button>
     </section>
 
     <!-- 3. ดูแผ่นที่ได้ -->

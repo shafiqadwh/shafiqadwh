@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -123,6 +124,8 @@ test('the photographer screen follows the guest screen, stage by stage', async (
   assert.equal(await operator.getAttribute('body', 'data-stage'), 'ready');
 
   await guest.locator('#start').click();
+
+  await passFraming(guest);
   await operator.waitForSelector('body[data-stage="shoot"]', { timeout: 10000 });
   assert.equal((await operator.locator('#stage-label').textContent()).trim(), 'กำลังถ่าย');
 
@@ -144,6 +147,7 @@ test('the photographer can drive the whole take without touching the guest scree
   // ปุ่มเดียวกันทำงานต่างกันตามขั้น — เหมือนปุ่มใหญ่ตรงหน้าแขก ณ ตอนนั้น
   assert.equal((await operator.locator('#go').textContent()).trim(), 'เริ่มถ่าย');
   await operator.locator('#go').click();
+  await passFraming(guest, operator);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
 
   assert.equal((await operator.locator('#go').textContent()).trim(), 'พิมพ์');
@@ -169,6 +173,7 @@ test('the photographer can throw a take away from the back screen', async (t) =>
   const before = (await fs.readdir(sessions)).length;
 
   await operator.locator('#go').click();
+  await passFraming(guest, operator);
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
   assert.equal((await fs.readdir(sessions)).length, before + 1);
 
@@ -189,6 +194,13 @@ test('a shutter remote is just a keyboard, and the booth answers it', async (t) 
 
   // รีโมททั้งแบบสายและบลูทูธประกาศตัวเป็นคีย์บอร์ด — กดแล้วส่งปุ่มเดียวออกมา
   // ตรงนี้จึงจำลองด้วยการกดปุ่มจริงใส่หน้าต่าง ซึ่งเป็นเส้นทางเดียวกันทุกขั้น
+  // กดครั้งแรก = "พร้อมแล้ว" พาไปขั้นจัดท่า · กดครั้งที่สอง = เริ่มนับถอยหลัง
+  // รีโมทอยู่ในมือช่างภาพ ซึ่งเป็นคนที่เห็นว่ากลุ่มจัดแถวเสร็จหรือยัง
+  await guest.keyboard.press('PageDown');
+  await guest.waitForSelector('body[data-stage="frame"]', { timeout: 10000 });
+  // ตัวกันปุ่มเด้งทิ้งการกดซ้ำภายใน 350 มิลลิวินาที (ดู createRemote ใน core/keys.js)
+  // ซึ่งถูกแล้ว — คนจริงกดครั้งที่สองหลังจัดท่าเสร็จ ไม่ใช่ในเสี้ยววินาทีเดียวกัน
+  await guest.waitForTimeout(400);
   await guest.keyboard.press('PageDown');
   await guest.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
 

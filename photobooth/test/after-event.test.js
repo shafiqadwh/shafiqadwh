@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { saveSettings } from '../src/main/settings.js';
 import { spawn } from 'node:child_process';
+import { passFraming } from './helpers/booth.js';
 import { electronBinary, skipOrFail } from './helpers/electron.js';
 import { startDisplay } from './helpers/display.js';
 
@@ -138,6 +139,8 @@ test('printing at the tent sends nothing — the guest leaves with a QR pointing
     if (skipUnlessReady(t)) return;
 
     await guest.locator('#start').click();
+
+    await passFraming(guest);
     await guest.waitForSelector('body[data-stage="review"]', { timeout: 60000 });
     const code = (await guest.locator('#token').textContent()).replace('รหัส', '').trim();
     assert.match(code, /^[0-9A-Z]{6}$/);
