@@ -192,6 +192,25 @@ cd photobooth && npm run install:electron && cd ..
 npx playwright install-deps chromium
 ```
 
+### สิทธิ์ของ chrome-sandbox — ไม่ตั้งแล้วบูธไม่เปิดเลย
+
+`npm ci` ลงไฟล์ `chrome-sandbox` มาเป็นของผู้ใช้ธรรมดา แล้ว Electron **ปฏิเสธ
+ที่จะเปิด** พร้อมข้อความว่า `The SUID sandbox helper binary was found, but is
+not configured correctly` — ไม่ใช่คำเตือน แต่คือจบเลย
+
+```sh
+sudo chown root:root photobooth/node_modules/electron/dist/chrome-sandbox
+```
+```sh
+sudo chmod 4755 photobooth/node_modules/electron/dist/chrome-sandbox
+```
+
+`install-ubuntu.sh` ทำให้เองแล้ว · **ต้องทำใหม่ทุกครั้งที่ `npm ci` ใหม่**
+เพราะมันลบ `node_modules` ทิ้งแล้วลงใหม่ทั้งก้อน — รันสคริปต์ซ้ำก็จบ
+
+อย่าแก้ด้วยการเติม `--no-sandbox` · sandbox คือชั้นที่กันหน้าเว็บไม่ให้แตะระบบ
+การปิดเกราะทั้งเครื่องเพื่อประหยัดสองบรรทัดนี้ไม่คุ้มกัน
+
 ---
 
 ## 4. ตั้งค่า `.env` ของเว็บ

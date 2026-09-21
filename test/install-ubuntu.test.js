@@ -87,13 +87,29 @@ exit 0`);
   run) mkdir -p node_modules/electron/dist
        echo electron > node_modules/electron/path.txt
        printf '#!/bin/sh\\n' > node_modules/electron/dist/electron
-       chmod +x node_modules/electron/dist/electron ;;
+       chmod +x node_modules/electron/dist/electron
+       : > node_modules/electron/dist/chrome-sandbox ;;
 esac
 exit 0`);
   await fake('node', `[ "$1" = "--version" ] && echo "${nodeVersion}"; exit 0`);
   await fake('node22', '[ "$1" = "--version" ] && echo v22.11.0; exit 0');
   await fake('ip', 'echo "1.1.1.1 via 10.0.0.1 dev eth0 src 192.168.2.10 uid 1000"');
   await fake('id', 'echo 1000');            // ไม่ใช่ root
+
+  // เทสต์รันเป็นผู้ใช้ธรรมดา chown เป็น root จริงไม่ได้ · stat/chown/chmod ปลอม
+  // จำสถานะไว้ในไฟล์ marker แทน เพื่อให้ตรวจได้ว่าสคริปต์ "ลงมือแก้จริงไหม"
+  await fake('stat', `case "$1" in
+  -c) case "$2" in
+        %U) cat "${dir}/sandbox.owner" 2>/dev/null || echo shafiq ;;
+        %a) cat "${dir}/sandbox.mode" 2>/dev/null || echo 755 ;;
+      esac ;;
+esac
+exit 0`);
+  await fake('chown', `echo root > "${dir}/sandbox.owner"`);
+  // chmod ปลอมต้อง **ส่งต่อให้ตัวจริง** ด้วย ไม่งั้นมันไปกิน `chmod +x` ที่ npm
+  // ปลอมใช้ตั้งไบนารี Electron แล้วขั้นตรวจผลจะล้มด้วยเหตุผลที่ไม่เกี่ยวกัน
+  await fake('chmod', `[ "$1" = "4755" ] && echo 4755 > "${dir}/sandbox.mode"
+exec /usr/bin/chmod "$@"`);
 
   return { dir, log, bin };
 }
@@ -188,6 +204,27 @@ test('a key that really is unusable is still caught, and says what it saw', asyn
     assert.match(String(error.stdout), /BOOTH_KEY ใช้ไม่ได้: ยาว \d+ ตัว/);
     return true;
   });
+});
+
+test('the Electron sandbox binary is given the permissions or the booth will not open', async () => {
+  // Electron **ปฏิเสธที่จะเปิดเลย** ถ้า chrome-sandbox ไม่ใช่ของ root + 4755
+  // เจอจริงบนเครื่องจริง · เทสต์ที่ขับ Electron ไม่เคยเจอเพราะใช้ --no-sandbox
+  const project = await makeProject();
+  await install(project);
+
+  const log = await calls(project.log);
+  assert.match(log, /chown root:root .*chrome-sandbox/);
+  assert.match(log, /chmod 4755 .*chrome-sandbox/);
+});
+
+test('permissions already correct are left alone, so re-running stays quick', async () => {
+  const project = await makeProject();
+  await fs.writeFile(path.join(project.dir, 'sandbox.owner'), 'root\n');
+  await fs.writeFile(path.join(project.dir, 'sandbox.mode'), '4755\n');
+  await install(project);
+
+  const log = await calls(project.log);
+  assert.ok(!log.includes('chown'), 'ตั้งสิทธิ์ซ้ำทั้งที่ถูกอยู่แล้ว');
 });
 
 test('an .env that already exists is never overwritten', async () => {

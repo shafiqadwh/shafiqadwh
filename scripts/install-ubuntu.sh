@@ -120,6 +120,28 @@ install_deps photobooth "บูธ"
 say "โหลดตัวโปรแกรม Electron (ข้ามเองถ้ามีแล้ว)"
 (cd photobooth && npm run --silent install:electron)
 
+# ตัวคุมสิทธิ์ของ Chromium ต้องเป็นของ root และมีบิต setuid
+#
+# `npm ci` ลงไฟล์นี้มาเป็นของผู้ใช้ธรรมดา แล้ว Electron **ปฏิเสธที่จะเปิด** พร้อม
+# ข้อความยาวเรื่อง `chrome-sandbox ... mode 4755` — ไม่ใช่คำเตือน แต่คือจบเลย
+# เจอจริงบนเครื่องจริงตอนเปิดบูธครั้งแรก · เทสต์ไม่เคยเจอเพราะมันเปิด Electron
+# ด้วย `--no-sandbox` ซึ่งเป็นเส้นทางคนละเส้นกับที่ผู้ใช้เดินจริง
+#
+# เลือกตั้งสิทธิ์ให้ถูก **ไม่ใช่เติม --no-sandbox** เพราะ sandbox คือชั้นที่กัน
+# หน้าเว็บไม่ให้แตะระบบ · บูธเปิดหน้าเว็บของตัวเองก็จริง แต่ปิดเกราะทิ้งทั้งเครื่อง
+# เพื่อประหยัดสองบรรทัดนี้ไม่คุ้มกัน
+#
+# ต้องทำใหม่ทุกครั้งที่ node_modules ถูกลงใหม่ (npm ci ลบทิ้งแล้วลงใหม่ทั้งก้อน)
+# จึงอยู่ตรงนี้ ไม่ใช่ให้คนไปจำเอง
+SANDBOX="photobooth/node_modules/electron/dist/chrome-sandbox"
+if [ -f "$SANDBOX" ] \
+  && { [ "$(stat -c '%U' "$SANDBOX" 2>/dev/null)" != "root" ] \
+    || [ "$(stat -c '%a' "$SANDBOX" 2>/dev/null)" != "4755" ]; }; then
+  say "ตั้งสิทธิ์ chrome-sandbox ของ Electron"
+  sudo chown root:root "$SANDBOX"
+  sudo chmod 4755 "$SANDBOX"
+fi
+
 # ── 4. .env ───────────────────────────────────────────────────────────────
 
 lan_ip() {
@@ -176,11 +198,18 @@ electron_ok() {
   name="$(cat photobooth/node_modules/electron/path.txt 2>/dev/null || echo '')"
   [ -n "$name" ] && [ -x "photobooth/node_modules/electron/dist/$name" ]
 }
+# ไม่ใช่ความเรียบร้อย — ผิดเมื่อไรบูธไม่เปิดเลย
+sandbox_ok() {
+  [ ! -f "$SANDBOX" ] && return 1
+  [ "$(stat -c '%U' "$SANDBOX" 2>/dev/null)" = "root" ] \
+    && [ "$(stat -c '%a' "$SANDBOX" 2>/dev/null)" = "4755" ]
+}
 
 check "Node $(node --version 2>/dev/null || echo 'ไม่มี')" node_ok
 check "dependencies ของเว็บ" test -d node_modules
 check "dependencies ของบูธ" test -d photobooth/node_modules
 check "ตัวโปรแกรม Electron" electron_ok
+check "สิทธิ์ chrome-sandbox (ไม่ถูกต้อง = บูธไม่เปิด)" sandbox_ok
 check "BASE_URL ตั้งแล้ว" grep -q '^BASE_URL=http' .env
 
 # กุญแจบูธมีสามสถานะ ไม่ใช่สองสถานะ
