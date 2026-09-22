@@ -70,16 +70,29 @@ async function harness() {
   };
 }
 
-test('15 seconds framing precedes 3 second countdown; stream survives review and next round', async () => {
+/*
+ * เวลาคิดจากค่าตั้ง ไม่ใช่เลขที่พิมพ์ทิ้งไว้
+ *
+ * ข้อนี้ถามว่า **จัดท่ามาก่อน แล้วค่อยนับถอยหลัง แล้วจึงลั่นชัตเตอร์** ซึ่งเป็น
+ * ลำดับที่ต้องจริงไม่ว่าจะตั้งกี่วินาที · ฝังเลข 15 กับ 18 ไว้แล้ววันหนึ่งมีคน
+ * เปลี่ยนค่าเริ่มต้น เทสต์จะล้มพร้อมตัวเลขที่ไม่มีอะไรบอกว่าผิดตรงไหน
+ */
+const FRAME_MS = DEFAULTS.frameSeconds * 1000;
+const COUNT_MS = DEFAULTS.countdownSeconds * 1000;
+// เว้นจังหวะให้แขกเปลี่ยนท่าระหว่างรูป — ค่าเดียวกับใน shoot()
+const BETWEEN_MS = 900;
+
+test('framing comes first, the countdown second; the stream survives review and the next round', async () => {
   const app = await harness();
   await app.run('startRound()');
-  await app.tick(14999);
+  await app.tick(FRAME_MS - 1);
   assert.equal(app.body.dataset.stage, 'frame');
-  assert.deepEqual(app.captures, []);
-  await app.tick(3001);
-  assert.deepEqual(app.captures, [18000]);
-  await app.tick(3900);
-  assert.deepEqual(app.captures, [18000, 21900]);
+  assert.deepEqual(app.captures, [], 'ยังไม่ครบเวลาจัดท่า ต้องยังไม่ลั่นชัตเตอร์');
+  await app.tick(COUNT_MS + 1);
+  assert.deepEqual(app.captures, [FRAME_MS + COUNT_MS]);
+  await app.tick(COUNT_MS + BETWEEN_MS);
+  assert.deepEqual(app.captures,
+    [FRAME_MS + COUNT_MS, FRAME_MS + COUNT_MS * 2 + BETWEEN_MS]);
   assert.equal(app.body.dataset.stage, 'review');
   assert.equal(app.stops(), 0);
   await app.run('reset()');
@@ -93,7 +106,7 @@ test('cancel stops framing timer; disconnected stream reconnects on next attempt
   const app = await harness();
   await app.run('startRound()');
   await app.run("act('back')");
-  await app.tick(20000);
+  await app.tick(FRAME_MS + COUNT_MS + 2000);
   assert.equal(app.body.dataset.stage, 'ready');
   assert.deepEqual(app.captures, []);
   assert.equal(app.stops(), 0);
@@ -107,7 +120,7 @@ test('signal loss during countdown returns safely; paid retake includes framing'
   await app.run('startRound()');
   await app.run("act('shutter')");
   app.tracks[0].readyState = 'ended';
-  await app.tick(3000);
+  await app.tick(COUNT_MS);
   assert.equal(app.body.dataset.stage, 'ready');
   assert.deepEqual(app.captures, []);
   await app.run("state.token = 'paid'; state.paidFor = 'paid'; stage('review'); retake()");
