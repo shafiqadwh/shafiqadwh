@@ -149,8 +149,22 @@ async function guard(work) {
 
 // ── กล้อง ────────────────────────────────────────────────────────────────
 
-async function openCamera() {
-  if (state.stream) return state.stream;
+let cameraOpening = null;
+let frameRun = 0;
+
+function openCamera() {
+  if (!cameraOpening) {
+    cameraOpening = connectCamera().finally(() => { cameraOpening = null; });
+  }
+  return cameraOpening;
+}
+
+async function connectCamera() {
+  if (state.stream?.getVideoTracks().some((track) => track.readyState === 'live')) {
+    await el('preview').play();
+    return state.stream;
+  }
+  closeCamera();
   state.stream = await navigator.mediaDevices.getUserMedia({
     // ขอความละเอียดสูงไว้ก่อน เบราว์เซอร์จะลดให้เองถ้ากล้องทำไม่ได้ · รูปที่ไป
     // พิมพ์ที่ 300 dpi ต้องการพิกเซลจริง ย่อจากกล้องเล็กแล้วขยายไม่ได้
@@ -160,6 +174,10 @@ async function openCamera() {
   const video = el('preview');
   video.srcObject = state.stream;
   await video.play();
+  if (!video.videoWidth || !video.videoHeight) {
+    closeCamera();
+    throw new Error('ยังไม่มีภาพจากกล้อง — ตรวจสาย HDMI และเปิด Live View แล้วลองใหม่');
+  }
   return state.stream;
 }
 
@@ -209,6 +227,10 @@ function stopRelay() {
  */
 function grabFrame({ mirror = true } = {}) {
   const video = el('preview');
+  if (!state.stream?.getVideoTracks().some((track) => track.readyState === 'live')
+      || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+    throw new Error('สัญญาณกล้องขาด — ตรวจสายและเปิด Live View แล้วลองใหม่');
+  }
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -312,8 +334,7 @@ async function shoot() {
     return;
   }
 
-  // ปิดกล้องให้ได้ทุกทางออก — หลุดไปทางไหนก็ตามแล้วไฟกล้องยังติดค้าง แขกคนถัดไป
-  // จะเห็นว่ากล้องเปิดอยู่ทั้งที่หน้าจอกลับไปหน้าเริ่มแล้ว
+  // Keep the capture device connected between rounds; only the operator relay stops.
   startRelay();
   try {
     for (let i = 1; i <= needed; i += 1) {
@@ -330,9 +351,12 @@ async function shoot() {
       // เว้นจังหวะให้แขกเปลี่ยนท่า ไม่ใช่รัวติดกันจนได้สามรูปท่าเดียวกัน
       if (i < needed) await wait(900);
     }
+  } catch (error) {
+    await reset({ keep: holdingPaid() });
+    fail(error?.message ?? 'ถ่ายภาพไม่สำเร็จ');
+    return;
   } finally {
     stopRelay();
-    closeCamera();
   }
   setProgress('กำลังประกอบแผ่น…');
 
@@ -403,18 +427,25 @@ const startRound = () => (payFirst() && !holdingPaid() ? askPayment(frame) : fra
  * ตอนเปลี่ยนขั้น
  */
 async function frame() {
+  if (['frame', 'shoot'].includes(body.dataset.stage)) return;
+  const run = ++frameRun;
   stage('frame');
+  el('go').disabled = true;
   setProgress('');
   el('go-count').textContent = state.setup.shots > 1 ? `${state.setup.shots} รูป` : '';
 
   try {
     await openCamera();
   } catch (error) {
+    if (run !== frameRun) return;
     await reset({ keep: payFirst() });
     fail(explainCamera(error));
     return;
   }
 
+  if (run !== frameRun || body.dataset.stage !== 'frame') return;
+  el('go').disabled = false;
+  startRelay();
   startFrameClock();
 }
 
@@ -437,7 +468,7 @@ function stopFrameClock() {
 
 function startFrameClock() {
   stopFrameClock();
-  let left = state.setup.frameSeconds;
+  let left = state.setup.frameSeconds ?? 15;
   el('frame-left').textContent = String(left);
 
   frameTimer = setInterval(() => {
@@ -599,6 +630,10 @@ async function deliver() {
  * อัปโหลดหลังงาน รอบที่แขกตั้งใจทิ้งจะขึ้นไปปนกับรอบที่เขาเลือกเอา
  */
 async function reset({ discard = false, keep = false } = {}) {
+  frameRun += 1;
+  stopFrameClock();
+  stopRelay();
+  el('count').textContent = '';
   const token = state.token;
   state.shots = [];
   // `keep` = ถือตั๋วที่จ่ายมาแล้วต่อไว้ที่หน้าพร้อมถ่าย (รอบล้มหลังรับเงิน)
@@ -657,7 +692,7 @@ async function clearForRetake() {
 async function retake() {
   if (!state.token) return reset({ discard: true });
   if (!await clearForRetake()) return undefined;
-  return shoot();
+  return frame();
 }
 
 /**
@@ -693,7 +728,11 @@ const ACTIONS = {
     // ถือตั๋วที่จ่ายมาแล้วอยู่ (รอบก่อนล้ม) ก็ถ่ายเลย ไม่เก็บเงินซ้ำ
     ready: () => startRound(),
     // ขั้นจัดท่า: ปุ่มถ่ายบนรีโมทหมายถึง "พร้อมแล้ว" เหมือนปุ่มบนจอทุกประการ
-    frame: () => { stopFrameClock(); return shoot(); },
+    frame: () => {
+      if (el('go').disabled || body.dataset.stage !== 'frame') return;
+      stopFrameClock();
+      return shoot();
+    },
     // ถามว่า **รอบนี้จ่ายแล้วหรือยัง** ไม่ใช่ถามว่าบูธตั้งเก็บเงินตอนไหน
     // จ่ายทีหลังที่พิมพ์ล้มไปแล้วก็อยู่ที่ขั้นนี้เหมือนกัน และจ่ายมาแล้วเช่นกัน
     review: () => (holdingPaid() ? deliver() : askPayment(deliver)),
@@ -823,7 +862,8 @@ async function boot() {
   }
 
   el('start').addEventListener('click', () => startRound());
-  el('go').addEventListener('click', () => ACTIONS.shutter.frame());
+  el('go').addEventListener('click', () => act('shutter'));
+  el('frame-back').addEventListener('click', () => act('back'));
   el('deliver').addEventListener('click', () => ACTIONS.shutter.review());
   el('pay-done').addEventListener('click', () => confirmPaid());
   el('pay-cancel').addEventListener('click', () => reset({ discard: true }));
@@ -864,5 +904,11 @@ async function boot() {
   stage('ready');
   document.body.dataset.ready = '1';
 }
+
+window.addEventListener('beforeunload', () => {
+  stopFrameClock();
+  stopRelay();
+  closeCamera();
+});
 
 boot();

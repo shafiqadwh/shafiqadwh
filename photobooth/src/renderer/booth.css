@@ -204,7 +204,7 @@ body[data-busy] .chip { opacity: 0.5; pointer-events: none; }
 #preview {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   /* จอทำตัวเป็นกระจก — คนยกมือขวาแล้วเห็นเงายกมือฝั่งเดียวกัน ไม่งั้นขยับตัวไม่ถูก
      รูปที่เก็บก็พลิกตามใน grabFrame() ให้ตรงกับที่เห็น */
   transform: scaleX(-1);

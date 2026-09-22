@@ -64,8 +64,8 @@ function paintStage(stage) {
   // ขั้นเก็บเงินก็มีแผ่นให้ทิ้งเหมือนกัน (แขกเปลี่ยนใจไม่เอาแล้ว)
   // และตอนถือตั๋วที่จ่ายแล้วค้างอยู่ — เป็นทางเดียวที่ปลดตั๋วนั้นได้ (แขกจ่ายแล้วเดินหาย)
   const holding = stage === 'ready' && state.held;
-  el('back').hidden = !(holding || ['review', 'pay'].includes(stage));
-  el('back').textContent = holding ? 'ยกเลิกตั๋วที่จ่ายแล้ว' : 'ถ่ายใหม่';
+  el('back').hidden = !(holding || ['frame', 'review', 'pay'].includes(stage));
+  el('back').textContent = stage === 'frame' ? 'กลับ' : holding ? 'ยกเลิกตั๋วที่จ่ายแล้ว' : 'ถ่ายใหม่';
   el('pay').hidden = stage !== 'pay';
   // บันทึกค่าตั้งแล้วจอบูธโหลดใหม่ — กลางรอบถ่ายคือทิ้งรอบของแขกที่ยืนอยู่ตรงนั้น
   el('setup').disabled = stage !== 'ready';
