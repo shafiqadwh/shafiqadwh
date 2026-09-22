@@ -139,15 +139,22 @@ test('the booth keeps the screen awake by itself', async (t) => {
 test('the effect chips come from the settings, not from all seven', async (t) => {
   if (skipIfNoElectron(t)) return;
 
-  const chips = await page.locator('.chip').allTextContents();
-  assert.equal(chips.length, 3, 'ค่าเริ่มต้นให้เลือกสามแบบ');
+  /*
+   * ถามเฉพาะปุ่มใน **กล่องเอฟเฟค** ไม่ใช่ `.chip` ทั้งหน้า
+   *
+   * `.chip` เป็นแค่ชื่อหน้าตา ปุ่มอื่นในจอยืมไปใช้ได้และควรยืมได้ · เทสต์ที่ถาม
+   * ทั้งหน้าจะล้มทันทีที่มีใครเพิ่มปุ่มหน้าตาแบบเดียวกันที่ฉากอื่น ซึ่งเกิดขึ้นจริง
+   * มาแล้วกับปุ่ม "กลับ" บนขั้นจัดท่า — ล้มโดยที่ตัวเอฟเฟคไม่ได้เสียอะไรเลย
+   */
+  const chips = page.locator('#effects .chip');
+  assert.equal((await chips.allTextContents()).length, 3, 'ค่าเริ่มต้นให้เลือกสามแบบ');
 
   // ปุ่มแรกถูกเลือกไว้ให้ตั้งแต่ต้น — แขกที่ไม่เลือกอะไรเลยต้องถ่ายได้ทันที
-  assert.equal(await page.locator('.chip[aria-checked="true"]').count(), 1);
+  assert.equal(await page.locator('#effects .chip[aria-checked="true"]').count(), 1);
 
-  await page.locator('.chip').nth(1).click();
-  assert.equal(await page.locator('.chip').nth(1).getAttribute('aria-checked'), 'true');
-  assert.equal(await page.locator('.chip').nth(0).getAttribute('aria-checked'), 'false');
+  await chips.nth(1).click();
+  assert.equal(await chips.nth(1).getAttribute('aria-checked'), 'true');
+  assert.equal(await chips.nth(0).getAttribute('aria-checked'), 'false');
 });
 
 test('pressing start really takes photos and builds a sheet', async (t) => {
